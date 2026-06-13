@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# ============================================================================
+# start.sh — ROOT launcher: boot the WHOLE Flowork stack with ONE command.
+#
+#   ./start.sh
+#
+# What it does:
+#   1. Router  (:2402) — your sovereign LLM gateway (build-on-first-run).
+#   2. Agent   (:1987) — the AI-agent engine + web control panel.
+#
+# The agent boots its TRIGGER + SCHEDULE engine automatically on startup, so
+# once it's up, all your schedules & triggers (and the YouTube watcher, if
+# connected) run on their own — nothing else to start.
+#
+# Both sub-launchers build their Go binary on first run (or when source is
+# newer) and daemonize (PID + log files), so this script returns once the
+# stack is live. Re-running is safe: an already-running service is left alone.
+#
+# Open the panel:  http://127.0.0.1:1987
+# Stop everything: ./stop.sh
+# ============================================================================
+set -uo pipefail
+
+# --pause keeps the terminal open at the end (used by start.desktop so the
+# window doesn't vanish before you can read build output / errors).
+PAUSE=0
+[ "${1:-}" = "--pause" ] && { PAUSE=1; shift; }
+trap '[ "$PAUSE" = "1" ] && { printf "\n[Enter to close] "; read -r _; }' EXIT
+
+ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
+c_ok()   { printf '\e[32m%s\e[0m\n' "$*"; }
+c_info() { printf '\e[36m%s\e[0m\n' "$*"; }
+c_warn() { printf '\e[33m%s\e[0m\n' "$*"; }
+c_err()  { printf '\e[31m%s\e[0m\n' "$*"; }
+
+c_info "⚡ Flowork — starting the full stack…"
+echo
+
+# port_up PORT — true if something is already listening on 127.0.0.1:PORT.
+# Makes this launcher idempotent: a service already up is left alone (no
+# rebuild, no duplicate, no port-bind error). Falls back to /dev/tcp if no ss.
+port_up() {
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | grep -qE "[:.]$1[[:space:]]"
+  else
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && { exec 3>&-; return 0; } || return 1
+  fi
+}
+
+# 1) Router first — the agent routes its LLM calls through it (:2402).
+if port_up 2402; then
+  c_warn "→ Router  (:2402) already running — skip"
+elif [ -x "$ROOT/router/start.sh" ]; then
+  c_info "→ Router  (:2402)…"
+  ( cd "$ROOT/router" && ./start.sh ) ; rc=$?
+  [ "$rc" = "1" ] && c_err "  router start failed — check router/ log"
+else
+  c_warn "→ router/start.sh not found — skipping router"
+fi
+echo
+
+# 2) Agent — boots the trigger + schedule engine automatically (:1987).
+if port_up 1987; then
+  c_warn "→ Agent   (:1987) already running — skip"
+elif [ -x "$ROOT/agent/start.sh" ]; then
+  c_info "→ Agent   (:1987) — trigger & schedule engine auto-start…"
+  ( cd "$ROOT/agent" && ./start.sh ) ; rc=$?
+  [ "$rc" = "1" ] && { c_err "  agent start failed — check agent/ log"; exit 1; }
+else
+  c_err "→ agent/start.sh not found — cannot start Flowork"; exit 1
+fi
+
+echo
+c_ok  "✅ Flowork is live:"
+c_ok  "   Control panel →  http://127.0.0.1:1987"
+c_ok  "   LLM router    →  http://127.0.0.1:2402/v1"
+c_info "   Schedules & triggers run automatically inside the agent."
+c_info "   Stop everything:  ./stop.sh"

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Flowork — Start
+GenericName=Sovereign AI-agent OS
+Comment=Boot the full Flowork stack (router + agent); schedules & triggers run automatically
+# Portable: %k = this .desktop file's own path, so it finds start.sh next to it
+# regardless of where the repo lives. Keep this file in the repo root.
+Exec=bash -c 'p="%k"; p="${p#file://}"; cd "$(dirname "$p")" && exec ./start.sh --pause'
+Path=
+Icon=agent/img/cover.png
+Terminal=true
+Categories=Development;Utility;
+Keywords=flowork;ai;agent;router;llm;
+StartupNotify=true

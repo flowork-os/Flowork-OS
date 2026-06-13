@@ -367,7 +367,18 @@ Grab the latest from **[Releases](../../releases/latest)**:
 
 ## 🚀 Quick Start
 
-**Run on your current OS (no reboot):**
+**Run from source (this repo) — one command:**
+```sh
+git clone https://github.com/flowork-os/Flowork-OS.git
+cd Flowork-OS
+./start.sh        # builds router + agent on first run, then starts both
+# → Panel  http://127.0.0.1:1987   ·   Router  http://127.0.0.1:2402/v1
+# Schedules & triggers boot automatically inside the agent. Stop: ./stop.sh
+```
+*Needs Go 1.25+. Desktop users can double-click `start.desktop` instead. First run
+compiles the pure-Go binaries (no Docker, no DB server); later runs reuse them.*
+
+**Run on your current OS from the portable bundle (no Go, no build):**
 ```sh
 # unzip flowork-portable.zip, then:
 #   Windows : double-click Start-Flowork.bat
