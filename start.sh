@@ -27,7 +27,7 @@ PAUSE=0
 [ "${1:-}" = "--pause" ] && { PAUSE=1; shift; }
 trap '[ "$PAUSE" = "1" ] && { printf "\n[Enter to close] "; read -r _; }' EXIT
 
-ROOT="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+ROOT="$(cd "$(dirname "$0")" && pwd)"   # portable (no readlink -f → works on macOS too)
 
 c_ok()   { printf '\e[32m%s\e[0m\n' "$*"; }
 c_info() { printf '\e[36m%s\e[0m\n' "$*"; }
