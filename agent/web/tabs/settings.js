@@ -68,21 +68,56 @@ const CSS = `
 .set-preset:hover { background:rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.55); }
 .set-preset.set-on { background:rgba(34,197,94,0.14); border-color:rgba(34,197,94,0.4); color:#86efac; }
 .set-hint { font-size:0.74rem; color:var(--text-muted); margin:-4px 0 8px; }
+/* Guided API-key rows: every provider shown with status + how-to + inline edit. */
+.set-list li.set-keyrow { display:block; padding:9px 11px; border:1px solid rgba(148,163,184,0.14);
+  border-radius:9px; margin-bottom:7px; background:rgba(148,163,184,0.04); }
+.set-keyhead { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.set-keyenv { font-size:0.72rem; opacity:0.65; }
+.set-changeme { font-size:0.7rem; font-weight:600; color:#fbbf24; background:rgba(251,191,36,0.12);
+  padding:2px 8px; border-radius:999px; white-space:nowrap; }
+.set-keyhint { font-size:0.74rem; color:var(--text-muted); margin:5px 0 7px; line-height:1.45; }
+.set-keyhint a { color:#a78bfa; text-decoration:none; white-space:nowrap; }
+.set-keyhint a:hover { text-decoration:underline; }
+.set-keyact { display:flex; gap:6px; align-items:center; }
+.set-keyin { flex:1; min-width:0; }
+.set-keysave { background:rgba(139,92,246,0.18); border:1px solid rgba(139,92,246,0.4); color:#c4b5fd;
+  border-radius:7px; padding:5px 12px; cursor:pointer; font-size:0.8rem; white-space:nowrap; }
+.set-keysave:hover { background:rgba(139,92,246,0.3); }
 `;
 
 // Known integration keys — friendly platform label → env var name. Clicking a
 // chip pre-fills the exact variable name so owners never have to guess it.
 // Service names are proper nouns (kept verbatim); instructional text is i18n.
+// Known integrations. `hint` + `url` make the keys page self-explanatory for
+// non-developers: what the key is for, and exactly where to get it.
 const KEY_PRESETS = [
-  { label: 'Dev.to',         key: 'DEVTO_API_KEY' },
-  { label: 'X · auth_token', key: 'X_AUTH_TOKEN' },
-  { label: 'X · ct0',        key: 'X_CT0' },
-  { label: 'Facebook · Page ID',    key: 'FB_PAGE_ID' },    // Graph API: a Facebook PAGE you admin
-  { label: 'Facebook · Page token', key: 'FB_PAGE_TOKEN' }, // long-lived Page access token
-  { label: 'LinkedIn',       key: 'LINKEDIN_COOKIE' },
-  { label: 'Telegram bot',   key: 'TELEGRAM_BOT_TOKEN' },
-  { label: 'FLOWORK_OS group id', key: 'FWOS_CHAT_ID' },
-  { label: 'FLOWORK_OS bot',      key: 'FWOS_BOT_TOKEN' },
+  { label: 'Dev.to', key: 'DEVTO_API_KEY',
+    hint: 'Publish articles to Dev.to. Get a key: Dev.to → Settings → Extensions → "Generate API Key".',
+    url: 'https://dev.to/settings/extensions' },
+  { label: 'X · auth_token', key: 'X_AUTH_TOKEN',
+    hint: 'Post to X/Twitter (cookie auth). In a logged-in X tab: DevTools (F12) → Application → Cookies → copy the "auth_token" value.',
+    url: 'https://x.com' },
+  { label: 'X · ct0', key: 'X_CT0',
+    hint: 'X/Twitter CSRF cookie, paired with auth_token. Same place: copy the "ct0" cookie value.',
+    url: 'https://x.com' },
+  { label: 'Facebook · Page ID', key: 'FB_PAGE_ID',
+    hint: 'The numeric ID of a Facebook Page you manage. Open your Page → About → "Page transparency" → Page ID.',
+    url: 'https://www.facebook.com' },
+  { label: 'Facebook · Page token', key: 'FB_PAGE_TOKEN',
+    hint: 'Long-lived Page access token. Get it from the Meta Graph API Explorer with the pages_manage_posts permission.',
+    url: 'https://developers.facebook.com/tools/explorer/' },
+  { label: 'LinkedIn', key: 'LINKEDIN_COOKIE',
+    hint: 'LinkedIn session cookie for posting. In a logged-in tab: DevTools (F12) → Application → Cookies → copy "li_at".',
+    url: 'https://www.linkedin.com' },
+  { label: 'Telegram bot', key: 'TELEGRAM_BOT_TOKEN',
+    hint: 'Token for your own Telegram bot. Chat with @BotFather → send /newbot → copy the token it gives you.',
+    url: 'https://t.me/BotFather' },
+  { label: 'FLOWORK_OS group id', key: 'FWOS_CHAT_ID',
+    hint: 'The chat/group ID where promo posts are sent. Add @userinfobot to the group to read its ID (starts with -100…).',
+    url: 'https://t.me/userinfobot' },
+  { label: 'FLOWORK_OS bot', key: 'FWOS_BOT_TOKEN',
+    hint: 'Bot token used for FLOWORK_OS group posts. Create it via @BotFather the same way as the Telegram bot.',
+    url: 'https://t.me/BotFather' },
 ];
 
 const SEGMENTS = [
@@ -216,20 +251,44 @@ async function renderKeys(panel) {
     const d = await fetchJSON('/api/settings/keys');
     const items = d.items || [];
     markPresets(items);
-    if (!items.length) { list.innerHTML = `<div class="set-empty">${esc(tk('keys_empty'))}</div>`; return; }
-    list.innerHTML = items.map(it => `
-      <li>
-        <span><span class="mono">${esc(it.key)}</span> <span class="set-tag mono">${esc(it.masked || '—')}</span></span>
-        <span>
-          <button class="ed" data-key="${escAttr(it.key)}">${esc(t('common.btn.edit'))}</button>
-          <button class="rm" data-key="${escAttr(it.key)}">${esc(t('common.btn.delete'))}</button>
-        </span>
-      </li>
-    `).join('');
-    list.querySelectorAll('.ed').forEach(b => b.addEventListener('click', () => {
-      panel.querySelector('#kKey').value = b.getAttribute('data-key');
-      const v = panel.querySelector('#kVal'); v.value = ''; v.focus();
-      msg.className = 'set-msg'; msg.textContent = tk('keys_edit_hint');
+    const savedMap = new Map(items.map(it => [it.key, it.masked || '••••']));
+    const extra = items.filter(it => !KEY_PRESETS.some(p => p.key === it.key));
+    // Guided list: EVERY known provider shown, set or not. Unset → "change me"
+    // so a non-developer knows exactly what to fill, with a how-to link.
+    const rowFor = (p) => {
+      const isSet = savedMap.has(p.key);
+      const status = isSet
+        ? `<span class="set-tag mono set-on">${esc(savedMap.get(p.key))}</span>`
+        : `<span class="set-changeme">change me</span>`;
+      return `
+        <li class="set-keyrow">
+          <div class="set-keyhead">
+            <span><b>${esc(p.label || p.key)}</b> <span class="mono set-keyenv">${esc(p.key)}</span></span>
+            ${status}
+          </div>
+          ${p.hint ? `<div class="set-keyhint">${esc(p.hint)}${p.url ? ` <a href="${escAttr(p.url)}" target="_blank" rel="noopener">How to get →</a>` : ''}</div>` : ''}
+          <div class="set-keyact">
+            <input type="text" class="set-keyin" data-key="${escAttr(p.key)}" placeholder="${escAttr(isSet ? 'leave blank to keep' : 'paste token / change me')}">
+            <button class="set-keysave" data-key="${escAttr(p.key)}">${esc(t('common.btn.save'))}</button>
+            ${isSet ? `<button class="rm" data-key="${escAttr(p.key)}">${esc(t('common.btn.delete'))}</button>` : ''}
+          </div>
+        </li>`;
+    };
+    list.innerHTML = KEY_PRESETS.map(rowFor).join('')
+      + extra.map(it => rowFor({ key: it.key, label: it.key })).join('');
+    list.querySelectorAll('.set-keysave').forEach(b => b.addEventListener('click', async () => {
+      const key = b.getAttribute('data-key');
+      const input = b.closest('li').querySelector('.set-keyin');
+      const value = input ? input.value : '';
+      if (!value.trim()) { msg.className = 'set-msg'; msg.textContent = 'Field is empty — nothing to save.'; return; }
+      try {
+        await fetchJSON('/api/settings/keys', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value }),
+        });
+        msg.className = 'set-msg ok'; msg.textContent = tk('keys_saved');
+        await reload();
+      } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
     }));
     list.querySelectorAll('.rm').forEach(b => b.addEventListener('click', async () => {
       const key = b.getAttribute('data-key');
@@ -322,7 +381,7 @@ async function renderNotify(panel) {
   try {
     const d = await fetchJSON('/api/settings/notify');
     if (d.chat_id) chatEl.value = d.chat_id;
-    if (d.set && d.bot_token_masked) tokenEl.setAttribute('placeholder', d.bot_token_masked + ' (tersimpan — kosongin biar ga ganti)');
+    if (d.set && d.bot_token_masked) tokenEl.setAttribute('placeholder', d.bot_token_masked + ' (saved — leave blank to keep)');
   } catch (e) { /* ignore */ }
 
   async function save(test) {
@@ -427,7 +486,7 @@ async function renderYouTube(panel) {
   panel.querySelector('#ytSaveCreds').addEventListener('click', async () => {
     const msg = panel.querySelector('#ytCredMsg'); msg.className = 'set-msg';
     const cj = panel.querySelector('#ytJson').value.trim();
-    if (!cj) { msg.className = 'set-msg err'; msg.textContent = 'JSON kosong'; return; }
+    if (!cj) { msg.className = 'set-msg err'; msg.textContent = 'JSON is empty'; return; }
     try {
       await fetchJSON('/api/settings/youtube/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_json: cj }) });
       renderYouTube(panel);

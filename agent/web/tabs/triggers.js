@@ -117,7 +117,7 @@ function cardHTML(r) {
       <span class="tg-sw" data-act="toggle">${r.enabled ? esc(L.btn_disable) : esc(L.btn_enable)}</span>
       <button class="tg-btn sm" data-act="run">▷ ${esc(L.btn_run)}</button>
       <button class="tg-btn sm" data-act="edit">✎</button>
-      <button class="tg-btn sm" data-act="dup" title="Duplikat (salinan baru, mati dulu)">⧉</button>
+      <button class="tg-btn sm" data-act="dup" title="Duplicate (new copy, disabled first)">⧉</button>
       <button class="tg-btn sm" data-act="hist">▸</button>
       <button class="tg-btn sm danger" data-act="del">🗑</button>
     </div>
@@ -137,7 +137,7 @@ function wireCard(mainEl, r) {
   };
   card.querySelector('[data-act="edit"]').onclick = () => openForm(mainEl, r);
   card.querySelector('[data-act="dup"]').onclick = async () => {
-    try { const d = await fetchJSON(`/api/triggers/duplicate?id=${encodeURIComponent(r.id)}`, { method: 'POST' }); alert('Diduplikat → ' + d.id + ' (mati dulu, nyalakan kalau siap)'); await load(mainEl); } catch (e) { alert(e.message); }
+    try { const d = await fetchJSON(`/api/triggers/duplicate?id=${encodeURIComponent(r.id)}`, { method: 'POST' }); alert('Duplicated → ' + d.id + ' (disabled — enable when ready)'); await load(mainEl); } catch (e) { alert(e.message); }
   };
   card.querySelector('[data-act="del"]').onclick = async () => {
     if (!confirm(fmt('del_confirm', { name: r.name }))) return;

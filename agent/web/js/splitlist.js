@@ -100,7 +100,7 @@ export async function renderGenericSplitList(mainEl, title, subtitle, fetchEndpo
         sentinel.className = 'splitlist-sentinel';
         sentinel.style.cssText = 'padding: 8px; text-align: center; opacity: 0.5; font-size: 11px;';
       }
-      sentinel.textContent = `… ${items.length - renderedCount} item lagi (scroll)`;
+      sentinel.textContent = `… ${items.length - renderedCount} more items (scroll)`;
       lst.appendChild(sentinel);
 
       if (!observer) {

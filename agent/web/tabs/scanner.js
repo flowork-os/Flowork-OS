@@ -309,7 +309,7 @@ async function selectRun(root, run) {
     renderFindings(el, items);
     updateRadar(root, items, statusFromItems(items));
   } catch (e) {
-    el.innerHTML = `<div class="rx-empty">gagal: ${esc(String(e.message || e))}</div>`;
+    el.innerHTML = `<div class="rx-empty">failed: ${esc(String(e.message || e))}</div>`;
   }
 }
 
@@ -490,7 +490,7 @@ async function loadArsenal(box) {
     box.querySelector('#arsTotal').textContent = `${Number(d.total_installed || 0).toLocaleString()} ${L.arsenalTotalWord}`;
     renderArsenal(box, d.planes || []);
   } catch (e) {
-    box.querySelector('#arsList').innerHTML = `<div class="rx-empty">gagal: ${esc(String(e.message || e))}</div>`;
+    box.querySelector('#arsList').innerHTML = `<div class="rx-empty">failed: ${esc(String(e.message || e))}</div>`;
   }
 }
 

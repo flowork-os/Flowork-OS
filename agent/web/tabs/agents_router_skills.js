@@ -31,7 +31,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
+const escAttr = esc; // esc already escapes quotes → attribute-safe
 
 // fillTpl — replace {count} {total} placeholder dengan nilai actual.
 function fillTpl(s, vars) {

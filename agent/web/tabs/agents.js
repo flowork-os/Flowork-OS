@@ -359,7 +359,7 @@ function styles() {
                      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto auto;
                      gap: 8px; margin-bottom: 8px; align-items: center; }
       .ag-sched-row input,
-      .ag-cred-row input { min-width: 0; }   /* biar bisa shrink, ngga overflow */
+      .ag-cred-row input { min-width: 0; }   /* allow shrink, no overflow */
       .ag-cred-row input { font-family: ui-monospace, monospace; font-size: 0.85rem; }
       .ag-field-help { display: block; font-size: 0.75rem; color: #64748b;
                        margin-top: 4px; line-height: 1.4; }
@@ -444,7 +444,7 @@ async function refreshList(root) {
 }
 
 function renderCard(a) {
-  const enabled = a.enabled !== false;  // default true kalau field absent (back-compat)
+  const enabled = a.enabled !== false;  // default true when field absent (back-compat)
   const stateCls = !enabled ? 'off'
     : a.state === 'ready'  ? 'ready'
     : a.state === 'failed' ? 'failed' : '';

@@ -22,7 +22,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
+const escAttr = esc; // esc already escapes quotes → attribute-safe
 
 export function openSlashModal(agentId) {
   const root = document.createElement('div');

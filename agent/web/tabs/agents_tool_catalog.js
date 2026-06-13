@@ -23,7 +23,7 @@ function esc(s) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
 }
-const escAttr = esc; // esc lokal sudah escape kutip → attribute-safe
+const escAttr = esc; // esc already escapes quotes → attribute-safe
 
 export async function renderToolCatalog(hostEl, agentId) {
   hostEl.innerHTML = `<p style="color:#64748b;font-size:12px">${esc(t('menu.tab.agents.tools_catalog_loading') || 'Loading…')}</p>`;
