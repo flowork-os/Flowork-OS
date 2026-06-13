@@ -327,6 +327,51 @@ func seedFacts(argsJSON string) {
 // autoPost is the autonomous pipeline: pick the next topic the colony hasn't
 // covered yet (deterministic anti-duplicate), ground it in the seeded brain
 // facts, then run SEO → writer → tags → publish. No source material is passed in
+// seedDocs grounds this colony's brain in the project's DOCS (not just the
+// changelog). Sources are CONFIGURABLE via the group kv "promo_docs"
+// (newline-separated URLs, set in the Group "Config / secrets" GUI). Empty =
+// Flowork's published docs. Each "## " section becomes one grounding fact.
+func seedDocs() {
+	src := strings.TrimSpace(kvGet("promo_docs"))
+	if src == "" {
+		src = "https://raw.githubusercontent.com/flowork-os/Flowork-OS/main/docs/TUTORIAL.md\n" +
+			"https://raw.githubusercontent.com/flowork-os/Flowork-OS/main/docs/ARCHITECTURE.md"
+	}
+	topics := splitNonEmpty(kvGet("topics"))
+	seeded := 0
+	for _, u := range splitNonEmpty(src) {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		code, body := hostFetch("GET", u, nil, nil)
+		if code != 200 || strings.TrimSpace(body) == "" {
+			continue
+		}
+		for i, s := range strings.Split(body, "\n## ") {
+			if i > 0 {
+				s = "## " + s
+			}
+			s = strings.TrimSpace(s)
+			if len(s) < 60 {
+				continue
+			}
+			room := s
+			if nl := strings.IndexByte(room, '\n'); nl > 0 {
+				room = room[:nl]
+			}
+			room = trunc(strings.TrimLeft(room, "# "), 60)
+			brainAdd(trunc(s, 1500), room)
+			seeded++
+			if !contains(topics, room) {
+				topics = append(topics, room)
+			}
+		}
+	}
+	kvSet("topics", strings.Join(topics, "\n"))
+	emit(map[string]any{"group": selfID(), "seeded_from_docs": seeded, "topics_total": len(topics)})
+}
+
 // — the facts come from this group's own brain, so the article is grounded and
 // never repeats a topic.
 func autoPost() {
@@ -478,6 +523,8 @@ func main() {
 			autoPost()
 		case tt == "/latest":
 			latestPost()
+		case tt == "/seed-docs" || tt == "seed-docs" || tt == "seed_docs":
+			seedDocs()
 		default:
 			runPromo(args)
 		}

@@ -15,6 +15,7 @@
     "net:fetch:http://127.0.0.1:1987/api/kernel/call",
     "net:fetch:https://dev.to",
     "net:fetch:https://api.telegram.org",
+    "net:fetch:https://raw.githubusercontent.com",
     "state:read",
     "state:write",
     "time:read"

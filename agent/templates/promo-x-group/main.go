@@ -273,6 +273,52 @@ func seedFacts(argsJSON string) {
 	emit(map[string]any{"group": selfID(), "seeded": seeded, "topics": topics, "topics_total": len(topics)})
 }
 
+// seedDocs grounds this colony's brain in the project's DOCS (not just the
+// changelog). Sources are CONFIGURABLE via the group kv "promo_docs"
+// (newline-separated URLs, set in the Group "Config / secrets" GUI) so anyone
+// can point it at THEIR OWN docs. Empty = Flowork's published docs. Each "## "
+// section of a doc becomes one grounding fact (room). Re-runnable (brain dedups).
+func seedDocs() {
+	src := strings.TrimSpace(kvGet("promo_docs"))
+	if src == "" {
+		src = "https://raw.githubusercontent.com/flowork-os/Flowork-OS/main/docs/TUTORIAL.md\n" +
+			"https://raw.githubusercontent.com/flowork-os/Flowork-OS/main/docs/ARCHITECTURE.md"
+	}
+	topics := splitNonEmpty(kvGet("topics"))
+	seeded := 0
+	for _, u := range splitNonEmpty(src) {
+		u = strings.TrimSpace(u)
+		if u == "" {
+			continue
+		}
+		code, body := hostFetch("GET", u, nil, nil)
+		if code != 200 || strings.TrimSpace(body) == "" {
+			continue
+		}
+		for i, s := range strings.Split(body, "\n## ") {
+			if i > 0 {
+				s = "## " + s
+			}
+			s = strings.TrimSpace(s)
+			if len(s) < 60 {
+				continue // skip headers/tiny scraps
+			}
+			room := s
+			if nl := strings.IndexByte(room, '\n'); nl > 0 {
+				room = room[:nl]
+			}
+			room = trunc(strings.TrimLeft(room, "# "), 60)
+			brainAdd(trunc(s, 1500), room)
+			seeded++
+			if !contains(topics, room) {
+				topics = append(topics, room)
+			}
+		}
+	}
+	kvSet("topics", strings.Join(topics, "\n"))
+	emit(map[string]any{"group": selfID(), "seeded_from_docs": seeded, "topics_total": len(topics)})
+}
+
 func trunc(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if len(s) <= n {
@@ -865,6 +911,8 @@ func main() {
 			promoteTele()
 		case tt == "/auto" || tt == "auto_post" || tt == "auto":
 			autoPost()
+		case tt == "/seed-docs" || tt == "seed-docs" || tt == "seed_docs":
+			seedDocs()
 		default:
 			runPromo(args)
 		}
@@ -872,6 +920,8 @@ func main() {
 		autoPost()
 	case "seed_facts":
 		seedFacts(args)
+	case "seed_docs":
+		seedDocs()
 	case "boot":
 		emit(map[string]any{"ok": true})
 	default:

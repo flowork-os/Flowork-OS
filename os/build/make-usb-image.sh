@@ -72,7 +72,35 @@ $SUDO mkfs.ext4 -q -L FLOWORKAB "${LOOP}p4"
 $SUDO mount "${LOOP}p1" "$LN"
 $SUDO cp -r "$PORTABLE/." "$LN/"
 $SUDO rm -rf "$LN/flowork-data"   # runtime dir — the launcher recreates it fresh on the stick
-echo "[usb] launchers on FLOWORK partition (GUI / Background / Stop · Win·Linux·macOS)"
+# README on the FAT partition: Windows/macOS can read THIS partition but NOT the
+# Linux/LUKS ones — so the OS pops a scary "format this disk?" prompt for those.
+# Explain it here so a user never formats their bootable stick.
+$SUDO tee "$LN/README.txt" >/dev/null <<'RDM'
+================  FLOWORK OS — bootable USB  ================
+
+⚠️  DO NOT FORMAT / ERASE THIS DRIVE.
+
+If Windows or macOS asks "You need to format the disk before you can use it"
+— click CANCEL. That prompt is NORMAL: this USB also holds Linux + encrypted
+partitions that Windows/macOS simply can't read. Formatting would DESTROY the
+Flowork OS on the stick. (On Linux everything is readable, so no prompt.)
+
+HOW TO USE FLOWORK
+------------------
+1) Run it on your CURRENT OS, no reboot — open this FLOWORK drive and launch:
+     Windows : Start-Flowork.bat
+     macOS   : Start-Flowork.command
+     Linux   : ./start.sh   (or the .desktop launcher)
+   Then open  http://127.0.0.1:1987  in your browser.
+
+2) Boot the WHOLE PC into Flowork OS — restart, open the boot menu (F12/F2/Esc,
+   varies by PC), pick this USB, and Flowork OS starts on its own (Secure Boot
+   off). Your data partition is encrypted; nothing is written to the host PC.
+
+Open source:  https://github.com/flowork-os/Flowork-OS
+===========================================================
+RDM
+echo "[usb] launchers + README.txt (anti-format) on FLOWORK partition (Win·Linux·macOS)"
 
 $SUDO mount "${LOOP}p3" "$ESP"
 $SUDO mount "${LOOP}p4" "$M"
