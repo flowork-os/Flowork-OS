@@ -1,0 +1,13 @@
+# Flowork OS inittab — drives OpenRC through its runlevels.
+# busybox init is PID 1; it runs sysinit -> boot -> default, then keeps gettys.
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+# Serial console (used for automated boot-health verification in QEMU).
+ttyS0::respawn:/sbin/getty -L 115200 ttyS0 vt100
+# Local VT (the screen the kiosk takes over).
+tty1::respawn:/sbin/getty 38400 tty1
+
+::ctrlaltdel:/sbin/reboot
+::shutdown:/sbin/openrc shutdown

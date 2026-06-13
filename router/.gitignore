@@ -1,0 +1,36 @@
+flow-router-bin
+flow-router-bin.exe
+/flow_router
+*.log
+/data/
+# Local-only docs (kept on disk, untracked) — per owner request 2026-05-31
+Changelog
+roadmap.md
+# Local notes / private rules — never commit
+catatan_untuk_ai_external
+catatan
+# Secrets / local data — never commit
+secret.key
+*.key
+*.pem
+/db/
+.flow_router/
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+# Heavy assets — local-only. Track the folder README (download instructions) but
+# never the multi-GB data/weights inside.
+/brain/*
+!/brain/README.md
+/models/*
+!/models/README.md
+/bin/
+*.gguf
+# Brain/data exports — never commit (multi-GB tarballs, e.g. <id>.brain.tar.gz)
+*.tar.gz
+*.brain.tar.gz
+# Private notes
+notes_private.md
+notes_private/
+.scratch/

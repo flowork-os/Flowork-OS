@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+# Flowork sovereign LLM router (:2402). Co-located with the agent (design Section 3).
+name="flowork-router"
+description="Flowork sovereign LLM router"
+
+: "${FLOWORK_ROUTER_ADDR:=127.0.0.1:2402}"
+command="/usr/local/bin/flowork-router"
+command_args="-addr ${FLOWORK_ROUTER_ADDR}"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-router.log"
+error_log="/var/log/flowork-router.log"
+# FLOW_CREDS_PATH on the LUKS-encrypted DATA partition (/root/.flowork is the data mount): the GUI
+# "paste Claude token" writes here and the dispatcher reads here, so Claude works on the appliance
+# with no Claude Code — and the token persists across reboots + is encrypted at rest (LUKS).
+start_stop_daemon_args="--env HOME=/root --env FLOWORK_HOME=/root --env FLOW_CREDS_PATH=/root/.flowork/.claude-credentials.json"
+
+depend() {
+	need localmount loopback
+	after net flowork-data
+}

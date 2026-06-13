@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowork USB Maker</title>
+<style>
+  :root{--bg:#090B13;--panel:rgba(22,25,43,.55);--bd:rgba(255,255,255,.07);--accent:#8b5cf6;
+        --txt:#f8fafc;--mut:#94a3b8;--ok:#10b981;--danger:#ef4444;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,'Segoe UI',system-ui,sans-serif;
+       min-height:100vh;display:flex;justify-content:center;padding:28px 16px}
+  .wrap{width:100%;max-width:640px}
+  h1{font-size:1.5rem;margin:0 0 2px;display:flex;align-items:center;gap:10px}
+  .sub{color:var(--mut);font-size:.85rem;margin:0 0 20px}
+  .card{background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:18px 20px;margin-bottom:16px;backdrop-filter:blur(8px)}
+  .card h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:0 0 12px}
+  label{display:block;font-size:.8rem;color:var(--mut);margin:10px 0 5px}
+  select{width:100%;background:rgba(15,17,26,.65);border:1px solid var(--bd);color:var(--txt);border-radius:9px;padding:10px 12px;font-size:.9rem;font-family:inherit}
+  .row{display:flex;gap:10px;align-items:flex-end}.row>*{flex:1}
+  button{font-family:inherit;font-weight:600;border:none;border-radius:10px;padding:11px 16px;cursor:pointer;font-size:.9rem}
+  .btn-flash{background:linear-gradient(135deg,#f43f5e,#e11d48);color:#fff;width:100%}
+  .btn-flash:disabled{opacity:.45;cursor:not-allowed}
+  .btn-ghost{background:rgba(148,163,184,.12);color:var(--txt);border:1px solid var(--bd)}
+  .ver{font-size:1.05rem;font-weight:700;color:#e9d5ff}
+  .danger{font-size:.78rem;color:#fca5a5;margin-top:8px}
+  #log{background:#05070d;border:1px solid var(--bd);border-radius:10px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:.76rem;line-height:1.5;height:220px;overflow:auto;white-space:pre-wrap;color:#cbd5e1;display:none;margin-top:14px}
+  #log.show{display:block}
+  .ok{color:var(--ok)}.bad{color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚡ Flowork USB Maker</h1>
+  <p class="sub">Download the latest Flowork OS and write it to a USB stick. Boot it — or plug it into Windows/Mac/Linux to run Flowork without rebooting.</p>
+
+  <div class="card">
+    <h2>1 · Latest release</h2>
+    <div id="rel" class="ver">checking…</div>
+    <div class="sub" id="relsub"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Flashdisk</h2>
+    <div class="row">
+      <div>
+        <label>Target USB (removable only — your system disk is never listed)</label>
+        <select id="device"><option value="">— scanning… —</option></select>
+      </div>
+      <button class="btn-ghost" id="refresh" style="flex:0 0 auto">↻</button>
+    </div>
+    <div class="danger">⚠ Flashing ERASES the selected device completely.</div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Make the stick</h2>
+    <button class="btn-flash" id="flash" disabled>⬇ Download &amp; Flash</button>
+    <div id="log"></div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id), log=$('log');
+let latest={};
+function plog(t,c){log.classList.add('show');const s=document.createElement('span');if(c)s.className=c;s.textContent=t+"\n";log.appendChild(s);log.scrollTop=log.scrollHeight;}
+async function loadLatest(){
+  try{ latest=await (await fetch('/api/latest')).json(); }catch(e){ latest={}; }
+  if(latest.found){
+    $('rel').textContent='Flowork OS v'+(latest.version||'?');
+    $('relsub').textContent='Ready to flash · verified by checksum'+(latest.sha256?'':' (no checksum in manifest)');
+    refreshFlash();
+  }else{
+    $('rel').textContent='No release found yet';
+    $('relsub').textContent=(latest.error||'The public channel has no published release.');
+  }
+}
+async function loadDevices(){
+  const sel=$('device');sel.innerHTML='<option value="">— scanning… —</option>';
+  const r=await (await fetch('/api/devices')).json();
+  sel.innerHTML='';
+  if(!r.devices||!r.devices.length){sel.innerHTML='<option value="">no removable USB found</option>';refreshFlash();return;}
+  for(const d of r.devices){const gb=(d.size/1e9).toFixed(1);const o=document.createElement('option');o.value=d.path;o.textContent=`${d.path} · ${gb} GB · ${d.model||'USB'}`;sel.appendChild(o);}
+  refreshFlash();
+}
+function refreshFlash(){ $('flash').disabled=!(latest.found && $('device').value); }
+$('device').addEventListener('change',refreshFlash);
+$('refresh').onclick=loadDevices;
+$('flash').onclick=()=>{
+  const dev=$('device').value;
+  if(!dev)return;
+  if(!confirm('This will ERASE '+dev+' and write Flowork OS v'+latest.version+'. Continue?'))return;
+  log.classList.add('show');log.innerHTML='';$('flash').disabled=true;
+  fetch('/api/flash',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:latest.image,device:dev,sha256:latest.sha256})})
+  .then(r=>{const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+    (function pump(){rd.read().then(({done,value})=>{
+      if(done){$('flash').disabled=false;return;}
+      buf+=dec.decode(value,{stream:true});const parts=buf.split('\n\n');buf=parts.pop();
+      for(const p of parts){const m=p.replace(/^data: ?/,'');
+        if(m.startsWith('__DONE__')){const rc=+m.split(' ')[1];plog(rc===0?'✅ Done — your Flowork stick is ready!':'❌ Failed (rc='+rc+')',rc===0?'ok':'bad');$('flash').disabled=false;return;}
+        plog(m);}
+      pump();});})();
+  });
+};
+loadLatest();loadDevices();
+</script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+#!/bin/sh
+# flowork-sandbox-check — app-sandbox self-test (P3a). Gated by kernel cmdline
+# `flowork.selftest=1`, so it is a no-op on normal boots. Runs the Python and Go
+# sample apps under bwrap and verifies they run but cannot read the owner's state.
+CON=/dev/console
+say() { echo "SANDBOX $*" > "$CON"; }
+
+grep -q 'flowork.selftest=1' /proc/cmdline 2>/dev/null || exit 0
+
+say "self-test starting"
+say "tools: bwrap=$(bwrap --version 2>&1 | head -1) | $(python3 --version 2>&1)"
+
+# Real owner state the sandbox must NOT be able to read.
+mkdir -p /root/.flowork 2>/dev/null
+echo "owner-secret" > /root/.flowork/flowork.db 2>/dev/null || true
+
+PY="$(/usr/local/bin/flowork-app-run /usr/share/flowork/sample-apps/py-hello python3 /app/main.py 2>&1)"
+say "py app -> $(echo "$PY" | tr '\n' ';')"
+
+GO="$(/usr/local/bin/flowork-app-run /usr/share/flowork/sample-apps/go-hello /app/go-hello 2>&1)"
+say "go app -> $(echo "$GO" | tr '\n' ';')"
+
+ALL="$PY
+$GO"
+if echo "$PY" | grep -q 'py-hello: ran ok' \
+	&& echo "$GO" | grep -q 'go-hello: ran ok' \
+	&& echo "$ALL" | grep -q 'ISOLATION_OK' \
+	&& ! echo "$ALL" | grep -q 'ISOLATION_BREACH'; then
+	say "RESULT: OK (python+go ran sandboxed, owner state isolated)"
+else
+	say "RESULT: FAIL"
+fi
+say "self-test done"

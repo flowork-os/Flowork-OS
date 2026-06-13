@@ -1,0 +1,42 @@
+#!/bin/sh
+# flowork-autoupdate — periodic background auto-updater (BUILD-D). Every interval it asks
+# flowork-update to check the PUBLIC release channel and, if a newer signed image exists,
+# install it into the idle A/B slot and reboot (stage-1 init auto-rolls-back on a bad boot).
+#
+# Toggle (user-controllable, persists on the DATA volume): /root/.flowork/autoupdate
+#   absent or "on"  -> auto-update ENABLED (default)
+#   "off"           -> disabled (manual `flowork-update run` still works)
+set -u
+CON=/dev/console
+STATE=/root/.flowork
+TOGGLE="$STATE/autoupdate"
+INTERVAL="${FLOWORK_AUTOUPDATE_INTERVAL:-21600}"   # 6h
+FIRST_DELAY="${FLOWORK_AUTOUPDATE_FIRST_DELAY:-120}"
+
+log() { echo "[autoupdate] $*" > "$CON" 2>/dev/null; }
+
+enabled() {
+	v="$(cat "$TOGGLE" 2>/dev/null | tr -dc 'a-z')"
+	[ "$v" = off ] && return 1
+	return 0
+}
+
+sleep "$FIRST_DELAY"   # let the network + services settle after boot
+log "started (interval=${INTERVAL}s, toggle=$TOGGLE)"
+while :; do
+	if enabled; then
+		out="$(flowork-update run 2>&1)"
+		log "$out"
+		# flowork-update -> install prints 'installed -> slot X' when a new image was activated.
+		case "$out" in
+			*"installed -> slot"*)
+				log "update applied — rebooting to switch A/B slot"
+				sync
+				reboot
+				;;
+		esac
+	else
+		log "disabled via $TOGGLE — skipping"
+	fi
+	sleep "$INTERVAL"
+done

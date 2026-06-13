@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+# Chromium kiosk -> Flowork control panel. Full-screen Wayland session via cage.
+name="flowork-kiosk"
+description="Chromium kiosk for the Flowork control panel"
+
+command="/usr/local/bin/flowork-kiosk-launch"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-kiosk.log"
+error_log="/var/log/flowork-kiosk.log"
+
+depend() {
+	need flowork-agent
+	after dbus seatd udev-trigger
+}

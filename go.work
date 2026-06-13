@@ -1,0 +1,11 @@
+go 1.25.0
+
+// Flowork monorepo — two co-located Go modules (keeps the refactor small + lets each
+// binary update independently). The shared web GUI lives under agent/web (unified panel).
+use (
+	./agent
+	./router
+	./os/builder
+	./os/flasher
+	./os/mesh-rendezvous
+)

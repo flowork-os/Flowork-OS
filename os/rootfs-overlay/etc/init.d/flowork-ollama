@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+# Ollama local LLM engine (sovereign, loopback-only :11434). The router routes LLM calls here.
+name="flowork-ollama"
+description="Ollama local LLM engine"
+
+command="/usr/local/bin/flowork-ollama-serve"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-ollama.log"
+error_log="/var/log/flowork-ollama.log"
+
+depend() {
+	need localmount
+	after udev
+}

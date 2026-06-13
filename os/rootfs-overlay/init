@@ -1,0 +1,29 @@
+#!/bin/sh
+# Flowork OS stage-1 init.
+#
+# The kernel unpacks our image into an initramfs, whose root is a `rootfs`/ramfs mount.
+# Namespace tools like bubblewrap need pivot_root, which FAILS on ramfs. So before handing
+# off to OpenRC we move onto a real tmpfs root via switch_root. After that, / is a proper
+# filesystem and the app sandbox works. (The product build will switch this to a squashfs +
+# overlay root; same idea, real fs.)
+mount -t proc     proc     /proc 2>/dev/null
+mount -t sysfs    sysfs    /sys  2>/dev/null
+mount -t devtmpfs devtmpfs /dev  2>/dev/null
+
+NEWROOT=/newroot
+mkdir -p "$NEWROOT"
+mount -t tmpfs -o mode=0755,size=100% tmpfs "$NEWROOT"
+
+# Copy the rootfs onto the tmpfs (everything except virtual/transient dirs).
+for d in bin etc lib lib64 mnt opt root run sbin srv usr var home; do
+	[ -e "/$d" ] && cp -a "/$d" "$NEWROOT/" 2>/dev/null
+done
+mkdir -p "$NEWROOT/proc" "$NEWROOT/sys" "$NEWROOT/dev" "$NEWROOT/tmp" "$NEWROOT/newroot"
+chmod 1777 "$NEWROOT/tmp"
+
+# Carry the virtual mounts across, then pivot into the real root and start OpenRC.
+mount --move /proc "$NEWROOT/proc" 2>/dev/null
+mount --move /sys  "$NEWROOT/sys"  2>/dev/null
+mount --move /dev  "$NEWROOT/dev"  2>/dev/null
+
+exec switch_root "$NEWROOT" /sbin/init

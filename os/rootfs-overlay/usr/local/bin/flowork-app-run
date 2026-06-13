@@ -1,0 +1,38 @@
+#!/bin/sh
+# flowork-app-run — run an app confined by bubblewrap (the appliance's app sandbox).
+# The app sees: a read-only system, a private /tmp, and ONLY its own directory (at /app).
+# It does NOT see the owner's state (/root/.flowork), other apps, or the rest of the host.
+# Same doctrine as the AI citizens: confined to its room, no exfil.
+#
+#   usage: flowork-app-run <app-dir> <command> [args...]
+#   env:   FLOWORK_APP_NET=1  -> allow network (default: network is unshared/off)
+set -eu
+
+APPDIR="${1:?usage: flowork-app-run <app-dir> <cmd...>}"
+shift
+[ -d "$APPDIR" ] || { echo "flowork-app-run: app dir not found: $APPDIR" >&2; exit 1; }
+[ "$#" -ge 1 ] || { echo "flowork-app-run: no command given" >&2; exit 1; }
+
+NET="--unshare-net"
+[ "${FLOWORK_APP_NET:-0}" = "1" ] && NET=""
+
+exec bwrap \
+	--unshare-pid --unshare-ipc --unshare-uts --unshare-cgroup $NET \
+	--die-with-parent \
+	--ro-bind /usr /usr \
+	--ro-bind-try /bin /bin \
+	--ro-bind-try /sbin /sbin \
+	--ro-bind-try /lib /lib \
+	--ro-bind-try /lib64 /lib64 \
+	--ro-bind-try /usr/lib /usr/lib \
+	--ro-bind-try /etc/ssl /etc/ssl \
+	--ro-bind-try /etc/ca-certificates /etc/ca-certificates \
+	--ro-bind-try /etc/resolv.conf /etc/resolv.conf \
+	--proc /proc \
+	--dev /dev \
+	--tmpfs /tmp \
+	--bind "$APPDIR" /app \
+	--chdir /app \
+	--setenv HOME /app \
+	--setenv PATH /usr/bin:/bin:/usr/local/bin \
+	-- "$@"

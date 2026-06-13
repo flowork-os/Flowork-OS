@@ -1,0 +1,150 @@
+#!/bin/sh
+# Flowork OS stage-1 init — SQUASHFS-ROOT boot (the product/USB shape).
+#
+# The boot media carries a read-only rootfs.squashfs. This init mounts it as the lower
+# layer of an overlayfs (tmpfs upper for writes), then switch_roots in. The running root
+# is therefore a real filesystem (bwrap/dm-verity friendly) whose system half is the
+# immutable squashfs — exactly what dm-verity (P3b) and A/B update (P4) need.
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+CON=/dev/console
+say() { echo "FLOWORK $*" > "$CON" 2>/dev/null; }
+
+mount -t proc proc /proc 2>/dev/null
+mount -t sysfs sysfs /sys 2>/dev/null
+mount -t devtmpfs devtmpfs /dev 2>/dev/null
+say "stage-1 init (squashfs-root)"
+
+# Load the storage + filesystem modules (deps resolved from modules.dep).
+# The CD/ISO on a q35 machine hangs off the SATA/AHCI controller, so libata+ahci are
+# essential to see /dev/sr0; ata_piix covers older IDE; virtio_* for disk-attached media.
+for m in scsi_mod sd_mod sr_mod cdrom libata ata_piix ahci \
+         virtio virtio_pci virtio_blk virtio_scsi \
+         crc32c_generic crc32c-intel libcrc32c crc32_generic jbd2 mbcache \
+         isofs loop squashfs overlay ext4 vfat nls_cp437 nls_iso8859_1; do
+	modprobe "$m" 2>/dev/null
+done
+mdev -s 2>/dev/null
+sleep 2
+say "blockdevs: $(ls -d /dev/sr* /dev/sd* /dev/vd* 2>/dev/null | tr '\n' ' ')"
+
+# Find the boot media: holds flowork/active (A/B) or flowork/rootfs.squashfs (single slot).
+# Mount writable when possible (A/B writes the pointer/counters); fall back to read-only (ISO).
+MEDIA=/media; mkdir -p "$MEDIA"; FOUND=""
+for try in 1 2 3 4 5 6 7 8 9 10; do
+	for dev in /dev/sr0 /dev/sr1 \
+		/dev/vda /dev/vda1 /dev/vda2 /dev/vda3 /dev/vda4 /dev/vda5 \
+		/dev/sda /dev/sda1 /dev/sda2 /dev/sda3 /dev/sda4 /dev/sda5 \
+		/dev/vdb /dev/sdb; do
+		[ -b "$dev" ] || continue
+		for fs in ext4 vfat iso9660; do
+			mount -t "$fs" "$dev" "$MEDIA" 2>/dev/null \
+				|| mount -t "$fs" -o ro "$dev" "$MEDIA" 2>/dev/null || continue
+			if [ -f "$MEDIA/flowork/active" ] || [ -f "$MEDIA/flowork/rootfs.squashfs" ]; then
+				FOUND="$dev ($fs)"; break 3
+			fi
+			umount "$MEDIA" 2>/dev/null
+		done
+	done
+	sleep 1
+done
+[ -n "$FOUND" ] || { say "ERROR no Flowork media found — dropping to shell"; exec sh; }
+say "boot media: $FOUND"
+
+WRITABLE=0; if touch "$MEDIA/.fwrw" 2>/dev/null; then WRITABLE=1; rm -f "$MEDIA/.fwrw"; fi
+
+# --- A/B slot selection (+ rollback) or single-slot ----------------------------------
+ABMODE=0; SLOT=""
+rollback_or_die() {  # $1 = reason
+	if [ "$ABMODE" = 1 ] && [ "$WRITABLE" = 1 ]; then
+		OTHER=$([ "$SLOT" = a ] && echo b || echo a)
+		echo "$OTHER" > "$MEDIA/flowork/active"; sync
+		say "A/B: $1 — rolling back $SLOT -> $OTHER, rebooting"
+		sleep 2; reboot -f 2>/dev/null; exec sh
+	fi
+	say "$1 — refusing to boot"; sleep 3; poweroff -f 2>/dev/null; exec sh
+}
+if [ -f "$MEDIA/flowork/active" ]; then
+	ABMODE=1
+	SLOT="$(tr -dc 'ab' < "$MEDIA/flowork/active" 2>/dev/null)"; [ -n "$SLOT" ] || SLOT=a
+	# rollback guard: too many unconfirmed boots of this slot -> revert to the other one
+	if [ "$WRITABLE" = 1 ] && [ ! -f "$MEDIA/flowork/slot-$SLOT.confirmed" ]; then
+		n=$(cat "$MEDIA/flowork/slot-$SLOT.tries" 2>/dev/null || echo 0); n=$((n + 1))
+		echo "$n" > "$MEDIA/flowork/slot-$SLOT.tries"; sync
+		say "A/B: slot $SLOT unconfirmed try #$n"
+		[ "$n" -gt 3 ] && rollback_or_die "slot $SLOT failed to confirm after $n tries"
+	fi
+	SQUASH="$MEDIA/flowork/slot-$SLOT/rootfs.squashfs"
+	say "A/B mode: active slot = $SLOT (writable=$WRITABLE)"
+else
+	SQUASH="$MEDIA/flowork/rootfs.squashfs"
+fi
+[ -f "$SQUASH" ] || { say "ERROR slot squashfs missing: $SQUASH"; exec sh; }
+
+mkdir -p /lower /over /newroot /dev/mapper
+
+# --- integrity: dm-verity over the squashfs (design Section 7) -----------------------
+# If the media carries the verity hash tree + root hash, set up a dm-verity device and
+# mount THAT as the system root. A tampered squashfs fails verification -> refuse to boot.
+# If the sidecars are absent, fall back to a plain squashfs mount (boot still works).
+VHASH="${SQUASH}.verity"; VROOT="${SQUASH}.roothash"
+LOWERDEV=""
+if [ -f "$VHASH" ] && [ -f "$VROOT" ] && command -v veritysetup >/dev/null 2>&1; then
+	modprobe dm-mod 2>/dev/null; modprobe dm-verity 2>/dev/null; modprobe loop 2>/dev/null
+	mdev -s 2>/dev/null
+	# loop control + nodes (for veritysetup's auto-loop of the file arguments)
+	[ -e /dev/loop-control ] || mknod /dev/loop-control c 10 237 2>/dev/null
+	for i in 0 1 2 3 4 5 6 7; do [ -e "/dev/loop$i" ] || mknod "/dev/loop$i" b 7 "$i" 2>/dev/null; done
+	RH="$(cat "$VROOT")"
+	say "verity: $(veritysetup --version 2>&1 | head -1) | roothash_len=$(printf %s "$RH" | wc -c)"
+	# pass the FILES directly; libcryptsetup auto-attaches loop devices for them.
+	VOUT="$(veritysetup open "$SQUASH" floworkroot "$VHASH" "$RH" 2>&1)"; VRC=$?
+	if [ "$VRC" = 0 ]; then
+		# Note: open() is lazy — blocks are verified as they are READ. A tampered block
+		# surfaces at mount/read time below (the kernel returns EIO + logs "verity: corrupted").
+		say "dm-verity: integrity device active (root hash enforced on every read)"
+		LOWERDEV=/dev/mapper/floworkroot
+	else
+		say "dm-verity: open rc=$VRC : $VOUT"
+		# Distinguish a real tamper (root hash mismatch) from a setup problem: only refuse
+		# to boot on an actual verification/corruption error; otherwise fall back so a tooling
+		# hiccup doesn't brick a legitimate stick.
+		if printf %s "$VOUT" | grep -qiE 'verification|corrupt|hash|mismatch|root hash'; then
+			rollback_or_die "dm-verity verification failed (tamper/bad image)"
+		fi
+		say "dm-verity: setup issue (not a tamper) — falling back to plain mount"
+	fi
+fi
+
+# Lower = (verified device | squashfs file), upper = tmpfs -> overlay at /newroot.
+if [ -n "$LOWERDEV" ]; then
+	# A failure here on the dm-verity device means a tampered/corrupt block was hit
+	# (kernel logs "device-mapper: verity: ... is corrupted"). Refuse to boot.
+	if ! mount -t squashfs -o ro "$LOWERDEV" /lower; then
+		rollback_or_die "dm-verity integrity check failed at mount (tamper/corruption)"
+	fi
+else
+	say "dm-verity: NOT enforced (no hash sidecars) — mounting squashfs directly"
+	mount -t squashfs -o ro "$SQUASH" /lower 2>/dev/null \
+		|| mount -o loop,ro "$SQUASH" /lower \
+		|| { say "ERROR cannot mount squashfs"; exec sh; }
+fi
+mount -t tmpfs tmpfs /over
+mkdir -p /over/up /over/work
+if ! mount -t overlay overlay -o "lowerdir=/lower,upperdir=/over/up,workdir=/over/work" /newroot 2>/dev/null; then
+	say "ERROR overlay mount failed"; exec sh
+fi
+say "overlay root ready (squashfs lower + tmpfs upper)"
+
+# Carry the virtual mounts across and hand off to OpenRC.
+mkdir -p /newroot/proc /newroot/sys /newroot/dev /newroot/run /newroot/flowork-media
+mount --move /proc /newroot/proc 2>/dev/null
+mount --move /sys  /newroot/sys  2>/dev/null
+mount --move /dev  /newroot/dev  2>/dev/null
+# A/B: keep the writable media available in the booted system so flowork-health can confirm a
+# good boot (clear the rollback counter) and flowork-update can write the inactive slot.
+if [ "$ABMODE" = 1 ]; then
+	mount --move "$MEDIA" /newroot/flowork-media 2>/dev/null || true
+fi
+say "switch_root -> /sbin/init"
+exec switch_root /newroot /sbin/init

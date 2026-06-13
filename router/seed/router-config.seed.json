@@ -1,0 +1,262 @@
+{
+  "version": "1",
+  "exportedAt": "2026-06-11T17:14:43Z",
+  "providers": [
+    {
+      "id": "a899fd00-d526-4c79-80bd-2e6f0f008ca5",
+      "provider": "anthropic",
+      "authType": "subscription",
+      "name": "Claude Pro/Max Subscription",
+      "priority": 10,
+      "isActive": true,
+      "data": {
+        "baseUrl": "https://api.anthropic.com/v1",
+        "format": "anthropic",
+        "models": [
+          "claude-haiku-4-5",
+          "claude-*"
+        ],
+        "tags": [
+          "premium",
+          "sovereign",
+          "tier:standard",
+          "tier:strong"
+        ],
+        "tokenSource": "claude_credentials"
+      },
+      "createdAt": "2026-05-27T04:32:17Z",
+      "updatedAt": "2026-05-28T14:41:04Z"
+    },
+    {
+      "id": "fdb37427-ea65-4736-b42a-2e4d3c9e3667",
+      "provider": "local-llama",
+      "authType": "none",
+      "name": "Qwen Abliterate (local sovereign)",
+      "priority": 20,
+      "isActive": true,
+      "data": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "format": "openai",
+        "models": [
+          "qwen-flowork",
+          "qwen-flowork:latest",
+          "qwen-abliterate"
+        ],
+        "tags": [
+          "local",
+          "sovereign",
+          "uncensored",
+          "tier:standard"
+        ]
+      },
+      "createdAt": "2026-06-03T15:33:59Z",
+      "updatedAt": "2026-06-03T15:33:59Z"
+    }
+  ],
+  "combos": [
+    {
+      "id": "8b69c9e2-c766-4348-85b6-47bae80569a8",
+      "name": "smart-cheap",
+      "models": [
+        "deepseek-chat",
+        "gpt-4o-mini",
+        "claude-haiku-4-5"
+      ],
+      "strategy": "cost_optimal",
+      "createdAt": "2026-05-27T05:19:00Z"
+    }
+  ],
+  "mediaProviders": [
+    {
+      "id": "a51d5b52-a3e0-4932-9371-0ede68d58f97",
+      "category": "stt",
+      "name": "Faster-Whisper (local)",
+      "provider": "openai",
+      "baseUrl": "http://127.0.0.1:5060/v1",
+      "apiKey": "PASTE_YOUR_KEY_HERE",
+      "models": [
+        "base"
+      ],
+      "isActive": true,
+      "createdAt": "2026-06-07T10:46:28.758364557Z"
+    },
+    {
+      "id": "82a7889e-c739-4776-ab0a-468ed739a1c4",
+      "category": "tts",
+      "name": "Edge TTS (sovereign-free)",
+      "provider": "edgeTts",
+      "baseUrl": "",
+      "models": [
+        "edgeTts"
+      ],
+      "isActive": true,
+      "createdAt": "2026-06-07T10:46:28.71315688Z"
+    }
+  ],
+  "pricing": [
+    {
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5",
+      "inputUsdPer1M": 1,
+      "outputUsdPer1M": 5,
+      "cacheReadUsdPer1M": 0.1,
+      "cacheWriteUsdPer1M": 1.25,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-opus-4-7",
+      "inputUsdPer1M": 15,
+      "outputUsdPer1M": 75,
+      "cacheReadUsdPer1M": 1.5,
+      "cacheWriteUsdPer1M": 18.75,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "inputUsdPer1M": 3,
+      "outputUsdPer1M": 15,
+      "cacheReadUsdPer1M": 0.3,
+      "cacheWriteUsdPer1M": 3.75,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "inputUsdPer1M": 0.14,
+      "outputUsdPer1M": 0.28,
+      "cacheReadUsdPer1M": 0.014,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-flash",
+      "inputUsdPer1M": 0.075,
+      "outputUsdPer1M": 0.3,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "inputUsdPer1M": 1.25,
+      "outputUsdPer1M": 10,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "groq",
+      "model": "llama-3.3-70b-versatile",
+      "inputUsdPer1M": 0.59,
+      "outputUsdPer1M": 0.79,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "kiro",
+      "model": "kr/claude-opus-4",
+      "inputUsdPer1M": 0,
+      "outputUsdPer1M": 0,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "free-tier",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "kiro",
+      "model": "kr/claude-sonnet-4.5",
+      "inputUsdPer1M": 0,
+      "outputUsdPer1M": 0,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "free-tier",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o",
+      "inputUsdPer1M": 2.5,
+      "outputUsdPer1M": 10,
+      "cacheReadUsdPer1M": 1.25,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "inputUsdPer1M": 0.15,
+      "outputUsdPer1M": 0.6,
+      "cacheReadUsdPer1M": 0.075,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    },
+    {
+      "provider": "openai",
+      "model": "o1-preview",
+      "inputUsdPer1M": 15,
+      "outputUsdPer1M": 60,
+      "cacheReadUsdPer1M": 0,
+      "cacheWriteUsdPer1M": 0,
+      "currency": "USD",
+      "source": "vendor-public-2026-05",
+      "updatedAt": "2026-05-27T06:01:41Z"
+    }
+  ],
+  "tags": [
+    {
+      "id": "e61519b7-3976-47ae-bec4-9606ae314c8f",
+      "name": "premium",
+      "color": "#fcd34d",
+      "kind": "provider",
+      "createdAt": "2026-05-27T06:02:16Z"
+    },
+    {
+      "id": "a0c395f7-6c55-4658-bfb6-e467bc758f21",
+      "name": "sovereign",
+      "color": "#8b5cf6",
+      "kind": "generic",
+      "createdAt": "2026-05-27T08:58:55Z"
+    }
+  ],
+  "dispatch": {
+    "defaultModel": "claude-haiku-4-5",
+    "fallbackStrategy": "priority_ordered",
+    "rtkTokenSaver": true,
+    "intentRouting": {
+      "enabled": false,
+      "privatePatterns": [],
+      "privateTag": "local"
+    },
+    "budget": {
+      "enforce": false,
+      "dailyCapUsd": 5,
+      "monthlyCapUsd": 150,
+      "warnUsd": 1
+    }
+  }
+}

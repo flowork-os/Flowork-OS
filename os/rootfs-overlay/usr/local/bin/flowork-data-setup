@@ -1,0 +1,130 @@
+#!/bin/sh
+# === LOCKED FILE === STABLE — DO NOT MODIFY without owner approval (Aola Sahidin / Mr.Dev).
+# Locked 2026-06-13 after the version-stamped first-boot restore (re-seed on newer image) was verified.
+# 2026-06-13 (audit→fix): first-boot restore now strips stale *.db-wal/-shm after copying the seed —
+#   a left-over WAL on the DATA volume would make SQLite revert the fresh seed on first open.
+# flowork-data-setup — bring up the persistent, LUKS-encrypted DATA volume and bind it
+# over the agent/router state base (/root/.flowork). Falls back to ephemeral (tmpfs) when
+# no DATA disk is present, so a stick with no data partition still boots (P0 behaviour).
+#
+# PoC key custody: the key lives at /etc/flowork/data.key inside the image. This proves the
+# encryption path; real custody (passphrase at boot / TPM-sealed key) is P3/P4.
+set -u
+CON=/dev/console
+# Auto-detect the DATA disk: the first whole block device present. The root is an
+# initramfs (no disk), so any /dev/vd*|/dev/sd* is the data volume. Override with env.
+# POLL for it: at boot the virtio_blk/udev device node can appear a beat after this
+# service starts; a single check would race and wrongly fall back to ephemeral.
+modprobe virtio_blk 2>/dev/null || true
+DEV="${FLOWORK_DATA_DEV:-}"
+if [ -z "$DEV" ]; then
+	i=0
+	while [ "$i" -lt 24 ]; do          # up to ~12s
+		# Candidates: separate disks first, then a spare partition (single-USB layout).
+		for d in /dev/vdb /dev/vdc /dev/sdb /dev/sdc /dev/vda5 /dev/sda5 /dev/vda4 /dev/vda3 /dev/sda4 /dev/sda3 /dev/vda /dev/sda; do
+			[ -b "$d" ] || continue
+			# SAFETY: only ever touch a device that is genuinely OURS or empty — a device
+			# explicitly labelled FLOWORKDATA, an existing LUKS volume (re-open), or a truly
+			# BLANK device (no partition table, no filesystem, no label). Anything else (the
+			# GPT boot disk, the ESP, the FLOWORKAB/MODELS partitions, any foreign fs) is SKIPPED
+			# so we never LUKS-format the boot media or a user's disk.
+			lbl="$(blkid -s LABEL  -o value "$d" 2>/dev/null)"
+			typ="$(blkid -s TYPE   -o value "$d" 2>/dev/null)"
+			if [ "$lbl" = FLOWORKDATA ] || [ "$typ" = crypto_LUKS ] || [ -z "$(blkid "$d" 2>/dev/null)" ]; then
+				DEV="$d"; break
+			fi
+		done
+		[ -n "$DEV" ] && break
+		i=$((i + 1)); sleep 0.5
+	done
+fi
+KEY=/etc/flowork/data.key
+MNT=/mnt/flowork-data
+NAME=floworkdata
+SEED=/usr/share/flowork/agents-seed
+# DEV-builder only: a baked owner state snapshot (flowork.db + kv) to pre-load on first boot.
+# PUBLIC builds ship this empty/absent, so a public stick starts with a clean database.
+STATE_SEED=/usr/share/flowork/state-seed
+STATE=/root/.flowork
+
+log() { echo "DATA: $*" >"$CON"; }
+
+seed_into() { # $1 = target .flowork dir
+	mkdir -p "$1"
+	if [ -d "$SEED" ] && [ ! -d "$1/agents" ]; then
+		mkdir -p "$1/agents"
+		cp -a "$SEED/." "$1/agents/" 2>/dev/null || true
+		log "seeded agent definitions into $1/agents"
+	fi
+	# DEV/owner image: pre-load the owner's baked state (flowork.db + agents + config). Three cases,
+	# keyed by the seed-version stamp (VERSION + DB hash) baked next to the snapshot:
+	#   1) fresh volume (no DB yet)         -> copy everything.
+	#   2) old DATA but a NEWER owner image -> the owner re-flashed; restore his state, backing up
+	#                                          the existing DB first so nothing is lost.
+	#   3) same image already applied       -> do nothing (plain reboot; never clobber live data).
+	# PUBLIC images ship NO state-seed, so this whole block is skipped → user data is never touched.
+	if [ -d "$STATE_SEED" ]; then
+		want="$(cat "$STATE_SEED/.seed-version" 2>/dev/null || echo unknown)"
+		have="$(cat "$1/.seed-version" 2>/dev/null || echo none)"
+		if [ ! -f "$1/flowork.db" ]; then
+			cp -a "$STATE_SEED/." "$1/" 2>/dev/null || true
+			find "$1" \( -name '*.db-wal' -o -name '*.db-shm' \) -delete 2>/dev/null || true
+			log "seeded DEV owner state (fresh volume) v$want"
+		elif [ "$want" != unknown ] && [ "$want" != "$have" ]; then
+			ts="$(date +%Y%m%d-%H%M%S 2>/dev/null || echo prev)"
+			cp -a "$1/flowork.db" "$1/flowork.db.replaced-$ts" 2>/dev/null || true
+			cp -a "$STATE_SEED/." "$1/" 2>/dev/null || true
+			# Drop any STALE -wal/-shm left in the DATA volume: the seed ships complete single-file DBs,
+			# so a leftover WAL would make SQLite replay it and REVERT the fresh seed on first open.
+			find "$1" \( -name '*.db-wal' -o -name '*.db-shm' \) -delete 2>/dev/null || true
+			log "restored DEV owner state from new image v$want (old DB -> flowork.db.replaced-$ts)"
+		fi
+	fi
+}
+
+# First-boot DATA auto-grow: the slim/public image is small (~2.5G), so when flashed to a bigger
+# flashdisk the DATA partition must expand to fill it BEFORE we LUKS-format. Best-effort + never
+# fatal: any failure just leaves the partition at its current size and boot continues.
+grow_data_part() {
+	case "$DEV" in *[0-9]) ;; *) return 0 ;; esac   # only a PARTITION can grow (not a whole disk)
+	command -v sfdisk >/dev/null 2>&1 || return 0
+	disk="$(lsblk -npo PKNAME "$DEV" 2>/dev/null | head -1)"
+	[ -n "$disk" ] || disk="$(printf '%s' "$DEV" | sed -E 's/p?[0-9]+$//')"
+	num="$(printf '%s' "$DEV" | grep -oE '[0-9]+$')"
+	[ -b "$disk" ] && [ -n "$num" ] || return 0
+	# extend the partition to the end of the disk (no-op if already full); relocates the GPT
+	# backup header to the real disk end as a side effect of the rewrite.
+	if printf ', +\n' | sfdisk -q --no-reread -N "$num" "$disk" >/dev/null 2>&1; then
+		partprobe "$disk" 2>/dev/null || true
+		log "auto-grew DATA ($DEV) to fill $disk"
+	fi
+}
+
+mkdir -p "$STATE"
+
+if [ ! -b "$DEV" ]; then
+	log "no DATA disk at $DEV — running EPHEMERAL (state in tmpfs)"
+	seed_into "$STATE"
+	exit 0
+fi
+
+modprobe dm-crypt 2>/dev/null || true
+
+if ! cryptsetup isLuks "$DEV" 2>/dev/null; then
+	grow_data_part   # fill the flashdisk before formatting (first boot only)
+	log "initializing LUKS on $DEV (first boot)"
+	cryptsetup luksFormat --type luks2 --pbkdf pbkdf2 --batch-mode \
+		--key-file "$KEY" "$DEV" || { log "luksFormat FAILED — falling back to ephemeral"; seed_into "$STATE"; exit 0; }
+	cryptsetup open --key-file "$KEY" "$DEV" "$NAME" || { log "open FAILED"; seed_into "$STATE"; exit 0; }
+	mkfs.ext4 -q -L FLOWORKDATA "/dev/mapper/$NAME"
+else
+	log "opening existing LUKS DATA on $DEV"
+	cryptsetup open --key-file "$KEY" "$DEV" "$NAME" || { log "open FAILED — falling back to ephemeral"; seed_into "$STATE"; exit 0; }
+fi
+
+mkdir -p "$MNT"
+mount "/dev/mapper/$NAME" "$MNT" || { log "mount FAILED — falling back to ephemeral"; seed_into "$STATE"; exit 0; }
+mkdir -p "$MNT/flowork"
+seed_into "$MNT/flowork"
+mount --bind "$MNT/flowork" "$STATE"
+log "persistent /root/.flowork mounted (encrypted)"

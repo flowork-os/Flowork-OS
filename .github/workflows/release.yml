@@ -1,0 +1,92 @@
+# Release pipeline — "git tag = release".
+#
+#   git tag v0.6.0 && git push origin v0.6.0
+#
+# builds the slim Default OS image + portable launchers + agent/router binaries, compresses,
+# generates manifest.json, and publishes them all as a GitHub Release on the PUBLIC channel
+# (flowork-os/Flowork-OS) so users + installed devices can download/auto-update. Source stays
+# in this private repo.
+#
+# One-time setup: add repo secret PUBLISH_TOKEN = a token with contents:write on Flowork_Agent.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "version (without leading v)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            V="${{ github.event.inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "$V" > os/VERSION
+          echo "tag=flowork-os-$V" >> "$GITHUB_OUTPUT"
+
+      - name: Build slim Default image + portable + binaries
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq gdisk dosfstools zstd zip
+          # docker (rootfs) + losetup/mount (image) are available on ubuntu-latest runners.
+          bash os/build/make-distributable.sh public
+
+      - name: Package assets
+        id: pkg
+        run: |
+          cd os/out
+          TAG="${{ steps.ver.outputs.tag }}"
+          zstd -19 -T0 -q -f "$TAG-public.usb.img" -o "$TAG-public.usb.img.zst"
+          zip -qr flowork-portable.zip flowork-portable
+          RELEASED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          bash ../build/make-manifest.sh "${{ steps.ver.outputs.version }}" "$RELEASED" . > manifest.json
+          cat manifest.json
+          ls -lh "$TAG-public.usb.img.zst" flowork-portable.zip flowork-agent flowork-router manifest.json
+
+      # The standalone router as a Docker image — the "use with any agent" wedge.
+      - name: Build & push router image (GHCR)
+        env:
+          GH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          echo "$GH_TOKEN" | docker login ghcr.io -u flowork-os --password-stdin
+          docker build -f router/Dockerfile -t "ghcr.io/flowork-os/flowork-router:v$V" -t "ghcr.io/flowork-os/flowork-router:latest" router
+          docker push "ghcr.io/flowork-os/flowork-router:v$V"
+          docker push "ghcr.io/flowork-os/flowork-router:latest"
+
+      # ONE repo, MANY products: publish every artifact to the single public hub.
+      - name: Publish release (flowork-os/flowork)
+        env:
+          GH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
+        run: |
+          cd os/out
+          TAG="${{ steps.ver.outputs.tag }}"
+          V="${{ steps.ver.outputs.version }}"
+          # Signed rootfs assets drive the OS A/B auto-update (flowork-update run).
+          SIGNED="$TAG.rootfs.squashfs $TAG.rootfs.squashfs.verity $TAG.rootfs.squashfs.roothash $TAG.rootfs.squashfs.roothash.sig"
+          ASSETS="$TAG-public.usb.img.zst flowork-portable.zip flowork-agent flowork-router manifest.json"
+          for s in $SIGNED; do [ -f "$s" ] && ASSETS="$ASSETS $s"; done
+          gh release create "v$V" \
+            --repo flowork-os/flowork \
+            --title "Flowork v$V" \
+            --notes "Automated release. OS image (slim, Claude-cloak default), signed rootfs (A/B auto-update), portable launchers, agent+router binaries, manifest.json. Standalone router: ghcr.io/flowork-os/flowork-router:v$V." \
+            $ASSETS \
+            || gh release upload "v$V" --repo flowork-os/flowork --clobber $ASSETS

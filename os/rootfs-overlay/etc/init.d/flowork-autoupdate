@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+# Periodic auto-updater: checks the public release channel and applies signed A/B updates.
+name="flowork-autoupdate"
+description="Flowork periodic auto-updater (signed A/B, rollback-safe)"
+
+command="/usr/local/bin/flowork-autoupdate"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-autoupdate.log"
+error_log="/var/log/flowork-autoupdate.log"
+
+depend() {
+	need net
+	after flowork-agent flowork-router
+}

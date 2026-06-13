@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+# Local-AI self-test. No-op unless booted with `flowork.aitest=1`. One-shot.
+name="flowork-ollama-check"
+description="Flowork local-AI (Ollama) self-test"
+
+depend() {
+	after flowork-ollama
+}
+
+start() {
+	ebegin "Flowork local-AI self-test"
+	/usr/local/bin/flowork-ollama-check
+	eend 0
+}

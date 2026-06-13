@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06060f"/>
+      <stop offset="0.55" stop-color="#0d0a1f"/>
+      <stop offset="1" stop-color="#0a0716"/>
+    </linearGradient>
+    <linearGradient id="title" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f2eaff"/>
+      <stop offset="0.55" stop-color="#a78bfa"/>
+      <stop offset="1" stop-color="#19c2ff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.34" r="0.5">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <circle cx="1.4" cy="1.4" r="1.4" fill="#4b3b80" fill-opacity="0.18"/>
+    </pattern>
+  </defs>
+
+  <!-- backdrop -->
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <!-- routing / hub motif (right): a central router hub fanning to model + brain nodes -->
+  <g transform="translate(975,300)">
+    <g stroke-width="1.6" fill="none">
+      <line x1="0" y1="0" x2="-150" y2="-150" stroke="#a78bfa" stroke-opacity="0.4"/>
+      <line x1="0" y1="0" x2="170" y2="-120" stroke="#19c2ff" stroke-opacity="0.4"/>
+      <line x1="0" y1="0" x2="200" y2="40"  stroke="#a78bfa" stroke-opacity="0.35"/>
+      <line x1="0" y1="0" x2="120" y2="180" stroke="#19c2ff" stroke-opacity="0.35"/>
+      <line x1="0" y1="0" x2="-120" y2="150" stroke="#a78bfa" stroke-opacity="0.35"/>
+      <line x1="0" y1="0" x2="-210" y2="20" stroke="#22ff88" stroke-opacity="0.3"/>
+    </g>
+    <!-- outer nodes -->
+    <g>
+      <circle cx="-150" cy="-150" r="9" fill="#a78bfa"/>
+      <circle cx="170"  cy="-120" r="9" fill="#19c2ff"/>
+      <circle cx="200"  cy="40"   r="8" fill="#a78bfa"/>
+      <circle cx="120"  cy="180"  r="8" fill="#19c2ff"/>
+      <circle cx="-120" cy="150"  r="8" fill="#a78bfa"/>
+      <circle cx="-210" cy="20"   r="11" fill="#22ff88"/>
+    </g>
+    <!-- central hub -->
+    <circle r="40" fill="#120a26" stroke="#a78bfa" stroke-opacity="0.7" stroke-width="2"/>
+    <circle r="20" fill="#7c3aed" fill-opacity="0.55"/>
+    <circle r="7"  fill="#e9dcff"/>
+  </g>
+
+  <!-- mark: a stylized router/switch glyph -->
+  <g transform="translate(96,150)" stroke="url(#title)" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M6 96 L40 96 L72 24 L106 24"/>
+    <path d="M6 24 L40 24 L72 96 L106 96"/>
+  </g>
+
+  <!-- kicker -->
+  <text x="150" y="150" fill="#a78bfa" font-size="22" font-weight="700" letter-spacing="5">SOVEREIGN LLM ROUTER · COLLECTIVE BRAIN</text>
+
+  <!-- title -->
+  <text x="92" y="300" fill="url(#title)" font-size="118" font-weight="800" letter-spacing="-2">Flowork Router</text>
+
+  <!-- subtitle -->
+  <text x="96" y="358" fill="#ddd2f7" font-size="33" font-weight="600">One gateway to every model — backed by a 5-million-memory brain.</text>
+
+  <!-- one-liner -->
+  <text x="96" y="404" fill="#9b8cc4" font-size="22">Routes Claude, local Qwen, or any OpenAI-compatible model · injects knowledge + antibodies before the LLM speaks.</text>
+
+  <!-- pillar pills -->
+  <g font-size="20" font-weight="600">
+    <g transform="translate(96,452)">
+      <rect width="284" height="46" rx="23" fill="#15102b" stroke="#a78bfa" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#a78bfa"/>
+      <text x="44" y="30" fill="#ece4ff">5M-drawer · 1M-vector brain</text>
+    </g>
+    <g transform="translate(394,452)">
+      <rect width="250" height="46" rx="23" fill="#15102b" stroke="#22ff88" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#22ff88"/>
+      <text x="44" y="30" fill="#ece4ff">Antibody anti-halu</text>
+    </g>
+    <g transform="translate(658,452)">
+      <rect width="240" height="46" rx="23" fill="#15102b" stroke="#19c2ff" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#19c2ff"/>
+      <text x="44" y="30" fill="#ece4ff">Any model, your way</text>
+    </g>
+    <g transform="translate(96,512)">
+      <rect width="262" height="46" rx="23" fill="#15102b" stroke="#19c2ff" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#19c2ff"/>
+      <text x="44" y="30" fill="#ece4ff">Provider chain + fallback</text>
+    </g>
+    <g transform="translate(372,512)">
+      <rect width="216" height="46" rx="23" fill="#15102b" stroke="#a78bfa" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#a78bfa"/>
+      <text x="44" y="30" fill="#ece4ff">Mesh federation</text>
+    </g>
+    <g transform="translate(602,512)">
+      <rect width="252" height="46" rx="23" fill="#15102b" stroke="#22ff88" stroke-opacity="0.4"/>
+      <circle cx="26" cy="23" r="6" fill="#22ff88"/>
+      <text x="44" y="30" fill="#ece4ff">100% local-capable</text>
+    </g>
+  </g>
+
+  <!-- footer -->
+  <text x="96" y="600" fill="#6f619a" font-size="19" letter-spacing="1">github.com/flowork-os/flowork_Router   ·   OpenAI-compatible API   ·   No SaaS · No telemetry</text>
+</svg>

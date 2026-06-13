@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+# One-shot boot-health probe -> prints AGENT_UP / ROUTER_UP to the console for
+# automated verification. Backgrounds so it never blocks the boot.
+name="flowork-health"
+description="Flowork boot-health probe"
+
+command="/usr/local/bin/flowork-health"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+depend() {
+	after flowork-agent flowork-router
+}

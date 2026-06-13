@@ -1,0 +1,13 @@
+Flowork — Copyright (C) 2026 Aola Sahidin.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU Affero General Public License v3.0 (AGPL-3.0) as published
+by the Free Software Foundation — see the LICENSE file.
+
+Why AGPL: Flowork is sovereignty infrastructure. AGPL's network-copyleft closes
+the SaaS-enclosure loophole — anyone who offers Flowork (or a modified version)
+to others over a network must release their source. Running it for yourself, or
+pointing another agent at the router's API, carries no obligation.
+
+Dual licensing: a separate COMMERCIAL license (without AGPL-3.0's network-copyleft
+obligations) is available for organizations that need it. Contact the maintainers.

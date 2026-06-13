@@ -1,0 +1,44 @@
+#!/bin/sh
+# flowork-ollama-check — local-AI self-test (P2). Gated by kernel cmdline `flowork.aitest=1`
+# (no-op on normal boots). Waits for Ollama, then runs an OFFLINE inference and prints the
+# result to the serial console so verify-ollama.sh can confirm it headlessly.
+CON=/dev/console
+say() { echo "OLLAMA_AI $*" > "$CON"; }
+
+grep -q 'flowork.aitest=1' /proc/cmdline 2>/dev/null || exit 0
+say "self-test starting"
+
+up=0; i=0
+while [ "$i" -lt 90 ]; do
+	if curl -fsS -o /dev/null http://127.0.0.1:11434/api/tags 2>/dev/null; then up=1; break; fi
+	i=$((i + 1)); sleep 2
+done
+[ "$up" = 1 ] || { say "RESULT: FAIL (ollama not reachable on :11434)"; say "self-test done"; exit 0; }
+
+MODEL="$(curl -fsS http://127.0.0.1:11434/api/tags 2>/dev/null | sed -n 's/.*"name":"\([^"]*\)".*/\1/p' | head -1)"
+say "ollama up; first model = ${MODEL:-<none>}"
+[ -n "$MODEL" ] || { say "RESULT: FAIL (no model in store)"; say "self-test done"; exit 0; }
+
+R="$(curl -fsS http://127.0.0.1:11434/api/generate \
+	-d "{\"model\":\"$MODEL\",\"prompt\":\"Reply with exactly: FLOWORK OK\",\"stream\":false}" 2>/dev/null \
+	| sed -n 's/.*"response":"\([^"]*\)".*/\1/p')"
+say "inference response = [$R]"
+if [ -n "$R" ]; then say "RESULT: OK (local offline inference works)"; else say "RESULT: FAIL (empty response)"; fi
+
+# P2b: router -> ollama. A /v1/chat/completions to the ROUTER (:2402) must route to the
+# local Qwen (sovereign seed). Wait briefly for the router to be up first.
+j=0; rup=0
+while [ "$j" -lt 30 ]; do
+	curl -sS -o /dev/null http://127.0.0.1:2402 2>/dev/null && { rup=1; break; }
+	j=$((j + 1)); sleep 2
+done
+if [ "$rup" = 1 ]; then
+	RR="$(curl -fsS http://127.0.0.1:2402/v1/chat/completions -H 'Content-Type: application/json' \
+		-d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply with exactly: FLOWORK ROUTER OK\"}],\"stream\":false}" 2>/dev/null \
+		| sed -n 's/.*"content":"\([^"]*\)".*/\1/p' | head -1)"
+	say "router->ollama response = [$RR]"
+	if [ -n "$RR" ]; then say "ROUTER_AI RESULT: OK (router routed to local Qwen)"; else say "ROUTER_AI RESULT: FAIL (no completion via router)"; fi
+else
+	say "ROUTER_AI RESULT: SKIP (router not up)"
+fi
+say "self-test done"

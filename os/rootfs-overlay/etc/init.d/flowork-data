@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+# Bring up the persistent encrypted DATA volume and bind it over /root/.flowork
+# BEFORE the agent/router start. One-shot.
+name="flowork-data"
+description="Flowork persistent encrypted DATA volume"
+
+depend() {
+	need localmount
+	before flowork-router flowork-agent
+	after udev udev-trigger modules
+}
+
+start() {
+	ebegin "Setting up Flowork persistent DATA"
+	/usr/local/bin/flowork-data-setup
+	eend 0
+}
+
+stop() {
+	ebegin "Releasing Flowork DATA volume"
+	umount /root/.flowork 2>/dev/null || true
+	umount /mnt/flowork-data 2>/dev/null || true
+	cryptsetup close floworkdata 2>/dev/null || true
+	eend 0
+}

@@ -1,0 +1,55 @@
+# ── Flowork monorepo — keep CODE, never commit DATA / artifacts / secrets ──
+
+# Build artifacts (compiled binaries ONLY — NOT the OS overlay scripts under
+# os/rootfs-overlay/usr/local/bin, which are source and MUST be committed).
+/os/out/
+/os/.work/
+/desktop/bin/
+/os/builder/flowork-creator
+/os/flasher/flowork-usb-maker
+/os/mesh-rendezvous/flowork-rendezvous-*
+/agent/flowork-gui
+/agent/bin/flowork-cli
+/agent/bin/flowork-mcp
+/agent/bin/flowork-mcp-web
+/agent/bin/flowork-tui
+/router/flow_router
+/router/flow-router-bin
+*.test
+*.exe
+
+# User / runtime DATA (sacred — never replaced by updates)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+/router/brain/
+/agent/agents/*/workspace/
+*.fwpack
+
+# OS image artifacts
+*.img
+*.iso
+*.squashfs
+*.initramfs*
+*.vmlinuz
+*.model-disk*
+
+# Secrets — NEVER commit (audit before every push)
+*.key
+*.pem
+!**/update-pub.pem
+flowork.local.env
+GITHUB_ACCOUNT.MD
+KERNEL_FREEZE*
+data.key
+update.key
+*.bundle
+*.fwagent/workspace/
+
+# Editor / OS cruft
+.DS_Store
+*.swp
+node_modules/

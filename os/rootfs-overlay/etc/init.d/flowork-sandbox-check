@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+# App-sandbox self-test. No-op unless booted with `flowork.selftest=1`. One-shot.
+name="flowork-sandbox-check"
+description="Flowork app-sandbox self-test"
+
+depend() {
+	after flowork-data
+}
+
+start() {
+	ebegin "Flowork app-sandbox self-test"
+	/usr/local/bin/flowork-sandbox-check
+	eend 0
+}

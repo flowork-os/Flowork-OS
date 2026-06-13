@@ -1,0 +1,108 @@
+{
+  "version": "1",
+  "_comment": "Flowork OS SOVEREIGN default router config. DEFAULT = Claude via the cloak (the user's OWN subscription/credentials — sovereign by account, no secret baked here, token resolved at runtime from claude_credentials). Local Qwen (Ollama 127.0.0.1:11434) stays as a lower-priority fallback so the appliance still works fully OFFLINE, and as an opt-in privacy tier (intentRouting routes 'local'-tagged/private prompts to it). Small local models hallucinate, so they are no longer the default. See docs/SOVEREIGN.md.",
+  "providers": [
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "provider": "anthropic",
+      "authType": "subscription",
+      "name": "Claude (cloak — your own subscription)",
+      "priority": 10,
+      "isActive": true,
+      "data": {
+        "baseUrl": "https://api.anthropic.com/v1",
+        "format": "anthropic",
+        "models": [
+          "claude-haiku-4-5",
+          "claude-*"
+        ],
+        "tags": [
+          "premium",
+          "sovereign",
+          "tier:standard",
+          "tier:strong"
+        ],
+        "tokenSource": "claude_credentials"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "provider": "local-llama",
+      "authType": "none",
+      "name": "Qwen (local sovereign — offline fallback / privacy opt-in)",
+      "priority": 20,
+      "isActive": true,
+      "data": {
+        "baseUrl": "http://127.0.0.1:11434/v1",
+        "format": "openai",
+        "models": [
+          "qwen*",
+          "qwen-flowork",
+          "qwen-flowork:latest",
+          "qwen2.5:0.5b",
+          "qwen2.5:7b",
+          "qwen2.5:3b"
+        ],
+        "tags": [
+          "local",
+          "sovereign",
+          "tier:standard"
+        ]
+      }
+    }
+  ],
+  "combos": [
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "name": "sovereign-local",
+      "models": [
+        "qwen-flowork",
+        "qwen2.5:7b",
+        "qwen2.5:3b"
+      ],
+      "strategy": "priority_ordered"
+    }
+  ],
+  "mediaProviders": [
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "category": "tts",
+      "name": "Edge TTS (sovereign-free)",
+      "provider": "edgeTts",
+      "baseUrl": "",
+      "models": ["edgeTts"],
+      "isActive": true
+    }
+  ],
+  "pricing": [],
+  "tags": [
+    {
+      "id": "00000000-0000-4000-8000-000000000030",
+      "name": "sovereign",
+      "color": "#8b5cf6",
+      "kind": "generic"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000031",
+      "name": "local",
+      "color": "#22c55e",
+      "kind": "provider"
+    }
+  ],
+  "dispatch": {
+    "defaultModel": "claude-haiku-4-5",
+    "fallbackStrategy": "priority_ordered",
+    "rtkTokenSaver": true,
+    "intentRouting": {
+      "enabled": true,
+      "privatePatterns": [],
+      "privateTag": "local"
+    },
+    "budget": {
+      "enforce": false,
+      "dailyCapUsd": 0,
+      "monthlyCapUsd": 0,
+      "warnUsd": 0
+    }
+  }
+}

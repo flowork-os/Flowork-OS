@@ -1,0 +1,62 @@
+#!/bin/sh
+# Boot-health probe. Polls the agent (:1987) and router (:2402) and prints a
+# machine-readable result to the console (serial), so run-qemu.sh can verify the
+# boot headlessly. Emits AGENT_UP / ROUTER_UP once each is reachable.
+CON=/dev/console
+agent_url="http://localhost:1987"
+router_url="http://localhost:2402"
+
+# Persistence proof: a counter living inside /root/.flowork. It can only reach 2 on the
+# second boot if the (encrypted) DATA volume was unlocked, mounted, and survived the reboot.
+PCOUNT=/root/.flowork/.boot-count
+n=$(cat "$PCOUNT" 2>/dev/null || echo 0)
+n=$((n + 1))
+mkdir -p /root/.flowork 2>/dev/null
+echo "$n" > "$PCOUNT" 2>/dev/null
+sync   # flush to the (encrypted) DATA volume so the counter survives an abrupt power-off
+db=no; [ -f /root/.flowork/flowork.db ] && db=yes
+echo "FLOWORK_PERSIST boot_count=$n flowork_db=$db" > "$CON"
+
+# Network status: bring up the IP if the DHCP service was slow, then probe the internet.
+IP="$(ip -4 addr show eth0 2>/dev/null | sed -n 's#.*inet \([0-9.]*\)/.*#\1#p' | head -1)"
+if [ -z "$IP" ]; then
+	udhcpc -b -i eth0 -q 2>/dev/null; sleep 2
+	IP="$(ip -4 addr show eth0 2>/dev/null | sed -n 's#.*inet \([0-9.]*\)/.*#\1#p' | head -1)"
+fi
+NET=down; curl -fsS -o /dev/null --max-time 5 http://1.1.1.1 2>/dev/null && NET=up
+echo "FLOWORK_NET eth0=${IP:-none} internet=$NET" > "$CON"
+
+a_done=0
+r_done=0
+i=0
+while [ "$i" -lt 90 ]; do
+	A=down
+	R=down
+	# Agent: expect a real 200 (control panel HTML).
+	if curl -fsS -o /dev/null "$agent_url" 2>/dev/null; then A=up; fi
+	# Router: accept any HTTP response (a 404 still proves it is listening).
+	if curl -sS -o /dev/null "$router_url" 2>/dev/null; then R=up; fi
+
+	echo "FLOWORK_HEALTH agent=$A router=$R" >"$CON"
+	if [ "$A" = up ] && [ "$a_done" = 0 ]; then echo "AGENT_UP" >"$CON"; a_done=1; fi
+	if [ "$R" = up ] && [ "$r_done" = 0 ]; then echo "ROUTER_UP" >"$CON"; r_done=1; fi
+	if [ "$a_done" = 1 ] && [ "$r_done" = 1 ]; then break; fi
+
+	i=$((i + 1))
+	sleep 2
+done
+
+echo "FLOWORK_HEALTH_DONE agent=$a_done router=$r_done" >"$CON"
+
+# A/B auto-update: a healthy boot CONFIRMS the active slot — clears its rollback counter so
+# stage-1 init won't revert it next time. The active slot is the one we are running, so read it
+# straight from the writable media's pointer (avoids a tmpfs-over-/run masking the slot hint).
+if [ "$a_done" = 1 ] && [ "$r_done" = 1 ] && [ -f /flowork-media/flowork/active ]; then
+	SLOT="$(tr -dc 'ab' < /flowork-media/flowork/active 2>/dev/null)"
+	if [ -n "$SLOT" ]; then
+		: > "/flowork-media/flowork/slot-$SLOT.confirmed" 2>/dev/null
+		rm -f "/flowork-media/flowork/slot-$SLOT.tries" 2>/dev/null
+		sync
+		echo "FLOWORK_AB slot=$SLOT confirmed" >"$CON"
+	fi
+fi

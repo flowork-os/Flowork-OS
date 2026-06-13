@@ -1,0 +1,57 @@
+#!/bin/sh
+# Wait for the Flowork control panel, then launch chromium full-screen via cage
+# (a single-window Wayland kiosk compositor). Tuned for a GPU-less VM: software
+# rendering throughout. Emits concise markers to the console so a headless boot
+# can be diagnosed from the serial log.
+set -u
+CON=/dev/console
+
+. /etc/flowork/flowork.env 2>/dev/null || true
+export HOME="${HOME:-/root}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/0}"
+export XDG_CACHE_HOME="$HOME/.cache"
+mkdir -p "$XDG_RUNTIME_DIR" "$XDG_CACHE_HOME"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+# wlroots/cage: software renderer, tolerate a VM with no enumerated input devices.
+export WLR_RENDERER="${WLR_RENDERER:-pixman}"
+export WLR_LIBINPUT_NO_DEVICES=1
+export WLR_NO_HARDWARE_CURSORS=1
+
+URL="${FLOWORK_UI_URL:-http://localhost:1987}"
+
+# Wait up to 120s for the agent to serve the UI before painting anything.
+i=0
+while [ "$i" -lt 120 ]; do
+	curl -fsS -o /dev/null "$URL" && break
+	i=$((i + 1)); sleep 1
+done
+echo "KIOSK agent-ready after ${i}s; DRM:" >"$CON"
+ls -l /dev/dri 2>&1 >"$CON" || echo "KIOSK: no /dev/dri (virtio_gpu not loaded?)" >"$CON"
+
+# Chromium: kiosk, software GPU (robust in a VM), Wayland/Ozone so it talks to cage.
+cage -- chromium \
+	--kiosk \
+	--no-sandbox \
+	--no-first-run \
+	--no-default-browser-check \
+	--disable-gpu \
+	--force-device-scale-factor=1 \
+	--high-dpi-support=0 \
+	--disable-dev-shm-usage \
+	--disable-translate \
+	--disable-infobars \
+	--disable-session-crashed-bubble \
+	--enable-features=UseOzonePlatform \
+	--ozone-platform=wayland \
+	--app="$URL" >/var/log/flowork-kiosk.log 2>&1 &
+cpid=$!
+echo "KIOSK cage+chromium started pid=$cpid url=$URL" >"$CON"
+
+# Block on the compositor. In normal operation cage never returns (the kiosk owns
+# the screen). If it does exit, surface why (DRM/seat/render errors) to the serial
+# console for diagnosis.
+wait "$cpid"
+rc=$?
+echo "KIOSK exited rc=$rc; tail:" >"$CON"
+tail -n 25 /var/log/flowork-kiosk.log >"$CON" 2>&1

@@ -1,0 +1,125 @@
+#!/bin/sh
+# flowork-update — pull a newer SIGNED Flowork OS rootfs from our GitHub Releases and
+# VERIFY its signature against the baked-in public key BEFORE trusting it.
+#
+# Why signed (design Section 8): if GitHub is hijacked or a MITM injects a poisoned image,
+# an unsigned appliance would swallow it. Only an image signed by the owner's offline key is
+# accepted. The public key is baked into the image; the private key never leaves the owner.
+#
+# Scope: this tool does the security-critical CHECK -> DOWNLOAD -> VERIFY -> stage. The atomic
+# A/B partition switch + reboot/rollback is product-stage (needs the disk-image boot path) —
+# see docs/BACKLOG.md.
+#
+#   flowork-update verify <artifact> <sig> [pubkey]   # verify a signature (exit 0 = ok)
+#   flowork-update check                              # is a newer release available?
+#   flowork-update run                                # check -> download -> verify -> stage
+set -u
+
+REPO="${FLOWORK_OS_REPO:-flowork-os/flowork}"   # PUBLIC release channel (auto-update source)
+GH_API="${FLOWORK_GH_API:-https://api.github.com}"    # override for testing / a mirror
+PUB="${FLOWORK_UPDATE_PUBKEY:-/etc/flowork/update-pub.pem}"
+VERSION_FILE="${FLOWORK_VERSION_FILE:-/etc/flowork/version}"
+STAGE="${FLOWORK_UPDATE_STAGE:-/var/lib/flowork/update}"
+MEDIA_DIR="${FLOWORK_MEDIA:-/flowork-media}"   # writable A/B media (mounted by stage-1 init)
+FW="$MEDIA_DIR/flowork"
+
+die() { echo "flowork-update: $*" >&2; exit 2; }
+
+active_slot() { tr -dc 'ab' < "$FW/active" 2>/dev/null; }
+other_slot()  { [ "$(active_slot)" = a ] && echo b || echo a; }
+
+verify_sig() { # <artifact> <sig> [pubkey]
+	art="$1"; sig="$2"; pub="${3:-$PUB}"
+	[ -f "$art" ] || die "artifact not found: $art"
+	[ -f "$sig" ] || die "signature not found: $sig"
+	[ -f "$pub" ] || die "public key not found: $pub"
+	openssl dgst -sha256 -verify "$pub" -signature "$sig" "$art" >/dev/null 2>&1
+}
+
+latest_tag() {
+	curl -fsSL "$GH_API/repos/$REPO/releases/latest" 2>/dev/null \
+		| sed -n 's/.*"tag_name"[ ]*:[ ]*"\([^"]*\)".*/\1/p' | head -1 \
+		| sed 's/^v//'   # normalize v0.6.0 -> 0.6.0 to match the VERSION file
+}
+
+asset_url() { # <regex anchored at end of the asset filename>
+	curl -fsSL "$GH_API/repos/$REPO/releases/latest" 2>/dev/null \
+		| sed -n 's/.*"browser_download_url"[ ]*:[ ]*"\([^"]*\)".*/\1/p' | grep -E -- "$1\$" | head -1
+}
+
+cmd="${1:-run}"; [ "$#" -gt 0 ] && shift
+
+case "$cmd" in
+verify)
+	if verify_sig "$@"; then echo "signature OK"; exit 0; else echo "signature INVALID"; exit 1; fi
+	;;
+check)
+	cur="$(cat "$VERSION_FILE" 2>/dev/null || echo 0.0.0)"
+	lt="$(latest_tag)"
+	echo "current=$cur latest=${lt:-unknown}"
+	[ -n "$lt" ] && [ "$lt" != "$cur" ] && { echo "update available"; exit 0; }
+	echo "up to date"; exit 1
+	;;
+run)
+	# Full auto-apply: check -> download the signed rootfs (+ verity + signed roothash) ->
+	# install into the IDLE A/B slot (P4a signature verified there) -> flip active. A reboot
+	# applies it; stage-1 init auto-rolls-back if the new slot fails to confirm.
+	cur="$(cat "$VERSION_FILE" 2>/dev/null || echo 0.0.0)"
+	lt="$(latest_tag)"; [ -n "$lt" ] || die "could not reach GitHub Releases"
+	[ "$lt" != "$cur" ] || { echo "up to date ($cur)"; exit 0; }
+	sq="$(asset_url '\.rootfs\.squashfs')"
+	vh="$(asset_url '\.rootfs\.squashfs\.verity')"
+	rh="$(asset_url '\.rootfs\.squashfs\.roothash')"
+	sg="$(asset_url '\.rootfs\.squashfs\.roothash\.sig')"
+	[ -n "$sq" ] && [ -n "$rh" ] && [ -n "$sg" ] || die "release $lt has no signed rootfs assets"
+	mkdir -p "$STAGE"
+	echo "downloading $lt ..."
+	curl -fsSL "$sq" -o "$STAGE/rootfs.squashfs"             || die "download rootfs failed"
+	[ -n "$vh" ] && curl -fsSL "$vh" -o "$STAGE/rootfs.squashfs.verity"
+	curl -fsSL "$rh" -o "$STAGE/rootfs.squashfs.roothash"     || die "download roothash failed"
+	curl -fsSL "$sg" -o "$STAGE/rootfs.squashfs.roothash.sig" || die "download sig failed"
+	# Hand off to install: it verifies the signed root hash (P4a) before activating.
+	exec "$0" install "$STAGE/rootfs.squashfs" \
+		"$STAGE/rootfs.squashfs.verity" "$STAGE/rootfs.squashfs.roothash" "$STAGE/rootfs.squashfs.roothash.sig"
+	;;
+status)
+	[ -d "$FW" ] || die "no A/B media at $FW"
+	echo "active=$(active_slot)"
+	for s in a b; do
+		c=no; [ -f "$FW/slot-$s.confirmed" ] && c=yes
+		p=no; [ -f "$FW/slot-$s/rootfs.squashfs" ] && p=yes
+		echo "slot-$s: image=$p confirmed=$c tries=$(cat "$FW/slot-$s.tries" 2>/dev/null || echo 0)"
+	done
+	;;
+switch)
+	[ -d "$FW" ] || die "no A/B media at $FW"
+	t="$(other_slot)"
+	[ -f "$FW/slot-$t/rootfs.squashfs" ] || die "slot $t has no image to switch to"
+	rm -f "$FW/slot-$t.confirmed" "$FW/slot-$t.tries"
+	echo "$t" > "$FW/active"; sync
+	echo "active -> $t (reboot to apply; auto-rollback if it fails to confirm)"
+	;;
+install)  # <squashfs> [<verity> <roothash> [<roothash.sig>]]
+	[ -d "$FW" ] || die "no A/B media at $FW"
+	sq="${1:-}"; vh="${2:-}"; rh="${3:-}"; sg="${4:-}"
+	[ -f "$sq" ] || die "usage: flowork-update install <squashfs> [<verity> <roothash> [<sig>]]"
+	# If a signed root hash is supplied, verify it against the baked public key first (P4a).
+	if [ -n "$sg" ] && [ -n "$rh" ] && [ -f "$PUB" ]; then
+		verify_sig "$rh" "$sg" || die "root hash signature INVALID — refusing to install"
+		echo "root hash signature OK"
+	fi
+	t="$(other_slot)"
+	mkdir -p "$FW/slot-$t"
+	cp "$sq" "$FW/slot-$t/rootfs.squashfs"           || die "copy squashfs failed"
+	[ -n "$vh" ] && cp "$vh" "$FW/slot-$t/rootfs.squashfs.verity"
+	[ -n "$rh" ] && cp "$rh" "$FW/slot-$t/rootfs.squashfs.roothash"
+	[ -n "$sg" ] && cp "$sg" "$FW/slot-$t/rootfs.squashfs.roothash.sig"
+	rm -f "$FW/slot-$t.confirmed" "$FW/slot-$t.tries"
+	echo "$t" > "$FW/active"; sync
+	echo "installed -> slot $t, set active (reboot to apply; auto-rollback if it fails)"
+	;;
+*)
+	echo "usage: flowork-update {verify <art> <sig> [pub] | check | run | status | switch | install <sq> [<verity> <roothash> [<sig>]]}" >&2
+	exit 2
+	;;
+esac

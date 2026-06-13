@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+# Flowork agent + control panel (:1987). Serves the embedded web UI the kiosk displays.
+name="flowork-agent"
+description="Flowork agent and control panel"
+
+: "${FLOWORK_AGENT_ADDR:=127.0.0.1:1987}"
+command="/usr/local/bin/flowork-agent"
+command_args="-addr ${FLOWORK_AGENT_ADDR}"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-agent.log"
+error_log="/var/log/flowork-agent.log"
+# FLOWORK_GUARDIAN_AUTO=0: a freshly-built appliance binary must not auto-arm the guardian — its
+# 5-min sentinel would false-positive into SAFE-MODE (exec/install blocked). Owner arms on the
+# final device with `flowork --arm` (OS-seals a real baseline). Detection stays available, opt-in.
+start_stop_daemon_args="--env HOME=/root --env FLOWORK_HOME=/root --env FLOWORK_GUARDIAN_AUTO=0"
+
+depend() {
+	need localmount loopback
+	after flowork-router flowork-data
+}

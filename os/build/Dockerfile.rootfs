@@ -1,0 +1,42 @@
+# Flowork OS rootfs (P0). Built with docker so the host needs no apk/root.
+# Output: an Alpine userland with the kernel, the Wayland kiosk stack, and OpenRC
+# base services enabled. Flowork binaries + our services are layered on AFTER export.
+FROM alpine:3.20
+
+RUN set -eux; \
+	printf '%s\n' \
+		"https://dl-cdn.alpinelinux.org/alpine/v3.20/main" \
+		"https://dl-cdn.alpinelinux.org/alpine/v3.20/community" \
+		> /etc/apk/repositories; \
+	apk update; \
+	apk add --no-cache \
+		alpine-base openrc busybox busybox-static util-linux \
+		linux-lts linux-firmware-none mkinitfs \
+		cryptsetup e2fsprogs \
+		bubblewrap python3 openssl \
+		eudev seatd dbus \
+		ifupdown-ng iproute2 \
+		mesa-dri-gallium mesa-egl mesa-gbm mesa-gl \
+		cage chromium \
+		font-dejavu font-noto font-noto-emoji font-inter font-jetbrains-mono \
+		ca-certificates curl tzdata; \
+	# --- base init plumbing (our flowork-* services are enabled later, post-overlay) ---
+	rc-update add devfs sysinit; \
+	rc-update add procfs sysinit; \
+	rc-update add sysfs sysinit; \
+	rc-update add udev sysinit; \
+	rc-update add udev-trigger sysinit; \
+	rc-update add udev-settle sysinit; \
+	rc-update add hwdrivers sysinit; \
+	rc-update add modules boot; \
+	rc-update add loopback boot; \
+	rc-update add networking boot; \
+	rc-update add hostname boot; \
+	rc-update add bootmisc boot; \
+	rc-update add seatd default; \
+	rc-update add dbus default; \
+	# allow OpenRC to run in a container-ish/initramfs env without cgroup fuss
+	echo 'rc_sys=""' >> /etc/rc.conf; \
+	echo 'rc_cgroup_mode="hybrid"' >> /etc/rc.conf; \
+	echo "flowork-os" > /etc/hostname; \
+	true

@@ -1,0 +1,20 @@
+#!/sbin/openrc-run
+# Flowork sovereign router service (:2402) for the Flowork OS appliance.
+# Canonical home of this unit; the OS builder (flowork-ai-agent_os_version)
+# also carries a copy in its rootfs overlay.
+name="flowork-router"
+description="Flowork sovereign LLM router"
+
+: "${FLOWORK_ROUTER_ADDR:=127.0.0.1:2402}"
+command="/usr/local/bin/flowork-router"
+command_args="-addr ${FLOWORK_ROUTER_ADDR}"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/flowork-router.log"
+error_log="/var/log/flowork-router.log"
+start_stop_daemon_args="--env HOME=/root --env FLOWORK_HOME=/root"
+
+depend() {
+	need localmount loopback
+	after net
+}

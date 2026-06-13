@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 940" width="1280" height="940" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06060f"/><stop offset="1" stop-color="#0a0716"/>
+    </linearGradient>
+    <linearGradient id="ttl" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f2eaff"/><stop offset="0.55" stop-color="#a78bfa"/><stop offset="1" stop-color="#19c2ff"/>
+    </linearGradient>
+    <marker id="ap" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#a78bfa"/></marker>
+    <marker id="ac" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#19c2ff"/></marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#22ff88"/></marker>
+  </defs>
+  <rect width="1280" height="940" fill="url(#bg)"/>
+
+  <text x="640" y="56" text-anchor="middle" fill="url(#ttl)" font-size="40" font-weight="800">How Flowork Router works — one endpoint, every model</text>
+  <text x="640" y="88" text-anchor="middle" fill="#9b8cc4" font-size="19">Speak OpenAI, Anthropic or Gemini to <tspan fill="#ddd2f7" font-weight="700">127.0.0.1:2402/v1</tspan> — the router enriches, routes, and falls back for you.</text>
+
+  <!-- ① CLIENTS -->
+  <text x="640" y="132" text-anchor="middle" fill="#a78bfa" font-size="16" font-weight="700" letter-spacing="3">① ANY OpenAI-COMPATIBLE CLIENT</text>
+  <g font-size="16" font-weight="600" text-anchor="middle">
+    <g><rect x="150" y="148" width="170" height="40" rx="20" fill="#15102b" stroke="#a78bfa" stroke-opacity="0.4"/><text x="235" y="173" fill="#ece4ff">Claude Code</text></g>
+    <g><rect x="334" y="148" width="120" height="40" rx="20" fill="#15102b" stroke="#a78bfa" stroke-opacity="0.4"/><text x="394" y="173" fill="#ece4ff">Cursor</text></g>
+    <g><rect x="468" y="148" width="180" height="40" rx="20" fill="#15102b" stroke="#22ff88" stroke-opacity="0.45"/><text x="558" y="173" fill="#ece4ff">Flowork Agent</text></g>
+    <g><rect x="662" y="148" width="200" height="40" rx="20" fill="#15102b" stroke="#a78bfa" stroke-opacity="0.4"/><text x="762" y="173" fill="#ece4ff">OpenClaw · Hermes</text></g>
+    <g><rect x="876" y="148" width="210" height="40" rx="20" fill="#15102b" stroke="#19c2ff" stroke-opacity="0.4"/><text x="981" y="173" fill="#ece4ff">curl · any app</text></g>
+  </g>
+
+  <line x1="500" y1="198" x2="500" y2="232" stroke="#a78bfa" stroke-width="2.5" marker-end="url(#ap)"/>
+  <text x="520" y="222" fill="#9b8cc4" font-size="14">POST /v1/chat/completions</text>
+
+  <!-- ② ROUTER CORE -->
+  <rect x="80" y="240" width="770" height="300" rx="16" fill="#0d0a1f" stroke="#a78bfa" stroke-opacity="0.55" stroke-width="2"/>
+  <text x="104" y="270" fill="#a78bfa" font-size="16" font-weight="700" letter-spacing="2">② ROUTER CORE</text>
+
+  <!-- enrich -->
+  <rect x="104" y="284" width="722" height="104" rx="12" fill="#15102b" stroke="#22ff88" stroke-opacity="0.45"/>
+  <text x="124" y="312" fill="#eafff5" font-size="18" font-weight="700">ENRICH  (tier-gated: commander = full · crew = lean)</text>
+  <text x="124" y="338" fill="#cbe7dd" font-size="14">＋ sacred constitution   ＋ knowledge (FTS5 + vector recall)   ＋ antibodies (karma × relevance × recency)</text>
+  <text x="124" y="362" fill="#7fae9d" font-size="14">— all injected as system context <tspan fill="#ddf7ec" font-weight="700">BEFORE</tspan> the LLM ever sees the prompt (deterministic anti-halu, no GPU)</text>
+
+  <line x1="465" y1="388" x2="465" y2="410" stroke="#a78bfa" stroke-width="2.2" marker-end="url(#ap)"/>
+
+  <!-- provider chain -->
+  <rect x="104" y="412" width="722" height="104" rx="12" fill="#15102b" stroke="#19c2ff" stroke-opacity="0.5"/>
+  <text x="124" y="440" fill="#eafff5" font-size="18" font-weight="700">PROVIDER CHAIN  ·  pick → auto-fallback → never stall</text>
+  <text x="124" y="466" fill="#bfe3f2" font-size="14">priority routing · per-provider circuit-breaker · <tspan fill="#a78bfa" font-weight="700">RTK</tspan> token-saver (40–80% off) · <tspan fill="#a78bfa" font-weight="700">Cloak</tspan> keeps OAuth un-banned</text>
+  <text x="124" y="490" fill="#7fae9d" font-size="14">sovereign-first: prefers your local / subscribed providers before any paid cloud</text>
+
+  <!-- ④ BRAIN (right) feeds enrich -->
+  <rect x="900" y="284" width="300" height="232" rx="14" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.5"/>
+  <text x="1050" y="314" text-anchor="middle" fill="#eafff5" font-size="18" font-weight="700">④ COLLECTIVE BRAIN</text>
+  <text x="1050" y="344" text-anchor="middle" fill="#dff7ec" font-size="14">~5,000,000 drawers</text>
+  <text x="1050" y="368" text-anchor="middle" fill="#dff7ec" font-size="14">~1,000,000 vectors (semantic)</text>
+  <text x="1050" y="392" text-anchor="middle" fill="#dff7ec" font-size="14">mistakes journal → antibodies</text>
+  <text x="1050" y="422" text-anchor="middle" fill="#7fae9d" font-size="13">security-heavy corpus:</text>
+  <text x="1050" y="442" text-anchor="middle" fill="#7fae9d" font-size="13">whitehat · threat-intel · exploitdb</text>
+  <text x="1050" y="486" text-anchor="middle" fill="#9fd6ea" font-size="13">hybrid FTS5 + vector recall</text>
+
+  <!-- brain -> enrich -->
+  <line x1="900" y1="336" x2="828" y2="336" stroke="#22ff88" stroke-width="2.4" marker-end="url(#ag)"/>
+  <text x="836" y="326" fill="#7fae9d" font-size="12">feeds</text>
+  <!-- feedback enrich/response -> brain -->
+  <path d="M826 470 C 870 470, 900 470, 945 488" fill="none" stroke="#22ff88" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ag)"/>
+  <text x="838" y="462" fill="#7fae9d" font-size="12">halu detected → +karma antibody</text>
+
+  <line x1="465" y1="540" x2="465" y2="576" stroke="#19c2ff" stroke-width="2.5" marker-end="url(#ac)"/>
+  <text x="485" y="566" fill="#9b8cc4" font-size="14">dispatch</text>
+
+  <!-- ③ MODELS -->
+  <text x="465" y="600" text-anchor="middle" fill="#19c2ff" font-size="15" font-weight="700" letter-spacing="2">③ MODELS  (swap freely · your way first)</text>
+  <g font-size="16" text-anchor="middle">
+    <g><rect x="80" y="612" width="240" height="92" rx="14" fill="#1a1430" stroke="#a78bfa" stroke-opacity="0.5"/><text x="200" y="648" fill="#ece4ff" font-weight="700">Claude</text><text x="200" y="674" fill="#cbb9f0" font-size="13">subscription (no per-token)</text></g>
+    <g><rect x="338" y="612" width="240" height="92" rx="14" fill="#0e2a20" stroke="#22ff88" stroke-opacity="0.5"/><text x="458" y="648" fill="#eafff5" font-weight="700">Local Qwen</text><text x="458" y="674" fill="#cbe7dd" font-size="13">Ollama · 100% offline</text></g>
+    <g><rect x="596" y="612" width="254" height="92" rx="14" fill="#0e1f2b" stroke="#19c2ff" stroke-opacity="0.5"/><text x="723" y="648" fill="#eafff5" font-weight="700">Any OpenAI-compat</text><text x="723" y="674" fill="#bfe3f2" font-size="13">OpenRouter · vLLM · 40+ more</text></g>
+  </g>
+
+  <!-- reply back -->
+  <path d="M850 658 C 1130 658, 1150 360, 1150 200" fill="none" stroke="#19c2ff" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ac)" opacity="0.8"/>
+  <text x="1158" y="430" fill="#9fd6ea" font-size="13" transform="rotate(90 1158 430)">OpenAI-compat reply → back to the client</text>
+
+  <!-- ⑤ MESH band -->
+  <rect x="80" y="744" width="1120" height="96" rx="14" fill="#0a0716" stroke="#7c3aed" stroke-opacity="0.5"/>
+  <text x="104" y="774" fill="#a78bfa" font-size="16" font-weight="700" letter-spacing="2">⑤ MESH — the brain grows, sovereignly</text>
+  <text x="104" y="800" fill="#cbb9f0" font-size="14">peers gossip VETTED knowledge: shadow → quarantine → promoted   ·   per-peer trust karma (auto-block bad actors)   ·   offline trigram dedup</text>
+  <text x="104" y="824" fill="#7fae9d" font-size="13">zero-config mDNS discovery · no central server · survives offline — knowledge compounds across your fleet</text>
+  <line x1="1050" y1="744" x2="1050" y2="518" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ap)" opacity="0.7"/>
+
+  <text x="640" y="888" text-anchor="middle" fill="#6f619a" font-size="15">Knowledge in, antibodies up, the cheapest capable model out — through <tspan fill="#bfe3f2">one OpenAI-compatible endpoint</tspan>.</text>
+  <text x="640" y="914" text-anchor="middle" fill="#4a4566" font-size="13">github.com/flowork-os/flowork_Router</text>
+</svg>

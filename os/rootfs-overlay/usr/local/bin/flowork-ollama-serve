@@ -1,0 +1,40 @@
+#!/bin/sh
+# flowork-ollama-serve — start Ollama (the local LLM engine) for sovereign, offline
+# inference. Binds to loopback only (127.0.0.1:11434) — nothing leaves the box. The model
+# store lives on a writable disk (label FLOWORKMODELS) so models persist and are not
+# duplicated per A/B slot. Ollama is a glibc binary; the appliance carries a glibc sidecar.
+set -u
+CON=/dev/console
+export HOME=/var/lib/ollama
+export OLLAMA_HOST="127.0.0.1:11434"
+export OLLAMA_MODELS=/var/lib/ollama/models
+export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+mkdir -p /var/lib/ollama/models
+
+# Mount the model-store disk (by label) if present; its models/ dir becomes OLLAMA_MODELS.
+modprobe virtio_blk 2>/dev/null || true
+i=0
+while [ "$i" -lt 16 ]; do
+	for d in /dev/vdb /dev/vdc /dev/vdd /dev/sdb /dev/sdc /dev/vda /dev/sda; do
+		[ -b "$d" ] || continue
+		if [ "$(blkid -s LABEL -o value "$d" 2>/dev/null)" = FLOWORKMODELS ]; then
+			mkdir -p /var/lib/ollama/store
+			if mount -o ro "$d" /var/lib/ollama/store 2>/dev/null; then
+				export OLLAMA_MODELS=/var/lib/ollama/store/models
+				echo "OLLAMA model disk $d mounted (models=$OLLAMA_MODELS)" >"$CON"
+			fi
+			break 2
+		fi
+	done
+	i=$((i + 1)); sleep 0.5
+done
+
+# Fallback (single-USB layout): the model store can ride on the boot media itself.
+if [ "$OLLAMA_MODELS" = /var/lib/ollama/models ] && [ -d /flowork-media/flowork/ollama-models/models ]; then
+	export OLLAMA_MODELS=/flowork-media/flowork/ollama-models/models
+	echo "OLLAMA models from boot media: $OLLAMA_MODELS" >"$CON"
+fi
+
+mkdir -p "$OLLAMA_MODELS"
+echo "OLLAMA serve starting on $OLLAMA_HOST (models=$OLLAMA_MODELS)" >"$CON"
+exec ollama serve

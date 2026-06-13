@@ -1,0 +1,517 @@
+// === LOCKED FILE ===
+// Status: STABLE — DO NOT MODIFY without owner approval.
+// Owner: Aola Sahidin (Mr.Dev)
+// Repo: https://github.com/flowork-os/Flowork-OS
+// Locked at: 2026-05-31 (re-audited 2026-06-07, re-locked 2026-06-11)
+// Update 2026-06-11 (owner-approved): API Keys preset chips (per-service, pre-fill
+//   the exact env var name, green when set) + new "Router & Model" segment
+//   (renderRouterDefault → /api/settings/router-default) for the global default
+//   model + router URL. All values esc/escAttr'd, labels via i18n, no inline secrets.
+// Reason: Tab Settings (Akun/API-Keys/Notif/YouTube). Audit pass — esc/escAttr
+//   semua field, fetchJSON util, API key masked, label via i18n. E2E verified
+//   lewat instance isolated. 2026-06-06 (owner-approved): segmen Wallet
+//   Personal + Wallet AI DIBUANG (fitur wallet dihapus).
+// Update 2026-06-07 (owner-approved audit): the YouTube OAuth poll (setInterval
+//   /api/settings/youtube every 2s) was never cancelled when you switched segment —
+//   it kept firing in the background and could re-render YouTube over another
+//   segment. Now tracked at module scope (ytPoll/stopYtPoll) and cancelled on
+//   segment switch, on re-render, and before starting a new poll.
+//
+// settings.js — halaman Settings GLOBAL (owner-level).
+//
+// Section (sub-tab internal): Akun & Keamanan, API Keys, Notifikasi, YouTube.
+//
+// Data owner-level disimpan di flowork.db global (lewat /api/settings/*).
+// AI agent TETAP terisolasi (warga punya store + channel sendiri).
+//
+// Semua label lewat dictionary i18n (t(...)) — no hardcode UI text.
+
+import { t } from '/js/i18n.js';
+import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
+
+const CSS = `
+.set-bar { display:flex; gap:4px; margin-bottom:18px; padding:5px; flex-wrap:wrap;
+  background:rgba(15,17,26,0.55); border:1px solid var(--glass-border); border-radius:12px; width:fit-content; max-width:100%; }
+.set-btn { padding:8px 14px; font-size:0.82rem; font-weight:500; border-radius:8px;
+  background:transparent; border:1px solid transparent; color:var(--text-muted); cursor:pointer;
+  transition:background .15s,color .15s,border-color .15s; }
+.set-btn:hover { background:rgba(139,92,246,0.08); color:#cbd5e1; }
+.set-btn.active { background:linear-gradient(135deg,rgba(139,92,246,0.28),rgba(124,58,237,0.12));
+  color:#c4b5fd; border-color:rgba(139,92,246,0.45); }
+.set-panel { max-width:none; }
+.set-card { background:rgba(15,17,26,0.6); border:1px solid var(--glass-border); border-radius:14px;
+  padding:18px 20px; margin-bottom:16px; }
+.set-card h3 { font-size:0.95rem; margin:0 0 4px; color:#e2e8f0; }
+.set-card .sub { font-size:0.8rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5; }
+.set-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+.set-row input, .set-row select { padding:10px 12px; border-radius:8px; background:rgba(30,41,59,0.6);
+  border:1px solid rgba(148,163,184,0.2); color:#e2e8f0; font-size:0.88rem; flex:1; min-width:140px; }
+.set-row input:focus, .set-row select:focus { outline:none; border-color:#a78bfa; }
+.set-btn-primary { padding:10px 16px; background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
+  border:none; border-radius:8px; font-weight:600; font-size:0.85rem; cursor:pointer; }
+.set-btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.set-list { list-style:none; padding:0; margin:8px 0 0; }
+.set-list li { display:flex; justify-content:space-between; align-items:center; gap:8px;
+  padding:9px 12px; border:1px solid var(--glass-border); border-radius:8px; margin-bottom:6px;
+  font-size:0.85rem; background:rgba(30,41,59,0.35); }
+.set-list .mono { font-family:monospace; font-size:0.8rem; color:#cbd5e1; word-break:break-all; }
+.set-list .rm { background:none; border:none; color:#fca5a5; cursor:pointer; font-size:0.85rem; }
+.set-msg { margin-top:10px; font-size:0.82rem; min-height:1em; }
+.set-msg.ok { color:#86efac; } .set-msg.err { color:#fca5a5; }
+.set-empty { color:var(--text-muted); font-size:0.82rem; padding:8px 0; }
+.set-tag { font-size:0.7rem; color:#64748b; }
+.set-total { font-size:1.4rem; font-weight:700; color:#86efac; margin:6px 0; }
+.set-presets { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
+.set-preset { padding:5px 11px; font-size:0.76rem; border-radius:999px; cursor:pointer;
+  background:rgba(139,92,246,0.10); border:1px solid rgba(139,92,246,0.30); color:#c4b5fd;
+  transition:background .15s,border-color .15s; }
+.set-preset:hover { background:rgba(139,92,246,0.22); border-color:rgba(139,92,246,0.55); }
+.set-preset.set-on { background:rgba(34,197,94,0.14); border-color:rgba(34,197,94,0.4); color:#86efac; }
+.set-hint { font-size:0.74rem; color:var(--text-muted); margin:-4px 0 8px; }
+`;
+
+// Known integration keys — friendly platform label → env var name. Clicking a
+// chip pre-fills the exact variable name so owners never have to guess it.
+// Service names are proper nouns (kept verbatim); instructional text is i18n.
+const KEY_PRESETS = [
+  { label: 'Dev.to',         key: 'DEVTO_API_KEY' },
+  { label: 'X · auth_token', key: 'X_AUTH_TOKEN' },
+  { label: 'X · ct0',        key: 'X_CT0' },
+  { label: 'Facebook · Page ID',    key: 'FB_PAGE_ID' },    // Graph API: a Facebook PAGE you admin
+  { label: 'Facebook · Page token', key: 'FB_PAGE_TOKEN' }, // long-lived Page access token
+  { label: 'LinkedIn',       key: 'LINKEDIN_COOKIE' },
+  { label: 'Telegram bot',   key: 'TELEGRAM_BOT_TOKEN' },
+  { label: 'FLOWORK_OS group id', key: 'FWOS_CHAT_ID' },
+  { label: 'FLOWORK_OS bot',      key: 'FWOS_BOT_TOKEN' },
+];
+
+const SEGMENTS = [
+  { key: 'account', label: () => t('menu.tab.settings.seg_account'), render: renderAccount },
+  { key: 'keys', label: () => t('menu.tab.settings.seg_keys'), render: renderKeys },
+  { key: 'router', label: () => t('menu.tab.settings.seg_router'), render: renderRouterDefault },
+  { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
+  { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
+  { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
+];
+
+// The YouTube OAuth flow polls /api/settings/youtube every 2s while the owner
+// authorizes in another tab. Tracked at module scope so switching segments (or
+// re-rendering YouTube) cancels it — otherwise the interval kept firing in the
+// background and could re-render YouTube over whatever segment was open.
+let ytPoll = null;
+function stopYtPoll() { if (ytPoll) { clearInterval(ytPoll); ytPoll = null; } }
+
+export async function render(mainEl) {
+  loadStyle('settings', CSS);
+  const tk = (k) => t('menu.tab.settings.' + k);
+  mainEl.innerHTML = `
+    <div class="sgt-header">
+      <h2>⚙️ ${esc(tk('title'))}</h2>
+      <div class="sub" style="font-size:0.82rem;color:var(--text-muted);margin-top:4px;">${esc(tk('desc'))}</div>
+    </div>
+    <div class="set-bar" id="setBar">
+      ${SEGMENTS.map(s => `<button class="set-btn" data-key="${escAttr(s.key)}">${esc(s.label())}</button>`).join('')}
+    </div>
+    <div class="set-panel" id="setPanel"></div>
+  `;
+  const panel = mainEl.querySelector('#setPanel');
+  const btns = mainEl.querySelectorAll('.set-btn');
+  async function open(key) {
+    const seg = SEGMENTS.find(s => s.key === key) || SEGMENTS[0];
+    stopYtPoll(); // leaving/switching segment: cancel any in-flight YouTube OAuth poll
+    btns.forEach(b => b.classList.toggle('active', b.getAttribute('data-key') === seg.key));
+    panel.innerHTML = `<div class="set-empty">${esc(t('common.loading_label').replace('{label}', seg.label()))}</div>`;
+    try {
+      await seg.render(panel);
+    } catch (e) {
+      panel.innerHTML = `<div class="set-msg err">${esc(String(e.message || e))}</div>`;
+    }
+  }
+  btns.forEach(b => b.addEventListener('click', () => open(b.getAttribute('data-key'))));
+  open('account');
+}
+
+// ── Akun & Keamanan ──────────────────────────────────────────────────────
+async function renderAccount(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('account_h'))}</h3>
+      <div class="sub">${esc(tk('account_sub'))}</div>
+      <div class="set-row"><input type="password" id="pwOld" placeholder="${escAttr(tk('change_pw_old_ph'))}" autocomplete="current-password"></div>
+      <div class="set-row"><input type="password" id="pwNew" placeholder="${escAttr(tk('change_pw_new_ph'))}" autocomplete="new-password"></div>
+      <div class="set-row"><button class="set-btn-primary" id="pwBtn">${esc(tk('change_pw_btn'))}</button></div>
+      <div class="set-msg" id="pwMsg"></div>
+    </div>
+    <div class="set-card">
+      <h3>${esc(tk('logout_h'))}</h3>
+      <div class="sub">${esc(tk('logout_sub'))}</div>
+      <button class="set-btn-primary" id="logoutBtn" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('logout_btn'))}</button>
+    </div>
+  `;
+  const msg = panel.querySelector('#pwMsg');
+  panel.querySelector('#pwBtn').addEventListener('click', async () => {
+    const oldPw = panel.querySelector('#pwOld').value;
+    const newPw = panel.querySelector('#pwNew').value;
+    msg.className = 'set-msg';
+    msg.textContent = '';
+    try {
+      await fetchJSON('/api/auth/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old: oldPw, new: newPw }),
+      });
+      msg.className = 'set-msg ok';
+      msg.textContent = tk('change_pw_ok');
+      panel.querySelector('#pwOld').value = '';
+      panel.querySelector('#pwNew').value = '';
+    } catch (e) {
+      msg.className = 'set-msg err';
+      msg.textContent = tk('change_pw_err') + ' ' + cleanErr(e);
+    }
+  });
+  panel.querySelector('#logoutBtn').addEventListener('click', async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/login';
+  });
+}
+
+// ── Token Crypto / API Keys ────────────────────────────────────────────────
+async function renderKeys(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('keys_h'))}</h3>
+      <div class="sub">${esc(tk('keys_sub'))}</div>
+      <div class="set-row">
+        <input type="text" id="kKey" placeholder="${escAttr(tk('keys_key_ph'))}" list="kKnown">
+        <input type="text" id="kVal" placeholder="${escAttr(tk('keys_val_ph'))}">
+        <button class="set-btn-primary" id="kAdd">${esc(t('common.btn.save'))}</button>
+      </div>
+      <div class="set-hint">${esc(tk('keys_preset_hint'))}</div>
+      <div class="set-presets" id="kPresets">
+        ${KEY_PRESETS.map(p => `<span class="set-preset" data-key="${escAttr(p.key)}" title="${escAttr(p.key)}">${esc(p.label)}</span>`).join('')}
+      </div>
+      <datalist id="kKnown">
+        ${KEY_PRESETS.map(p => `<option value="${escAttr(p.key)}">`).join('')}
+      </datalist>
+      <div class="set-msg" id="kMsg"></div>
+      <ul class="set-list" id="kList"></ul>
+    </div>
+  `;
+  const list = panel.querySelector('#kList');
+  const msg = panel.querySelector('#kMsg');
+  // Clicking a preset chip pre-fills the exact env var name → owner just pastes
+  // the value. Chips for keys already saved turn green so it's clear what's set.
+  panel.querySelectorAll('.set-preset').forEach(c => c.addEventListener('click', () => {
+    panel.querySelector('#kKey').value = c.getAttribute('data-key');
+    const v = panel.querySelector('#kVal'); v.value = ''; v.focus();
+    msg.className = 'set-msg'; msg.textContent = '';
+  }));
+  function markPresets(items) {
+    const set = new Set((items || []).map(it => it.key));
+    panel.querySelectorAll('.set-preset').forEach(c =>
+      c.classList.toggle('set-on', set.has(c.getAttribute('data-key'))));
+  }
+  async function reload() {
+    const d = await fetchJSON('/api/settings/keys');
+    const items = d.items || [];
+    markPresets(items);
+    if (!items.length) { list.innerHTML = `<div class="set-empty">${esc(tk('keys_empty'))}</div>`; return; }
+    list.innerHTML = items.map(it => `
+      <li>
+        <span><span class="mono">${esc(it.key)}</span> <span class="set-tag mono">${esc(it.masked || '—')}</span></span>
+        <span>
+          <button class="ed" data-key="${escAttr(it.key)}">${esc(t('common.btn.edit'))}</button>
+          <button class="rm" data-key="${escAttr(it.key)}">${esc(t('common.btn.delete'))}</button>
+        </span>
+      </li>
+    `).join('');
+    list.querySelectorAll('.ed').forEach(b => b.addEventListener('click', () => {
+      panel.querySelector('#kKey').value = b.getAttribute('data-key');
+      const v = panel.querySelector('#kVal'); v.value = ''; v.focus();
+      msg.className = 'set-msg'; msg.textContent = tk('keys_edit_hint');
+    }));
+    list.querySelectorAll('.rm').forEach(b => b.addEventListener('click', async () => {
+      const key = b.getAttribute('data-key');
+      if (!confirm(tk('keys_del_confirm') + ' "' + key + '"?')) return;
+      try {
+        await fetchJSON('/api/settings/keys?key=' + encodeURIComponent(key), { method: 'DELETE' });
+        await reload();
+      } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+    }));
+  }
+  panel.querySelector('#kAdd').addEventListener('click', async () => {
+    const key = panel.querySelector('#kKey').value.trim();
+    const value = panel.querySelector('#kVal').value;
+    msg.className = 'set-msg'; msg.textContent = '';
+    try {
+      await fetchJSON('/api/settings/keys', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      });
+      msg.className = 'set-msg ok'; msg.textContent = tk('keys_saved');
+      panel.querySelector('#kVal').value = '';
+      await reload();
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+  await reload();
+}
+
+// ── Default Router & Model ──────────────────────────────────────────────────
+// Global fallback for agents that don't pin their own model/router. Per-agent
+// config still wins — these values only fill the blank.
+async function renderRouterDefault(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('router_h'))}</h3>
+      <div class="sub">${esc(tk('router_sub'))}</div>
+      <div class="set-row">
+        <input type="text" id="rdModel" placeholder="${escAttr(tk('router_model_ph'))}">
+      </div>
+      <div class="set-hint">${esc(tk('router_model_hint'))}</div>
+      <div class="set-row">
+        <input type="text" id="rdUrl" placeholder="${escAttr(tk('router_url_ph'))}">
+      </div>
+      <div class="set-hint">${esc(tk('router_url_hint'))}</div>
+      <div class="set-row"><button class="set-btn-primary" id="rdSave">${esc(t('common.btn.save'))}</button></div>
+      <div class="set-msg" id="rdMsg"></div>
+    </div>
+  `;
+  const msg = panel.querySelector('#rdMsg');
+  try {
+    const d = await fetchJSON('/api/settings/router-default');
+    panel.querySelector('#rdModel').value = d.model || '';
+    panel.querySelector('#rdUrl').value = d.router_url || '';
+  } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  panel.querySelector('#rdSave').addEventListener('click', async () => {
+    const model = panel.querySelector('#rdModel').value.trim();
+    const router_url = panel.querySelector('#rdUrl').value.trim();
+    msg.className = 'set-msg'; msg.textContent = '';
+    try {
+      await fetchJSON('/api/settings/router-default', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, router_url }),
+      });
+      msg.className = 'set-msg ok'; msg.textContent = tk('router_saved');
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+}
+
+// ── Notifikasi (Telegram owner-level, TERPISAH dari agent) ──────────────────
+async function renderNotify(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>${esc(tk('notify_h'))}</h3>
+      <div class="sub">${esc(tk('notify_sub'))}</div>
+      <div class="set-row"><input type="password" id="ntToken" placeholder="${escAttr(tk('notify_token_ph'))}" autocomplete="off"></div>
+      <div class="set-row"><input type="text" id="ntChat" placeholder="${escAttr(tk('notify_chat_ph'))}"></div>
+      <div class="set-tag" style="margin-bottom:10px;">${esc(tk('notify_chat_hint'))}</div>
+      <div class="set-row">
+        <button class="set-btn-primary" id="ntSave">${esc(tk('notify_save'))}</button>
+        <button class="set-btn-primary" id="ntTest" style="background:linear-gradient(135deg,#22c55e,#15803d);">${esc(tk('notify_test'))}</button>
+      </div>
+      <div class="set-msg" id="ntMsg"></div>
+    </div>
+  `;
+  const msg = panel.querySelector('#ntMsg');
+  const tokenEl = panel.querySelector('#ntToken');
+  const chatEl = panel.querySelector('#ntChat');
+  // Prefill: chat id + placeholder masked token kalau udah di-set.
+  try {
+    const d = await fetchJSON('/api/settings/notify');
+    if (d.chat_id) chatEl.value = d.chat_id;
+    if (d.set && d.bot_token_masked) tokenEl.setAttribute('placeholder', d.bot_token_masked + ' (tersimpan — kosongin biar ga ganti)');
+  } catch (e) { /* ignore */ }
+
+  async function save(test) {
+    msg.className = 'set-msg'; msg.textContent = '';
+    const payload = { chat_id: chatEl.value.trim(), test };
+    const tok = tokenEl.value.trim();
+    if (tok) payload.bot_token = tok;
+    try {
+      const r = await fetchJSON('/api/settings/notify', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (test) {
+        if (r.test === 'sent') { msg.className = 'set-msg ok'; msg.textContent = tk('notify_test_sent'); }
+        else { msg.className = 'set-msg err'; msg.textContent = tk('notify_test_fail') + ' ' + (r.error || r.test || ''); }
+      } else {
+        msg.className = 'set-msg ok'; msg.textContent = tk('notify_saved');
+      }
+      tokenEl.value = '';
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  }
+  panel.querySelector('#ntSave').addEventListener('click', () => save(false));
+  panel.querySelector('#ntTest').addEventListener('click', () => save(true));
+}
+
+function cleanErr(e) {
+  const m = String(e && e.message || e);
+  const j = m.indexOf('{');
+  if (j >= 0) { try { return JSON.parse(m.slice(j)).error || m; } catch {} }
+  return m;
+}
+
+// ── YouTube ────────────────────────────────────────────────────────────────
+async function renderYouTube(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  stopYtPoll(); // any prior OAuth poll is stale once we re-render
+  let st;
+  try { st = await fetchJSON('/api/settings/youtube'); }
+  catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
+  const ch = st.channel || null;
+
+  let accountHTML;
+  if (st.connected && ch) {
+    accountHTML = `
+      <div class="set-card">
+        <h3>✅ ${esc(tk('yt_connected'))} — ${esc(ch.title || '')}</h3>
+        <div class="sub">${esc(ch.handle || '')} · ${esc(ch.video_count || '0')} ${esc(tk('yt_videos'))} · ${esc(ch.sub_count || '0')} ${esc(tk('yt_subs'))}</div>
+        <div class="sub">${esc(tk('yt_long_uploads'))}: <span class="mono">${esc(ch.long_uploads_status || '?')}</span></div>
+        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytDisc" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('yt_disconnect_btn'))}</button></div>
+      </div>`;
+  } else if (st.has_credentials) {
+    accountHTML = `
+      <div class="set-card">
+        <h3>${esc(tk('yt_not_connected'))}</h3>
+        <div class="sub">${esc(tk('yt_connect_hint'))}</div>
+        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytConnect">${esc(tk('yt_connect_btn'))}</button></div>
+        <div class="set-msg" id="ytConnMsg"></div>
+      </div>`;
+  } else {
+    accountHTML = `<div class="set-card"><div class="set-empty">${esc(tk('yt_no_creds'))}</div></div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>🎷 ${esc(tk('yt_h'))}</h3>
+      <div class="sub">${esc(tk('yt_sub'))}</div>
+    </div>
+    <details class="set-card">
+      <summary style="cursor:pointer;font-weight:600;">${esc(tk('yt_guide_title'))}</summary>
+      <div class="sub" style="white-space:pre-line;margin-top:8px;">${esc(tk('yt_guide_body'))}</div>
+      <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" class="set-tag" style="display:inline-block;margin-top:8px;">${esc(tk('yt_console_link'))}</a>
+    </details>
+    <div class="set-card">
+      <h3>OAuth Client JSON</h3>
+      <div class="set-row"><textarea id="ytJson" rows="4" placeholder="${escAttr(tk('yt_paste_ph'))}" style="width:100%;font-family:monospace;font-size:0.78rem;"></textarea></div>
+      <div class="set-row"><button class="set-btn-primary" id="ytSaveCreds">${esc(tk('yt_save_creds'))}</button> ${st.has_credentials ? `<span class="set-tag">${esc(tk('yt_creds_saved'))}</span>` : ''}</div>
+      <div class="set-msg" id="ytCredMsg"></div>
+    </div>
+    ${accountHTML}
+    <div class="set-card">
+      <h3>⚙️ ${esc(tk('yt_save_config'))}</h3>
+      <div class="set-row">
+        <label class="sub" style="min-width:170px;">${esc(tk('yt_privacy_label'))}</label>
+        <select id="ytPrivacy">
+          <option value="private"${st.privacy === 'private' ? ' selected' : ''}>private</option>
+          <option value="unlisted"${st.privacy === 'unlisted' ? ' selected' : ''}>unlisted</option>
+          <option value="public"${st.privacy === 'public' ? ' selected' : ''}>public</option>
+        </select>
+      </div>
+      <div class="set-row">
+        <label class="sub" style="min-width:170px;">${esc(tk('yt_inbox_label'))}</label>
+        <input type="text" id="ytInbox" value="${escAttr(st.inbox || '')}" style="flex:1;">
+      </div>
+      <div class="set-row">
+        <label class="sub"><input type="checkbox" id="ytWatcher"${st.watcher_enabled ? ' checked' : ''}> ${esc(tk('yt_watcher_label'))}</label>
+      </div>
+      <div class="set-row"><button class="set-btn-primary" id="ytSaveCfg">${esc(tk('yt_save_config'))}</button></div>
+      <div class="set-msg" id="ytCfgMsg"></div>
+    </div>
+  `;
+
+  panel.querySelector('#ytSaveCreds').addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytCredMsg'); msg.className = 'set-msg';
+    const cj = panel.querySelector('#ytJson').value.trim();
+    if (!cj) { msg.className = 'set-msg err'; msg.textContent = 'JSON kosong'; return; }
+    try {
+      await fetchJSON('/api/settings/youtube/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_json: cj }) });
+      renderYouTube(panel);
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+
+  const connectBtn = panel.querySelector('#ytConnect');
+  if (connectBtn) connectBtn.addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytConnMsg'); msg.className = 'set-msg';
+    try {
+      const d = await fetchJSON('/api/settings/youtube/connect', { method: 'POST' });
+      window.open(d.auth_url, '_blank');
+      msg.innerHTML = '⏳ ' + esc(tk('yt_connect_hint')) + ' <a href="' + escAttr(d.auth_url) + '" target="_blank" rel="noopener">' + esc(tk('yt_open_auth')) + '</a>';
+      let tries = 0;
+      stopYtPoll(); // never stack two polls (e.g. repeated Connect clicks)
+      ytPoll = setInterval(async () => {
+        tries++;
+        try { const s = await fetchJSON('/api/settings/youtube'); if (s.connected) { stopYtPoll(); renderYouTube(panel); } } catch {}
+        if (tries > 90) stopYtPoll();
+      }, 2000);
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+
+  const discBtn = panel.querySelector('#ytDisc');
+  if (discBtn) discBtn.addEventListener('click', async () => {
+    if (!confirm(tk('yt_disconnect_btn') + '?')) return;
+    try { await fetchJSON('/api/settings/youtube/disconnect', { method: 'POST' }); renderYouTube(panel); } catch {}
+  });
+
+  panel.querySelector('#ytSaveCfg').addEventListener('click', async () => {
+    const msg = panel.querySelector('#ytCfgMsg'); msg.className = 'set-msg';
+    try {
+      await fetchJSON('/api/settings/youtube/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        privacy: panel.querySelector('#ytPrivacy').value,
+        inbox: panel.querySelector('#ytInbox').value.trim(),
+        watcher_enabled: panel.querySelector('#ytWatcher').checked,
+      }) });
+      msg.className = 'set-msg ok'; msg.textContent = '✓';
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+}
+
+// ── Guardian (integritas kernel) ─────────────────────────────────────────────
+async function renderGuardian(panel) {
+  const tk = (k) => t('menu.tab.settings.' + k);
+  let s;
+  try { s = await fetchJSON('/api/guardian/status'); }
+  catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
+  const badge = s.safe_mode
+    ? `<span style="color:#ff476f;font-weight:700">⛔ ${esc(tk('grd_safemode'))}</span>`
+    : s.armed
+      ? `<span style="color:#22ff88;font-weight:700">🛡️ ${esc(tk('grd_armed'))}</span>`
+      : `<span style="color:#ffc24d">○ ${esc(tk('grd_disarmed'))}</span>`;
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>🛡️ ${esc(tk('grd_title'))}</h3>
+      <div class="sub">${esc(tk('grd_desc'))}</div>
+      <div class="set-row">${badge} &nbsp;·&nbsp; ${esc(tk('grd_protected'))}: <b>${s.protected || 0}</b>${s.sealed_at ? ` &nbsp;·&nbsp; ${esc(tk('grd_sealed'))}: ${esc(s.sealed_at)}` : ''}</div>
+      ${s.armed ? `<div class="set-row" style="font-size:0.8rem">${s.sealed
+        ? `🔒 <span style="color:#22ff88">${esc(tk('grd_seal_os'))}</span> <span style="color:#64748b">(${esc(s.seal_method || '')})</span>`
+        : `🔓 <span style="color:#ffc24d">${esc(tk('grd_seal_detect'))}</span>`}</div>` : ''}
+      <div class="set-row" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+        ${s.armed
+          ? `<input type="password" id="grdPw" placeholder="${escAttr(tk('grd_pw_ph'))}" autocomplete="current-password" style="flex:1;min-width:160px">
+             <button class="set-btn-primary" id="grdDisarm">${esc(tk('grd_disarm_btn'))}</button>`
+          : `<button class="set-btn-primary" id="grdArm">${esc(tk('grd_arm_btn'))}</button>`}
+      </div>
+      <div class="set-msg" id="grdMsg"></div>
+    </div>`;
+  const msg = panel.querySelector('#grdMsg');
+  const arm = panel.querySelector('#grdArm');
+  if (arm) arm.addEventListener('click', async () => {
+    if (!confirm(tk('grd_arm_confirm'))) return;
+    msg.className = 'set-msg';
+    try { await fetchJSON('/api/guardian/arm', { method: 'POST' }); renderGuardian(panel); }
+    catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+  const dis = panel.querySelector('#grdDisarm');
+  if (dis) dis.addEventListener('click', async () => {
+    msg.className = 'set-msg';
+    try {
+      await fetchJSON('/api/guardian/disarm', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: panel.querySelector('#grdPw').value }) });
+      renderGuardian(panel);
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+}
