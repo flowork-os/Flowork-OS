@@ -1,5 +1,8 @@
 // === LOCKED FILE === STABLE — DO NOT MODIFY without owner approval (Aola Sahidin / Mr.Dev).
 // Locked 2026-06-13 after the osDir-normalization + version-fallback fix was verified.
+// Audit rilis 2026-06-14: aman. Public build NOL bocor (FLOWORK_STATE_SEED gated di
+//   build-flowork-os.sh:124; public unset → bake di-skip). Flash removable-only (re-check
+//   sebelum dd). +Sec-Fetch-Site guard di /api/build & /api/flash (anti drive-by-localhost).
 // Flowork OS Creator — a small local web GUI to build + flash a Flowork OS USB stick.
 // Pick the Flowork OS folder, pick the target flashdisk, pick a profile (Full / Default),
 // then Build and Flash. Stdlib only.
@@ -47,8 +50,12 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("/api/info", apiInfo)
 	mux.HandleFunc("/api/devices", apiDevices)
-	mux.HandleFunc("/api/build", apiBuild)
-	mux.HandleFunc("/api/flash", apiFlash)
+	// Drive-by-localhost defense: build/flash run bash + dd. Reject cross-site
+	// requests so a malicious page the owner happens to visit can't trigger a
+	// flash to a plugged USB while the Creator is running. (curl/scripts send no
+	// Sec-Fetch-Site header → allowed; only browser CROSS-site is refused.)
+	mux.HandleFunc("/api/build", sameSiteGuard(apiBuild))
+	mux.HandleFunc("/api/flash", sameSiteGuard(apiFlash))
 
 	fmt.Printf("Flowork OS Creator → http://%s   (OS folder: %s)\n", *addr, *osDir)
 	if os.Geteuid() != 0 {
@@ -245,6 +252,23 @@ func isFlashSafe(dev string) bool {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────
+
+// sameSiteGuard refuses browser CROSS-site requests to the wrapped handler —
+// the drive-by-localhost defense for the destructive endpoints (build/flash).
+// A real same-origin fetch from the Creator's own page, a direct navigation, or
+// a CLI client (curl) all pass (empty / same-origin / same-site / none); only a
+// fetch initiated by another website (Sec-Fetch-Site: cross-site) is rejected.
+func sameSiteGuard(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Header.Get("Sec-Fetch-Site") {
+		case "", "same-origin", "same-site", "none":
+			next(w, r)
+		default: // "cross-site"
+			http.Error(w, "cross-site request refused (drive-by-localhost defense)", http.StatusForbidden)
+		}
+	}
+}
+
 func normMode(m string) string {
 	switch strings.ToLower(strings.TrimSpace(m)) {
 	case "full", "dev":
