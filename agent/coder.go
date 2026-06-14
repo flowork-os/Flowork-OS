@@ -182,6 +182,31 @@ func coderTemplate(role string) ([]byte, []byte, error) {
 			return wasm, man, nil
 		}
 	}
+	// Fallback (the comment's intent "scan apa aja"): clone ANY installed agent's
+	// wasm as the generic template — behavior comes from plugin.json persona/
+	// directive, not the wasm ("agent bodoh, engine pinter"). Skip channels /
+	// orchestrators / self so we template off a plain worker-style agent.
+	skip := map[string]bool{
+		"telegram-channel": true, "discord-channel": true, "slack-channel": true,
+		"whatsapp-channel": true, "operator-shutdown": true, "operator-komputer": true,
+		"mr-flow": true, "mr-flow-next": true, "flowork-architect": true,
+	}
+	if ents, e := os.ReadDir(root); e == nil {
+		for _, ent := range ents {
+			if !ent.IsDir() || !strings.HasSuffix(ent.Name(), ".fwagent") {
+				continue
+			}
+			if skip[strings.TrimSuffix(ent.Name(), ".fwagent")] {
+				continue
+			}
+			dir := filepath.Join(root, ent.Name())
+			wasm, e1 := os.ReadFile(filepath.Join(dir, "agent.wasm"))
+			man, e2 := os.ReadFile(filepath.Join(dir, "manifest.json"))
+			if e1 == nil && e2 == nil && len(wasm) > 0 {
+				return wasm, man, nil
+			}
+		}
+	}
 	return nil, nil, fmt.Errorf("template %s ga ketemu (built-in agent belum ke-build?)", role)
 }
 

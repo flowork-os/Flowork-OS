@@ -32,8 +32,9 @@ func chatHandler(host *kernelhost.Host) http.HandlerFunc {
 			return
 		}
 		var body struct {
-			Text string `json:"text"`
-			User string `json:"user"`
+			Text  string `json:"text"`
+			User  string `json:"user"`
+			Agent string `json:"agent"` // optional target agent id (default mr-flow) — debug/test any agent via the SAME path Telegram uses (ruleemas QC)
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<16)).Decode(&body); err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid body"})
@@ -47,9 +48,13 @@ func chatHandler(host *kernelhost.Host) http.HandlerFunc {
 		if caller == "" {
 			caller = "cli:owner"
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		agentID := strings.TrimSpace(body.Agent)
+		if agentID == "" {
+			agentID = "mr-flow"
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 300*time.Second)
 		defer cancel()
-		raw, err := host.InvokeAgentMessage(ctx, "mr-flow", body.Text, caller)
+		raw, err := host.InvokeAgentMessage(ctx, agentID, body.Text, caller)
 		if err != nil {
 			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 			return
