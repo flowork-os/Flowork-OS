@@ -37,8 +37,14 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	}
 
 	settings, _ := store.LoadSettings(d)
-	if req.Model == "" && settings != nil {
-		req.Model = settings.DefaultModel
+	// No model pinned → highest-priority ON provider (priority order), same as the
+	// non-stream dispatcher. DefaultModel only if no active provider has one.
+	if req.Model == "" {
+		if top := globalFallbackModels(d, nil); len(top) > 0 {
+			req.Model = top[0]
+		} else if settings != nil {
+			req.Model = settings.DefaultModel
+		}
 	}
 	if settings != nil && settings.RtkTokenSaver {
 		if msgs, saved := compressMessagesRTK(req.Messages); saved > 0 {
@@ -72,6 +78,38 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	}
 	if pinnedProvider != "" {
 		matches = pinProvider(d, matches, pinnedProvider)
+	}
+	// STABLE — DO NOT MODIFY without owner approval (locked 2026-06-15). Mirror of
+	// the failover-by-priority in dispatcher.go — see the locked block there for the
+	// full 2-brain / diversity / sovereign-failover rationale + the llama-server
+	// context lesson. Keep both paths in sync.
+	//
+	// Owner doctrine: if the requested model's provider is OFF (no active match),
+	// slide to the next ON provider by priority instead of failing with a 404.
+	// This is pre-stream (nothing written yet), so we just need to land on a
+	// servable model before the first byte. Mirrors the non-stream dispatcher.
+	if len(matches) == 0 && (settings == nil || settings.FallbackStrategy != "none") {
+		for _, fb := range globalFallbackModels(d, []string{req.Model}) {
+			fbModel, fbPin := resolveModel(d, fb)
+			m, ferr := store.FindActiveByModel(d, fbModel)
+			if ferr != nil || len(m) == 0 {
+				continue
+			}
+			if fbPin != "" {
+				if m = pinProvider(d, m, fbPin); len(m) == 0 {
+					continue
+				}
+			}
+			log.Printf("flow_router priority fallback (stream): %q unavailable → trying %q (next ON provider)", req.Model, fbModel)
+			// Land doctrine on the local fallback brain model (the stream path
+			// otherwise never injects the constitution).
+			if !isCrewLightModel(fbModel) {
+				maybeInjectConstitution(ctx, &req, settings)
+				maybeEnrichBrain(ctx, &req, settings)
+			}
+			req.Model, pinnedProvider, matches = fbModel, fbPin, m
+			break
+		}
 	}
 	if len(matches) == 0 {
 		return http.StatusNotFound, usage, fmt.Errorf("no active provider supports model %q", req.Model)

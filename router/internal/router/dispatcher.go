@@ -164,9 +164,16 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	}
 
 	settings, _ := store.LoadSettings(d)
-	// DefaultModel: a request that omits a model uses the configured default.
-	if req.Model == "" && settings != nil {
-		req.Model = settings.DefaultModel
+	// No model pinned on the agent → owner doctrine: route to the HIGHEST-priority
+	// ON provider's model (priority order rules when the user didn't choose). Fall
+	// back to the configured DefaultModel only if no active provider exposes a
+	// concrete model id.
+	if req.Model == "" {
+		if top := globalFallbackModels(d, nil); len(top) > 0 {
+			req.Model = top[0]
+		} else if settings != nil {
+			req.Model = settings.DefaultModel
+		}
 	}
 	// RTK token saver: compress large tool-result messages before forwarding.
 	if settings != nil && settings.RtkTokenSaver {
@@ -193,11 +200,13 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	// mereka fokus, doktrin+knowledge ga relevan + itu yang bakar kuota → 429.
 	// (enrich_tier.go). brainInfo nil kalau di-skip → recordBrainContribution no-op.
 	var brainInfo *brainEnrichInfo
+	heavyEnriched := false
 	if !isCrewLightModel(req.Model) {
 		// Constitution: sacred-rule injection di ATAS knowledge — doktrin menang.
 		maybeInjectConstitution(ctx, &req, settings)
 		// Brain enrichment: knowledge + skills relevan.
 		brainInfo = maybeEnrichBrain(ctx, &req, settings)
+		heavyEnriched = true
 	}
 	// Antibody injection (mistakeenrich.go): mistakes karma-ranked sbg "antibodi"
 	// anti-halu SEBELUM LLM. TETEP buat SEMUA tier (kecil + nahan halu kategori).
@@ -222,32 +231,141 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	}
 
 	// Per-model attempt loop: first try req.Model, then any remaining combo
-	// fallbacks if the providers for req.Model all 5xx. Non-combo requests
-	// pay no overhead because comboFallback stays nil.
+	// fallbacks, then the GLOBAL priority-ordered fallback to any other ACTIVE
+	// provider's model. The last part is the owner doctrine: when the requested
+	// model's provider is OFF or out of quota, EVERY agent's request still lands
+	// on the next ON provider by priority instead of dying with a 404. Non-combo
+	// single-provider setups pay near-zero overhead (one tiny ListProviders).
 	modelsToTry := append([]string{req.Model}, comboFallback...)
+	nPrimary := len(modelsToTry)
+	if settings == nil || settings.FallbackStrategy != "none" {
+		modelsToTry = append(modelsToTry, globalFallbackModels(d, modelsToTry)...)
+	}
+	originalModel := modelsToTry[0]
 	var lastModelErr error
 	var lastModelStatus int
 	for modelIdx, candidateModel := range modelsToTry {
 		req.Model = candidateModel
-		if modelIdx > 0 {
+		pin := pinnedProvider
+		switch {
+		case modelIdx >= nPrimary:
+			// Global priority fallback candidate: re-resolve its OWN provider pin
+			// (the original pin pointed at the dead provider), and run the heavy
+			// enrichment we skipped when the crew-light original was chosen — so
+			// the local fallback model still gets the Flowork doctrine injected.
+			rm, rp := resolveModel(d, candidateModel)
+			req.Model, pin = rm, rp
+			if !heavyEnriched && !isCrewLightModel(req.Model) {
+				maybeInjectConstitution(ctx, &req, settings)
+				brainInfo = maybeEnrichBrain(ctx, &req, settings)
+				heavyEnriched = true
+			}
+			log.Printf("flow_router priority fallback: %q unavailable → trying %q (next ON provider)", originalModel, req.Model)
+		case modelIdx > 0:
 			log.Printf("flow_router combo per-model fallback: trying %q", candidateModel)
 		}
-		resp, status, err := dispatchSingleModel(ctx, d, req, settings, brainInfo, pinnedProvider)
+		resp, status, err := dispatchSingleModel(ctx, d, req, settings, brainInfo, pin)
 		if err == nil && resp != nil {
 			return resp, status, nil
 		}
 		lastModelErr = err
 		lastModelStatus = status
-		// Decide whether to try the next model in the combo. A combo exists precisely to list
+		// Decide whether to try the next candidate. A combo exists precisely to list
 		// alternatives, so "no active provider serves THIS model" (404) must fall through to the next
 		// listed model — not fail the whole request. Upstream 5xx also falls through. Only a
 		// request-/policy-level 4xx (400 malformed, 401 bad inbound auth, 403 disabled/not-permitted)
 		// is identical across models, so we stop early and surface it.
-		if shouldStopComboFallback(status) {
+		stop := shouldStopComboFallback(status)
+		// Owner doctrine override: if THIS failure is an availability failure
+		// (provider off / quota / 5xx) and the NEXT candidate is a global ON
+		// provider, never give up — let the priority fallback serve it.
+		if stop && modelIdx+1 < len(modelsToTry) && modelIdx+1 >= nPrimary && availabilityFailure(status) {
+			stop = false
+		}
+		if stop {
 			break
 		}
 	}
 	return nil, lastModelStatus, lastModelErr
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STABLE — DO NOT MODIFY without owner approval.  (locked 2026-06-15)
+//
+// TUJUAN (biar AI berikutnya paham, jangan dibongkar):
+// Flowork = "rumah AI" dengan 2 brain TERPISAH by design:
+//   • ROUTER brain  — atur provider + suntik doktrin/konstitusi (persona via RAG).
+//   • AGENT brain   — tiap agent punya model sendiri (kv router_model → FLOWORK_AGENT_CONFIG).
+// Owner doctrine (2026-06-15): "kalau provider mati / token abis → OTOMATIS pindah
+// ke model yang ON sesuai urutan PRIORITY, berlaku SEMUA agent." Diversity penting:
+// 1 rumah banyak karakter (agent A=Claude, B=lokal) biar nggak mikir sama → JANGAN
+// paksa semua ke 1 model (jangan ubah jadi priority-first; model pilihan agent menang
+// dulu, baru failover). Failover ini yang bikin sistem selamat pas langganan cloud abis.
+//
+// availabilityFailure + globalFallbackModels + loop fallback di DispatchChatCompletion
+// = mekanisme failover-by-priority. Mirror di dispatcher_stream.go. shouldStopComboFallback
+// (combo_fallback_test.go) LOCKED terpisah — jangan disentuh.
+//
+// CATATAN OPERASIONAL (mahal dipelajari): provider lokal (llama-server) WAJIB punya
+// context cukup (-c ≥ 32768). Doktrin+brain bikin prompt membengkak ~9-12k token; kalau
+// -c 8192, llama-server tolak 400 "exceed_context_size" → tiap request lokal failover
+// ke cloud (keliatan "agent nyangkut di Claude" padahal config-nya bener). Lihat memory
+// [[flowork-router-failover]].
+// ═══════════════════════════════════════════════════════════════════════════
+
+// availabilityFailure reports whether an upstream status means "this provider
+// can't serve right now" (so the request should slide to the next ON provider
+// by priority) rather than a permanent request error every provider rejects
+// identically. Covers: 404 no active provider, 408 timeout, 429 rate/quota
+// ("token abis"), 402 out-of-credit, and all 5xx. (owner doctrine: auto-failover)
+func availabilityFailure(status int) bool {
+	switch status {
+	case http.StatusNotFound, http.StatusRequestTimeout,
+		http.StatusTooManyRequests, http.StatusPaymentRequired:
+		return true
+	}
+	return status >= 500
+}
+
+// globalFallbackModels returns one concrete model per ACTIVE provider, in
+// provider-priority order (ListProviders is ORDER BY priority ASC), excluding
+// models already queued in `tried` and any wildcard ("*"/"claude-*") entries
+// (the upstream needs a concrete model id). This is the priority-ordered safety
+// net behind every request. (owner doctrine)
+func globalFallbackModels(d *sql.DB, tried []string) []string {
+	provs, err := store.ListProviders(d)
+	if err != nil {
+		return nil
+	}
+	skip := make(map[string]bool, len(tried))
+	for _, m := range tried {
+		skip[strings.ToLower(strings.TrimSpace(m))] = true
+	}
+	var out []string
+	for _, p := range provs {
+		if !p.IsActive {
+			continue
+		}
+		models, _ := p.Data[store.CfgModels].([]any)
+		for _, mm := range models {
+			ms, ok := mm.(string)
+			if !ok {
+				continue
+			}
+			ms = strings.TrimSpace(ms)
+			if ms == "" || ms == "*" || strings.HasSuffix(ms, "*") {
+				continue // need a concrete model id the upstream accepts
+			}
+			key := strings.ToLower(ms)
+			if skip[key] {
+				continue
+			}
+			skip[key] = true
+			out = append(out, ms)
+			break // one concrete model per provider is enough
+		}
+	}
+	return out
 }
 
 // dispatchSingleModel runs the full provider-selection + try-each-candidate
