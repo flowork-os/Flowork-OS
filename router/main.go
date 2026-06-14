@@ -28,12 +28,14 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/flowork-os/flowork_Router/internal/brain"
+	"github.com/flowork-os/flowork_Router/internal/localai"
 	"github.com/flowork-os/flowork_Router/internal/mesh"
 	"github.com/flowork-os/flowork_Router/internal/policy"
 	"github.com/flowork-os/flowork_Router/internal/store"
@@ -184,6 +186,13 @@ func main() {
 		log.Printf("  - [%s] %s (%s, priority=%d)", status, p.Name, p.AuthType, p.Priority)
 	}
 
+	// Boot auto-start of the local model (cross-OS, all editions): if the user
+	// enabled a local provider AND the GGUF + llama-server binary are present,
+	// bring llama-server up on boot so "Start Flowork" = sovereign model ready —
+	// no GUI click. Goroutine (never blocks serve); skips silently for cloud-only
+	// setups. Disable with FLOWORK_LOCALAI_AUTOSTART=0.
+	go maybeAutostartLocalAI(providers)
+
 	mux := http.NewServeMux()
 
 	// All HTTP routes live in routes.go, grouped per domain.
@@ -230,4 +239,53 @@ func main() {
 		os.Exit(1)
 	}
 	log.Printf("flow_router stopped cleanly")
+}
+
+// STABLE — verified 2026-06-15 (owner-approved). Boot auto-start PROVEN: router
+// boot → ResolveLlamaBin() finds <exe-dir>/bin/llama-server → llama-server UP on
+// :8088 with `--jinja -c 16384 --reasoning off -ngl $FLOWORK_NGL`, cross-OS. Don't
+// change the gating (active :8088 provider) or resolution without re-testing a cold
+// boot — the whole "Start Flowork = sovereign model ready" UX depends on it.
+//
+// maybeAutostartLocalAI brings the local llama-server up on boot when the user has
+// a local model configured (an active provider pointing at the runtime port :8088)
+// AND both the GGUF + the llama-server binary resolve. Cross-OS / all editions
+// (lives in the router binary, same on Linux/Mac/Win). Sets the shared runtime ref
+// so the GUI's status/stop controls the same instance. No-op for cloud-only setups
+// or a missing model/binary. Disable entirely with FLOWORK_LOCALAI_AUTOSTART=0.
+func maybeAutostartLocalAI(providers []store.ProviderConnection) {
+	if strings.TrimSpace(os.Getenv("FLOWORK_LOCALAI_AUTOSTART")) == "0" {
+		return
+	}
+	want := false
+	for _, p := range providers {
+		if !p.IsActive {
+			continue
+		}
+		if base, _ := p.Data[store.CfgBaseURL].(string); strings.Contains(base, ":8088") {
+			want = true
+			break
+		}
+	}
+	if !want {
+		return // no active local provider → user is cloud-only; leave it.
+	}
+	gguf := localai.ResolveFloworkBrain()
+	bin := localai.ResolveLlamaBin()
+	if gguf == "" || bin == "" {
+		log.Printf("localai autostart: skip — gguf=%q bin=%q (set FLOWORK_BRAIN_GGUF / FLOWORK_LLAMA_BIN or install the model)", gguf, bin)
+		return
+	}
+	localAIRuntimeMu.Lock()
+	if localAIRuntimeRef == nil {
+		localAIRuntimeRef = localai.NewRuntime(bin, 0)
+	}
+	rt := localAIRuntimeRef
+	localAIRuntimeMu.Unlock()
+	log.Printf("localai autostart: starting flowork-brain (bin=%s)", bin)
+	if err := rt.Start(localai.FloworkBrainModel, gguf); err != nil {
+		log.Printf("localai autostart: failed (%v) — agents fall back to cloud/priority", err)
+		return
+	}
+	log.Printf("localai autostart: flowork-brain UP on :8088")
 }

@@ -34,3 +34,4 @@ secret.key
 notes_private.md
 notes_private/
 .scratch/
+bin/

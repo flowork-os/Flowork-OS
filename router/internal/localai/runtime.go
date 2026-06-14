@@ -15,6 +15,14 @@
 //   tool call leaks into content = the train/serve skew "narration halu"
 //   (root-caused + proven via live test, see the project root-cause writeup).
 //
+// 2026-06-15 (owner-approved, Aola): boot auto-start support — (1) ResolveLlamaBin()
+//   cross-OS binary resolver (FLOWORK_LLAMA_BIN → <exe-dir>/bin → PATH) so main.go
+//   can auto-start the local model on boot (Linux/Mac/Win, all editions); (2) ctx
+//   window default 8192→16384 (env FLOWORK_CTX) — doctrine-enriched prompts run
+//   ~9-12k tokens; 8192 rejected them ("exceed context") → silent failover to cloud
+//   ("agent stuck on Claude"); (3) --reasoning off default (env FLOWORK_REASONING) —
+//   stock models burn the completion budget thinking → empty content. --jinja kept.
+//
 // runtime.go — Section 25 phase 2: llama-server subprocess.
 
 package localai
@@ -48,7 +56,9 @@ type Runtime struct {
 // kernel 1987 / router 2402 / mDNS 5353).
 func NewRuntime(binPath string, port int) *Runtime {
 	if binPath == "" {
-		binPath = "llama-server"
+		if binPath = ResolveLlamaBin(); binPath == "" {
+			binPath = "llama-server" // PATH fallback; Start() errors clearly if absent
+		}
 	}
 	if port <= 0 {
 		port = 8088
@@ -98,6 +108,31 @@ func fileExists(p string) bool {
 	return err == nil && !st.IsDir()
 }
 
+// ResolveLlamaBin — cross-OS llama-server resolution for boot auto-start.
+// Order: $FLOWORK_LLAMA_BIN → <exe-dir>/bin/llama-server[.exe] → <exe-dir>/llama-server[.exe]
+//   → PATH. Returns "" if nothing resolves anywhere (callers treat "" as "no local
+//   runtime present" → skip auto-start; the manual GUI path falls back to PATH name).
+func ResolveLlamaBin() string {
+	if p := strings.TrimSpace(os.Getenv("FLOWORK_LLAMA_BIN")); p != "" && fileExists(p) {
+		return p
+	}
+	if exe, err := os.Executable(); err == nil {
+		d := filepath.Dir(exe)
+		for _, c := range []string{
+			filepath.Join(d, "bin", "llama-server"), filepath.Join(d, "bin", "llama-server.exe"),
+			filepath.Join(d, "llama-server"), filepath.Join(d, "llama-server.exe"),
+		} {
+			if fileExists(c) {
+				return c
+			}
+		}
+	}
+	if lp, err := exec.LookPath("llama-server"); err == nil {
+		return lp
+	}
+	return ""
+}
+
 // Start — spawn llama-server with model file. Stop existing first kalau ada.
 // Caller pass GGUF path. Best-effort: kalau binary tidak ada, return error.
 func (r *Runtime) Start(modelName, ggufPath string) error {
@@ -145,13 +180,30 @@ func (r *Runtime) Start(modelName, ggufPath string) error {
 	// │  • Never heavy-fine-tune a small base; it breaks tool-format + language.│
 	// │  • If you must swap models, re-verify with a multi-tool probe.          │
 	// └───────────────────────────────────────────────────────────────────────┘
+	// Context window. Doctrine-enriched prompts (constitution + brain + history +
+	// tools) run ~9-12k tokens; the old 8192 default REJECTED them ("exceed context
+	// size") → the router silently failed over to cloud ("agent stuck on Claude").
+	// 16384 gives headroom on modest RAM; bump via FLOWORK_CTX (e.g. 32768) on a
+	// roomy machine.
+	cw := strings.TrimSpace(os.Getenv("FLOWORK_CTX"))
+	if cw == "" {
+		cw = "16384"
+	}
 	args := []string{
 		"-m", ggufPath,
 		"--port", strconv.Itoa(r.port),
 		"--host", "127.0.0.1",
 		"--jinja", // ← REQUIRED for tool-calling. See the warning box above.
-		"-c", "8192",
+		"-c", cw,
 	}
+	// Reasoning/thinking: a STOCK (un-fine-tuned) model burns the whole completion
+	// budget "thinking" and returns empty content. Default OFF; a fine-tuned model
+	// with short <think> can set FLOWORK_REASONING=on (or auto).
+	reasoning := strings.TrimSpace(os.Getenv("FLOWORK_REASONING"))
+	if reasoning == "" {
+		reasoning = "off"
+	}
+	args = append(args, "--reasoning", reasoning)
 	// Optional GPU offload. Portable default is CPU-safe (a flashdisk runs on
 	// unknown hardware — a hardcoded -ngl could OOM a small GPU). On a known
 	// machine set $FLOWORK_NGL (e.g. 35) to offload layers to the GPU.
