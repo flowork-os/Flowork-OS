@@ -1,9 +1,15 @@
-// evolve_capability.go — R7 CAPABILITY DETECTION. Owner-approved 2026-06-15.
-// "Buktikan, jangan asumsi." Ganti cek-nama dangkal (model=claude) jadi EVAL NYATA:
-// model aktif (apapun namanya — Claude/DeepSeek/Mythos/future) disuruh nulis kode Go,
-// kita COMPILE + RUN deterministik. Lolos = layak self-modify. Bar dikalibrasi ke kelas
-// Opus 4.7 (tugas non-trivial). NO HARDCODE NAMA → future-proof. Hasil di-cache per-model
-// (eval mahal). Gemma lokal / model lemah → kode gagal compile/test → KEBLOK otomatis.
+// evolve_capability.go — R7 CAPABILITY FLOOR. Owner-approved 2026-06-15 (keputusan
+// didelegasikan ke AI). "Buktikan, jangan asumsi." Ganti cek-nama dangkal (model=claude).
+//
+// PENTING (temuan empiris 2026-06-15): coding-puzzle BUKAN diskriminator "≥Opus 4.7" —
+// haiku-4.5 (di bawah 4.7) lolos 3/3 termasuk wildcard-hard. Jadi eval ini = **FLOOR
+// "bisa-ngoding"** doang: nyaring model RUSAK/LOKAL (Gemma gak bisa compile Go → gagal).
+// Karena eval jalan lawan model yang BENERAN dilayani router, fallback-ke-lokal = gagal
+// floor = GUARD ANTI-LOKAL otomatis. NO HARDCODE NAMA → future-proof (DeepSeek/Mythos ok).
+//
+// Bar "≥4.7" SEJATI = KARMA (rekam-jejak perubahan nyata yang lolos) + per-change TEST-GATE
+// + owner colok model kuat + eksekusi re-probe model asli sebelum commit. Bukan eval ini.
+// Hasil di-cache per-model (eval ~90s).
 
 package main
 
