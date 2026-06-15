@@ -2,6 +2,11 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Locked at: 2026-06-15 (owner-approved autonomous sprint)
+// 2026-06-16 (owner-approved): ID-length robustness — generated agent ids capped 63→31
+//   (coderCatRe/reID limit, else config API rejects "invalid id" → agent unmanageable) +
+//   group_id TRUNCATED via capGroupID instead of rejected (a long LLM name like
+//   "autonomy-manifest-governance"=28 no longer fails the whole build). AI Studio never
+//   blows up / produces unaddressable ids. RE-LOCKED.
 // Reason: Flowork Architect — group/team creator. VERIFIED E2E: POST /api/architect/build
 //   {"prompt":"team peramal …"} → designed "Tim Peramal Nasib" → ONE pack (3 specialists +
 //   1 lead synth, ALL group-prefixed "peramal-nasib-*") → installed → created group +
@@ -180,6 +185,20 @@ func authorSkill(name, description, body string) {
 // the lead category "<group_id>-lead", which must satisfy coderCatRe (max 31). Cap
 // the group_id at 26 chars so "<group_id>-lead" never overflows.
 var idReGroup = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,25}$`)
+var groupSanitizeRe = regexp.MustCompile(`[^a-z0-9-]+`)
+
+// capGroupID — sanitize + TRUNCATE an LLM-picked group_id to a valid ≤26-char slug, instead
+// of REJECTING it (a long name like "autonomy-manifest-governance" = 28 char would otherwise
+// fail the whole build). Same robustness as the specialist-aid cap: AI Studio must never blow up
+// on a long generated id. Returns "" if nothing valid remains (caller errors then).
+func capGroupID(s string) string {
+	s = groupSanitizeRe.ReplaceAllString(strings.ToLower(strings.TrimSpace(s)), "-")
+	s = strings.Trim(s, "-")
+	if len(s) > 26 {
+		s = strings.TrimRight(s[:26], "-")
+	}
+	return s
+}
 
 // teamWorker — one specialist (worker) in the team, fully specified by the design
 // call. Only worker-side fields; the synth-side fields of its AgentSpec are filled
@@ -321,8 +340,12 @@ func architectAssembleTeamPack(plan teamPlan) ([]byte, []string, string, error) 
 		slug := strings.ToLower(strings.TrimSpace(sp.CategoryID))
 		slug = strings.TrimPrefix(slug, plan.GroupID+"-") // avoid double prefix if the LLM already prefixed
 		aid := plan.GroupID + "-" + slug
-		if len(aid) > 63 {
-			aid = aid[:63]
+		// Cap at 31 (coderCatRe/reID limit), NOT 63 (pluginIDRe install limit). An id >31
+		// installs fine but is REJECTED by the config API (/api/agents/config reID max 32) →
+		// the agent can never be edited / model-switched ("invalid id"). Truncate the slug to
+		// fit + trim any trailing dash so the result stays a valid, addressable id.
+		if len(aid) > 31 {
+			aid = strings.TrimRight(aid[:31], "-")
 		}
 		if slug == "" || !pluginIDRe.MatchString(aid) || seen[aid] {
 			continue
@@ -386,10 +409,10 @@ func architectAssembleTeamPack(plan teamPlan) ([]byte, []string, string, error) 
 // group. This is what the chat brain calls on the build_team tool, so the team built
 // is EXACTLY the one discussed (not a re-design). Re-callable: same group_id rebuilds.
 func architectBuildFromPlan(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, plan teamPlan) (map[string]any, error) {
-	plan.GroupID = strings.ToLower(strings.TrimSpace(plan.GroupID))
+	plan.GroupID = capGroupID(plan.GroupID) // TRUNCATE long/odd ids (don't fail the build)
 	plan.DisplayName = strings.TrimSpace(plan.DisplayName)
 	if !idReGroup.MatchString(plan.GroupID) {
-		return nil, fmt.Errorf("group_id invalid/too long (2-26 lowercase-dash): %q", plan.GroupID)
+		return nil, fmt.Errorf("group_id tidak bisa dinormalisasi jadi valid (2-26): %q", plan.GroupID)
 	}
 	if plan.DisplayName == "" {
 		plan.DisplayName = plan.GroupID
