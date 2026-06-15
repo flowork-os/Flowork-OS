@@ -40,5 +40,18 @@
   "chat_thinking": "tim lagi kerja…",
   "chat_hint": "Coordinator sebar ke tiap anggota, lalu synthesizer gabungin jadi 1 jawaban.",
   "chat_fail": "chat gagal: ",
-  "chat_close": "Tutup"
+  "chat_close": "Tutup",
+  "tab_teams": "Tim",
+  "tab_chat": "Chat",
+  "chat_new": "Chat baru",
+  "chat_sessions_empty": "Belum ada chat — mulai satu",
+  "chat_pick": "Pilih chat di kiri, atau mulai yang baru.",
+  "chat_input_ph": "Ketik pesan…  (Enter kirim, Shift+Enter = baris baru)",
+  "chat_model_ph": "model (kosong = default)",
+  "chat_target_architect": "🪄 Architect — rancang & bikin tim",
+  "chat_target_group_prefix": "💬 ",
+  "chat_rename_prompt": "Judul baru:",
+  "chat_delete_confirm": "Hapus chat ini? History-nya ikut kehapus.",
+  "chat_intro_architect": "Bilang ke Architect mau tim kayak apa — dia nanya, usulin, lalu bikin pas lo bilang gas. Persis kayak chat bikin app.",
+  "chat_intro_group": "Lagi ngobrol sama tim ini — dia inget seluruh percakapan."
 }

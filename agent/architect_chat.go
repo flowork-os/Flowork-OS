@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). Tested E2E:
+// brainstorm → propose → build_team on confirm → revise; remembers context (incl.
+// across restart). Server-side full-context chat loop = "how Claude works".
+//
 // architect_chat.go — SERVER-SIDE conversational brain for the Flowork Architect.
 // This is "how Claude works": every turn the FULL conversation (system + entire
 // history) is sent to the router (a big model like Opus 4.8 holds the whole context),

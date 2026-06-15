@@ -1,3 +1,6 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). Tested:
+// session CRUD + send (architect + group modes) + auto-title + persistence verified.
+//
 // chat_sessions.go — HTTP API for the persistent "Chat" tab (Group section). Sessions
 // + messages live in flowork.db (chatdb.go) so they survive a PC shutdown and keep
 // full context. A session targets either a GROUP (talk to a team) or the ARCHITECT

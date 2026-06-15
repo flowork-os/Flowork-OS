@@ -40,5 +40,18 @@
   "chat_thinking": "the team is working…",
   "chat_hint": "The coordinator fans out to every member, then the synthesizer fuses one answer.",
   "chat_fail": "chat failed: ",
-  "chat_close": "Close"
+  "chat_close": "Close",
+  "tab_teams": "Teams",
+  "tab_chat": "Chat",
+  "chat_new": "New chat",
+  "chat_sessions_empty": "No chats yet — start one",
+  "chat_pick": "Pick a chat on the left, or start a new one.",
+  "chat_input_ph": "Type a message…  (Enter to send, Shift+Enter = newline)",
+  "chat_model_ph": "model (blank = default)",
+  "chat_target_architect": "🪄 Architect — design & build a team",
+  "chat_target_group_prefix": "💬 ",
+  "chat_rename_prompt": "New title:",
+  "chat_delete_confirm": "Delete this chat? Its history is removed.",
+  "chat_intro_architect": "Tell the Architect what team you want — it asks, proposes, and builds when you say go. Like chatting to build an app.",
+  "chat_intro_group": "Chatting with this team — it remembers the whole conversation."
 }

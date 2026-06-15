@@ -1,3 +1,6 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). Tested: chat
+// sessions + messages persist across restart (survive shutdown), full-context memory.
+//
 // chatdb.go — PERSISTENT CHAT SESSIONS (flowork.db). Backs the GUI "Chat" tab in
 // the Group section: ChatGPT-style sessions that survive a PC shutdown and let the
 // agent remember context. A session targets either a GROUP (mode=group, talk to a

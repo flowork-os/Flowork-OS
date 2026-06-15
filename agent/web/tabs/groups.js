@@ -153,6 +153,36 @@ const CSS = `
 .gr-chat-hint { font-size:0.72rem; color:#64748b; padding:0 20px 12px; }
 .gr-btn.gr-chat-open { background:rgba(16,185,129,0.14); color:#6ee7b7; border-color:rgba(110,231,183,0.35); }
 .gr-btn.gr-chat-open:hover { background:rgba(16,185,129,0.24); border-color:rgba(110,231,183,0.6); }
+
+/* ── sub-tabs [Teams | Chat] ── */
+.gr-subtabs { display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid rgba(148,163,184,0.16); }
+.gr-subtab { background:transparent; border:none; border-bottom:2px solid transparent; color:#94a3b8;
+  padding:9px 16px; cursor:pointer; font:inherit; font-size:0.92rem; font-weight:600; margin-bottom:-1px; }
+.gr-subtab:hover { color:#cbd5e1; }
+.gr-subtab.on { color:#e9d5ff; border-bottom-color:#a78bfa; }
+
+/* ── chat tab (ChatGPT-style) ── */
+.gc-wrap { display:grid; grid-template-columns:248px 1fr; gap:16px; height:calc(100vh - 300px); min-height:440px; }
+.gc-side { display:flex; flex-direction:column; gap:10px; min-height:0; }
+.gc-side .gc-new { width:100%; }
+.gc-sessions { flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:3px; padding-right:2px; }
+.gc-sess { display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:9px; cursor:pointer; border:1px solid transparent; }
+.gc-sess:hover { background:rgba(15,23,42,0.6); }
+.gc-sess.on { background:rgba(124,58,237,0.16); border-color:rgba(167,139,250,0.4); }
+.gc-sess-t { flex:1; min-width:0; font-size:0.85rem; color:#cbd5e1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gc-sess-act { display:flex; gap:1px; opacity:0; transition:opacity .15s; }
+.gc-sess:hover .gc-sess-act { opacity:1; }
+.gc-sess-act button { background:transparent; border:none; color:#64748b; cursor:pointer; font-size:0.78rem; padding:2px 5px; border-radius:5px; }
+.gc-sess-act button:hover { color:#e2e8f0; background:rgba(148,163,184,0.15); }
+.gc-main { display:flex; flex-direction:column; min-height:0; background:rgba(15,23,42,0.4);
+  border:1px solid rgba(148,163,184,0.16); border-radius:14px; overflow:hidden; }
+.gc-bar { display:flex; gap:10px; padding:12px 14px; border-bottom:1px solid rgba(148,163,184,0.16); flex-wrap:wrap; }
+.gc-bar .gc-target { flex:1; min-width:180px; }
+.gc-bar .gc-model { width:200px; }
+.gc-log { flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:14px; }
+.gc-input-row { display:flex; gap:10px; padding:12px 14px; border-top:1px solid rgba(148,163,184,0.16); }
+.gc-input-row .gc-input { flex:1; resize:none; box-sizing:border-box; }
+@media (max-width:760px) { .gc-wrap { grid-template-columns:1fr; height:auto; } .gc-side { max-height:220px; } }
 `;
 
 export async function render(mainEl) {
@@ -168,6 +198,12 @@ export async function render(mainEl) {
         <div class="gr-stat"><b id="grStatN">·</b><label>${esc(L.count_label)}</label></div>
       </header>
 
+      <div class="gr-subtabs">
+        <button class="gr-subtab on" data-tab="teams">${esc(L.tab_teams)}</button>
+        <button class="gr-subtab" data-tab="chat">💬 ${esc(L.tab_chat)}</button>
+      </div>
+
+      <div id="grTeams">
       <div class="gr-arch">
         <div class="gr-eyebrow">${esc(L.arch_eyebrow)}</div>
         <div class="gr-arch-title">🪄 ${esc(L.arch_title)}</div>
@@ -188,8 +224,24 @@ export async function render(mainEl) {
       </div>
 
       <div id="grList"><div class="gr-empty">${esc(L.loading)}</div></div>
+      </div>
+
+      <div id="grChat" style="display:none"></div>
     </section>
   `;
+  // Sub-tab switcher: Teams (colony cards) | Chat (ChatGPT-style).
+  const teamsEl = mainEl.querySelector('#grTeams');
+  const chatEl = mainEl.querySelector('#grChat');
+  let chatInited = false;
+  mainEl.querySelectorAll('.gr-subtab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      mainEl.querySelectorAll('.gr-subtab').forEach((b) => b.classList.toggle('on', b === btn));
+      const isChat = btn.dataset.tab === 'chat';
+      teamsEl.style.display = isChat ? 'none' : '';
+      chatEl.style.display = isChat ? '' : 'none';
+      if (isChat && !chatInited) { chatInited = true; renderChat(chatEl); }
+    });
+  });
   mainEl.querySelector('.gr-create').addEventListener('click', () => createGroup(mainEl));
   mainEl.querySelector('.gr-arch-build').addEventListener('click', () => architectBuild(mainEl));
   mainEl.querySelector('.gr-arch-in').addEventListener('keydown', (e) => {
@@ -281,7 +333,11 @@ function card(g, avail, claimedBy, mainEl) {
       <span class="gr-msg" style="display:none"></span>
     </div>
   `;
-  el.querySelector('.gr-chat-open').addEventListener('click', () => openChat(g));
+  el.querySelector('.gr-chat-open').addEventListener('click', () => {
+    const chatBtn = mainEl.querySelector('.gr-subtab[data-tab="chat"]');
+    if (chatBtn) chatBtn.click(); // switches to Chat sub-tab (inits it if first time)
+    setTimeout(() => chatStartWithGroup(g.id), 60);
+  });
   // Group ON/OFF — disables/enables the coordinator AND every member at once.
   const onoff = el.querySelector('.gr-onoff');
   let grpEnabled = g.enabled !== false;
@@ -406,68 +462,175 @@ function mdLite(raw) {
   return s;
 }
 
-// openChat — modal to talk to a group. POST /api/chat {agent:<group_id>} runs the
-// SAME path Telegram uses: the coordinator fans out to every member, the synthesizer
-// fuses one answer. No client timeout (group runs can take a while).
-function openChat(g) {
-  const overlay = document.createElement('div');
-  overlay.className = 'gr-modal';
-  overlay.innerHTML = `
-    <div class="gr-modal-box">
-      <div class="gr-modal-head">
-        ${avatar(g.id, 38)}
-        <div>
-          <div class="gr-name2">${esc(L.chat_title)} ${esc(g.display_name || g.id)}</div>
-          <div class="gr-gid2">${esc(g.id)}</div>
+// ── CHAT sub-tab (ChatGPT-style) ──────────────────────────────────────────────
+// Persistent sessions (survive shutdown, full-context memory) talking to either a
+// GROUP (a team) or the ARCHITECT (brainstorm + build teams). Backed by
+// /api/chat/sessions* + /api/chat/send. Module-level state so the Teams cards' 💬
+// button can deep-link in via chatStartWithGroup().
+const CHAT = { el: null, sessionId: null, sessions: [], groups: [] };
+
+async function renderChat(host) {
+  CHAT.el = host;
+  host.innerHTML = `
+    <div class="gc-wrap">
+      <aside class="gc-side">
+        <button class="gr-btn primary gc-new">+ ${esc(L.chat_new)}</button>
+        <div class="gc-sessions"><div class="gr-empty">${esc(L.loading)}</div></div>
+      </aside>
+      <section class="gc-main">
+        <div class="gc-bar">
+          <select class="gr-sel gc-target"></select>
+          <input class="gr-in gc-model" placeholder="${escAttr(L.chat_model_ph)}">
         </div>
-        <button class="gr-modal-x">${esc(L.chat_close)}</button>
-      </div>
-      <div class="gr-log"></div>
-      <div class="gr-chat-hint">${esc(L.chat_hint)}</div>
-      <div class="gr-chatbar">
-        <input class="gr-in gr-chat-input" placeholder="${escAttr(L.chat_ph)}">
-        <button class="gr-btn primary gr-chat-send">${esc(L.chat_send)}</button>
-      </div>
+        <div class="gc-log"><div class="gr-empty gc-intro">${esc(L.chat_pick)}</div></div>
+        <div class="gc-input-row">
+          <textarea class="gr-in gc-input" rows="2" placeholder="${escAttr(L.chat_input_ph)}"></textarea>
+          <button class="gr-btn primary gc-send">${esc(L.chat_send)}</button>
+        </div>
+      </section>
     </div>`;
-  document.body.appendChild(overlay);
-  const log = overlay.querySelector('.gr-log');
-  const input = overlay.querySelector('.gr-chat-input');
-  const sendBtn = overlay.querySelector('.gr-chat-send');
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
-  function onKey(e) { if (e.key === 'Escape') close(); }
-  overlay.querySelector('.gr-modal-x').addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-  document.addEventListener('keydown', onKey);
+  host.querySelector('.gc-new').addEventListener('click', () => chatNew());
+  host.querySelector('.gc-target').addEventListener('change', () => chatSaveMeta());
+  host.querySelector('.gc-model').addEventListener('change', () => chatSaveMeta());
+  host.querySelector('.gc-send').addEventListener('click', () => chatSend());
+  host.querySelector('.gc-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chatSend(); }
+  });
+  await chatLoadGroups();
+  await chatLoadSessions();
+}
 
-  const addBubble = (cls, html) => {
-    const b = document.createElement('div'); b.className = 'gr-bubble ' + cls; b.innerHTML = html;
-    log.appendChild(b); log.scrollTop = log.scrollHeight; return b;
-  };
+async function chatLoadGroups() {
+  try { const d = await fetchJSON('/api/groups'); CHAT.groups = d.groups || []; } catch { CHAT.groups = []; }
+  const sel = CHAT.el.querySelector('.gc-target');
+  sel.innerHTML = `<option value="architect">${esc(L.chat_target_architect)}</option>`
+    + CHAT.groups.map((g) => `<option value="group:${escAttr(g.id)}">${esc(L.chat_target_group_prefix)}${esc(g.display_name || g.id)}</option>`).join('');
+}
 
-  async function send() {
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    addBubble('me', esc(text));
-    sendBtn.disabled = true; input.disabled = true;
-    const pending = addBubble('them pending', `<span class="gr-spin"></span>${esc(L.chat_thinking)}`);
-    try {
-      const r = await fetchJSON('/api/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent: g.id, text }),
-      });
-      pending.classList.remove('pending');
-      pending.innerHTML = mdLite(r.reply || r.error || '(no reply)');
-    } catch (e) {
-      pending.classList.remove('pending');
-      pending.style.color = '#f87171';
-      pending.textContent = L.chat_fail + (e.message || e);
-    } finally {
-      sendBtn.disabled = false; input.disabled = false; input.focus();
-      log.scrollTop = log.scrollHeight;
-    }
+async function chatLoadSessions() {
+  const box = CHAT.el.querySelector('.gc-sessions');
+  let d;
+  try { d = await fetchJSON('/api/chat/sessions'); } catch (e) { box.innerHTML = `<div class="gr-empty">${esc(String(e.message || e))}</div>`; return; }
+  CHAT.sessions = d.sessions || [];
+  if (!CHAT.sessions.length) { box.innerHTML = `<div class="gr-empty">${esc(L.chat_sessions_empty)}</div>`; return; }
+  box.innerHTML = '';
+  for (const s of CHAT.sessions) {
+    const row = document.createElement('div');
+    row.className = 'gc-sess' + (s.id === CHAT.sessionId ? ' on' : '');
+    row.innerHTML = `<span class="gc-sess-t">${esc(s.title || L.chat_new)}</span>
+      <span class="gc-sess-act"><button class="gc-ren" title="rename">✎</button><button class="gc-del" title="delete">🗑</button></span>`;
+    row.querySelector('.gc-sess-t').addEventListener('click', () => chatOpen(s.id));
+    row.querySelector('.gc-ren').addEventListener('click', (e) => { e.stopPropagation(); chatRename(s.id); });
+    row.querySelector('.gc-del').addEventListener('click', (e) => { e.stopPropagation(); chatDelete(s.id); });
+    box.appendChild(row);
   }
-  sendBtn.addEventListener('click', send);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
-  setTimeout(() => input.focus(), 50);
+}
+
+function chatBarValues() {
+  const target = CHAT.el.querySelector('.gc-target').value;
+  const model = CHAT.el.querySelector('.gc-model').value.trim();
+  if (target.startsWith('group:')) return { mode: 'group', target_id: target.slice(6), model };
+  return { mode: 'architect', target_id: '', model };
+}
+
+async function chatNew() {
+  try {
+    const r = await fetchJSON('/api/chat/sessions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chatBarValues()),
+    });
+    await chatLoadSessions();
+    await chatOpen(r.session.id);
+    CHAT.el.querySelector('.gc-input').focus();
+  } catch (e) { alert(L.chat_fail + (e.message || e)); }
+}
+
+// chatStartWithGroup — deep-link from a Teams card's 💬 button: open a fresh group chat.
+async function chatStartWithGroup(groupId) {
+  if (!CHAT.el) return;
+  try {
+    const r = await fetchJSON('/api/chat/sessions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'group', target_id: groupId, model: '' }),
+    });
+    await chatLoadSessions();
+    await chatOpen(r.session.id);
+  } catch (e) { alert(L.chat_fail + (e.message || e)); }
+}
+
+async function chatOpen(id) {
+  CHAT.sessionId = id;
+  const sess = CHAT.sessions.find((s) => s.id === id);
+  const sel = CHAT.el.querySelector('.gc-target');
+  sel.value = sess && sess.mode === 'group' ? 'group:' + sess.target_id : 'architect';
+  CHAT.el.querySelector('.gc-model').value = (sess && sess.model) || '';
+  // highlight active session without a full reload
+  CHAT.el.querySelectorAll('.gc-sess').forEach((el) => el.classList.remove('on'));
+  const log = CHAT.el.querySelector('.gc-log');
+  log.innerHTML = `<div class="gr-empty">${esc(L.loading)}</div>`;
+  try {
+    const d = await fetchJSON(`/api/chat/sessions/messages?id=${encodeURIComponent(id)}`);
+    const msgs = d.messages || [];
+    log.innerHTML = '';
+    if (!msgs.length) {
+      const intro = sess && sess.mode === 'group' ? L.chat_intro_group : L.chat_intro_architect;
+      log.innerHTML = `<div class="gr-empty gc-intro">${esc(intro)}</div>`;
+    } else {
+      for (const m of msgs) chatBubble(m.role === 'user' ? 'me' : 'them', m.role === 'user' ? esc(m.content) : mdLite(m.content));
+    }
+  } catch (e) { log.innerHTML = `<div class="gr-empty">${esc(String(e.message || e))}</div>`; }
+  await chatLoadSessions();
+}
+
+function chatBubble(cls, html) {
+  const log = CHAT.el.querySelector('.gc-log');
+  const intro = log.querySelector('.gc-intro'); if (intro) intro.remove();
+  const b = document.createElement('div'); b.className = 'gr-bubble ' + cls; b.innerHTML = html;
+  log.appendChild(b); log.scrollTop = log.scrollHeight; return b;
+}
+
+async function chatSend() {
+  if (!CHAT.sessionId) { await chatNew(); if (!CHAT.sessionId) return; }
+  const input = CHAT.el.querySelector('.gc-input');
+  const text = input.value.trim(); if (!text) return;
+  input.value = '';
+  chatBubble('me', esc(text));
+  const sendBtn = CHAT.el.querySelector('.gc-send');
+  sendBtn.disabled = true; input.disabled = true;
+  const pending = chatBubble('them pending', `<span class="gr-spin"></span>${esc(L.chat_thinking)}`);
+  try {
+    const r = await fetchJSON('/api/chat/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: CHAT.sessionId, text }),
+    });
+    pending.classList.remove('pending');
+    pending.innerHTML = mdLite(r.reply || r.error || '(no reply)');
+    chatLoadSessions(); // title may auto-set; a team may have just been built
+  } catch (e) {
+    pending.classList.remove('pending'); pending.style.color = '#f87171';
+    pending.textContent = L.chat_fail + (e.message || e);
+  } finally {
+    sendBtn.disabled = false; input.disabled = false; input.focus();
+  }
+}
+
+async function chatSaveMeta() {
+  if (!CHAT.sessionId) return; // no session yet → the bar selection applies on New chat
+  try {
+    await fetchJSON(`/api/chat/sessions/meta?id=${encodeURIComponent(CHAT.sessionId)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(chatBarValues()),
+    });
+  } catch (e) { /* best-effort */ }
+}
+
+async function chatRename(id) {
+  const s = CHAT.sessions.find((x) => x.id === id);
+  const title = prompt(L.chat_rename_prompt, s ? s.title : ''); if (title === null) return;
+  try { await fetchJSON(`/api/chat/sessions/rename?id=${encodeURIComponent(id)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim() }) }); await chatLoadSessions(); } catch (e) { alert(e.message || e); }
+}
+
+async function chatDelete(id) {
+  if (!confirm(L.chat_delete_confirm)) return;
+  try {
+    await fetchJSON(`/api/chat/sessions/delete?id=${encodeURIComponent(id)}`, { method: 'POST' });
+    if (CHAT.sessionId === id) { CHAT.sessionId = null; CHAT.el.querySelector('.gc-log').innerHTML = `<div class="gr-empty gc-intro">${esc(L.chat_pick)}</div>`; }
+    await chatLoadSessions();
+  } catch (e) { alert(e.message || e); }
 }
