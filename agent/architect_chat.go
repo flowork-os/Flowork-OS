@@ -35,6 +35,7 @@ CARA KERJA:
 3. JANGAN bikin sebelum user setuju. Tunggu user bilang oke/gas/bikin/lanjut.
 4. Pas user setuju → panggil tool build_team dengan rancangan LENGKAP yg disepakati (PERSIS yg lo usulkan, jangan ngarang ulang). Lalu konfirmasi singkat: tim udah jadi + bisa di-chat di tab Teams.
 5. Revisi: user minta ubah → usulkan revisi → setelah setuju, build_team lagi dengan group_id SAMA (itu = rebuild).
+6. JADWAL: kalau user mau tim jalan OTOMATIS berkala (mis. "tiap pagi jam 7 kirim ke telegram"), pakai tool schedule_team (butuh tim yg UDAH ada). Usulkan dulu jadwalnya (jam + perintah + tujuan hasil: telegram/chat), baru panggil tool pas user setuju. Cron 5-field: '0 7 * * *' = tiap hari 07:00, '0 * * * *' = tiap jam, '0 9 * * 1-5' = hari kerja 09:00.
 
 Jujur, gak ngarang, fokus. Jawab apa adanya.`
 
@@ -59,7 +60,25 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 			"parameters":  teamPlanSchema(),
 		},
 	}
-	tools := []map[string]any{buildTool}
+	scheduleTool := map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "schedule_team",
+			"description": "Jadwalin tim (group) jalan OTOMATIS berkala + kirim hasilnya. Panggil HANYA setelah user setuju jadwal + tujuan output. Tim harus SUDAH ada (group_id).",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"group_id": map[string]any{"type": "string", "description": "id group tim yg dijadwalin (harus sudah ada/baru dibikin)."},
+					"name":     map[string]any{"type": "string", "description": "nama jadwal singkat (mis. 'Berita Saham Harian')."},
+					"cron":     map[string]any{"type": "string", "description": "jadwal cron 5-field 'min hour dom mon dow'. Contoh: '0 7 * * *'=tiap hari 07:00, '0 * * * *'=tiap jam, '0 9 * * 1-5'=hari kerja 09:00."},
+					"prompt":   map[string]any{"type": "string", "description": "perintah ke tim tiap kali jalan (mis. 'Rangkum 5 berita saham IDX terpenting hari ini, ringkas + actionable')."},
+					"deliver":  map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": []string{"telegram", "chat"}}, "description": "tujuan hasil: 'telegram' (kirim ke Telegram owner) dan/atau 'chat' (masuk ke chat session, muncul di tab Chat)."},
+				},
+				"required": []string{"group_id", "name", "cron", "prompt", "deliver"},
+			},
+		},
+	}
+	tools := []map[string]any{buildTool, scheduleTool}
 
 	// Up to 3 tool rounds, then a final tool-free turn to force a text wrap-up.
 	for iter := 0; iter < 3; iter++ {
@@ -113,7 +132,93 @@ func architectRunTool(ctx context.Context, host *kernelhost.Host, store *flowork
 		}
 		b, _ := json.Marshal(res)
 		return string(b)
+	case "schedule_team":
+		return architectScheduleTeam(store, tc.Arguments)
 	default:
 		return fail("unknown tool: " + tc.Name)
 	}
+}
+
+// schedulePlan — args of the schedule_team tool.
+type schedulePlan struct {
+	GroupID string   `json:"group_id"`
+	Name    string   `json:"name"`
+	Cron    string   `json:"cron"`
+	Prompt  string   `json:"prompt"`
+	Deliver []string `json:"deliver"`
+}
+
+// architectScheduleTeam — create a time-trigger that runs a team on a cron and delivers
+// the result to Telegram and/or a chat session. Reuses the existing trigger engine
+// (TypeID "time" → poll cron → invoke group → deliver). For "chat" delivery a dedicated
+// group chat session is created so the scheduled outputs pile up in the Chat tab.
+func architectScheduleTeam(store *floworkdb.Store, argsJSON string) string {
+	fail := func(msg string) string {
+		b, _ := json.Marshal(map[string]any{"ok": false, "error": msg})
+		return string(b)
+	}
+	var p schedulePlan
+	if err := json.Unmarshal([]byte(argsJSON), &p); err != nil {
+		return fail("decode schedule: " + err.Error())
+	}
+	p.GroupID = strings.ToLower(strings.TrimSpace(p.GroupID))
+	p.Cron = strings.TrimSpace(p.Cron)
+	p.Prompt = strings.TrimSpace(p.Prompt)
+	if p.GroupID == "" || p.Cron == "" || p.Prompt == "" {
+		return fail("group_id, cron, prompt wajib diisi")
+	}
+	// Resolve delivery destinations (default telegram).
+	want := map[string]bool{}
+	for _, d := range p.Deliver {
+		switch strings.TrimSpace(d) {
+		case "telegram":
+			want["telegram"] = true
+		case "chat":
+			want["chat"] = true
+		}
+	}
+	if len(want) == 0 {
+		want["telegram"] = true
+	}
+	// For chat delivery, stand up a dedicated group chat session to collect outputs.
+	chatSession := ""
+	if want["chat"] {
+		sid := newSessionID()
+		title := "⏰ " + nonEmpty(p.Name, p.GroupID)
+		if err := store.CreateChatSession(floworkdb.ChatSession{ID: sid, Title: title, Mode: "group", TargetID: p.GroupID}); err == nil {
+			chatSession = sid
+		}
+	}
+	cfg := map[string]any{"cron": p.Cron}
+	if chatSession != "" {
+		cfg["chat_session"] = chatSession
+	}
+	cfgJSON, _ := json.Marshal(cfg)
+	deliver := []string{}
+	if want["telegram"] {
+		deliver = append(deliver, "telegram")
+	}
+	if want["chat"] {
+		deliver = append(deliver, "chat")
+	}
+	trig := floworkdb.Trigger{
+		ID:         "sch_" + strings.TrimPrefix(newSessionID(), "s_"),
+		Name:       nonEmpty(p.Name, "Jadwal "+p.GroupID),
+		TypeID:     "time",
+		Config:     string(cfgJSON),
+		Target:     p.GroupID,
+		TargetKind: "group",
+		Prompt:     p.Prompt,
+		Deliver:    strings.Join(deliver, ","),
+		Enabled:    true,
+	}
+	if err := store.UpsertTrigger(trig); err != nil {
+		return fail("save schedule: " + err.Error())
+	}
+	b, _ := json.Marshal(map[string]any{
+		"ok": true, "schedule_id": trig.ID, "cron": p.Cron, "deliver": deliver,
+		"chat_session": chatSession,
+		"note":         "Jadwal AKTIF. Tim jalan otomatis sesuai cron; hasil dikirim ke " + strings.Join(deliver, "+") + ".",
+	})
+	return string(b)
 }

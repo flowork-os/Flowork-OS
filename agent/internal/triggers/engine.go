@@ -2,6 +2,10 @@
 // STABLE (ROADMAP 3 v1, owner-approved 2026-06-07) — DO NOT MODIFY without owner approval.
 // Engine generik: tick→check→dedup→render→runAction (reuse InvokeAgentMessage + notifyOwnerTelegram).
 // E2E verified (webhook→agent→telegram). Tambah TIPE = file type_*.go baru; JANGAN edit engine.
+// 2026-06-15 (owner-approved, Schedule-Creator): runAction Deliver kini multi-tujuan
+//   (comma-separated) — "telegram" (existing) + "chat" (append hasil ke chat_session di
+//   Config → muncul di tab Chat). Backward-compatible (Deliver="telegram" tetap jalan).
+//   Re-locked.
 package triggers
 
 import (
@@ -9,6 +13,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"flowork-gui/internal/floworkdb"
@@ -118,9 +123,27 @@ func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 
 		status, errText = "error", ierr.Error()
 	} else {
 		reply = out
-		if r.Deliver == "telegram" && e.Notify != nil {
-			if nerr := e.Notify(cctx, "🔔 "+r.Name+"\n\n"+reply); nerr != nil {
-				errText = "deliver: " + nerr.Error() // agent OK tapi kirim gagal → hasil tetap di history
+		// Deliver = comma-separated destinations: "telegram" + "chat" (Schedule-Creator).
+		// Agent OK tapi deliver gagal → hasil tetap di history; error dicatat.
+		for _, d := range strings.Split(r.Deliver, ",") {
+			switch strings.TrimSpace(d) {
+			case "telegram":
+				if e.Notify != nil {
+					if nerr := e.Notify(cctx, "🔔 "+r.Name+"\n\n"+reply); nerr != nil {
+						errText = "deliver telegram: " + nerr.Error()
+					}
+				}
+			case "chat":
+				// append hasil ke chat_session di Config → muncul di tab Chat (history terjadwal).
+				var cfg struct {
+					ChatSession string `json:"chat_session"`
+				}
+				_ = json.Unmarshal([]byte(r.Config), &cfg)
+				if cfg.ChatSession != "" {
+					if _, cerr := e.Store.AddChatMessage(cfg.ChatSession, "assistant", "⏰ "+r.Name+"\n\n"+reply); cerr != nil {
+						errText = "deliver chat: " + cerr.Error()
+					}
+				}
 			}
 		}
 	}
