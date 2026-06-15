@@ -44,38 +44,98 @@ import (
 	"strings"
 	"time"
 
+	fwapps "flowork-gui/internal/apps"
 	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/groupsapi"
 	"flowork-gui/internal/kernelhost"
 )
 
-// architectBuildApp — build a single APP (task category: 1 worker + 1 synth) from a
-// prompt, reusing the AI Studio coder engine (coderGenerate stages a pack → install).
-// This is the "app" arm of the unified AI Studio chat (alongside build_team /
-// schedule_team). Loopback owner-trust → auto-install (no separate approval gate).
+var appUIIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
+
+// designAppUI — one forced-tool call: design a self-contained single-file HTML app
+// (frontend only, CSS+JS embedded, NO external CDN/library, runs offline) from a prompt.
+func designAppUI(ctx context.Context, prompt, model string) (appID, name, icon, desc, html string, err error) {
+	tool := map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "design_app_ui",
+			"description": "Rancang 1 APLIKASI UI mandiri: SATU file HTML (CSS+JS embedded, TANPA library/CDN eksternal, jalan offline). Buat program frontend: jam, kalkulator, timer, converter, notepad, dll. WAJIB dipanggil sekali.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"app_id":      map[string]any{"type": "string", "description": "id slug unik lowercase-dash, 2-40 char (mis. 'jam-digital')."},
+					"name":        map[string]any{"type": "string", "description": "nama app (mis. 'Jam Digital')."},
+					"icon":        map[string]any{"type": "string", "description": "1 emoji."},
+					"description": map[string]any{"type": "string", "description": "1 kalimat fungsi app."},
+					"html":        map[string]any{"type": "string", "description": "SATU file HTML LENGKAP (<!doctype html>…</html>) dgn CSS+JS embedded, self-contained, TANPA CDN/library eksternal, responsive."},
+				},
+				"required": []string{"app_id", "name", "icon", "description", "html"},
+			},
+		},
+	}
+	args, e := routerForcedTool(ctx, model,
+		"Lo desainer aplikasi web mini. Bikin SATU file HTML mandiri (CSS+JS embedded, tanpa CDN/library eksternal, jalan offline) sesuai permintaan. Rapi, fungsional, tema gelap kalau cocok.",
+		"Bikin aplikasi UI: "+prompt, tool, "design_app_ui", 6000)
+	if e != nil {
+		return "", "", "", "", "", e
+	}
+	var raw map[string]string
+	if e := json.Unmarshal(args, &raw); e != nil {
+		return "", "", "", "", "", fmt.Errorf("decode app spec: %w", e)
+	}
+	return strings.ToLower(strings.TrimSpace(raw["app_id"])), strings.TrimSpace(raw["name"]),
+		strings.TrimSpace(raw["icon"]), strings.TrimSpace(raw["description"]), raw["html"], nil
+}
+
+// architectBuildApp — build a REAL App-menu application (a self-contained HTML/JS
+// program) from a prompt and install it so it shows up + runs in the App tab. This is
+// the "app" arm of the unified AI Studio chat (vs build_team = a crew of agents). For
+// AI-that-answers (pantun, translate), use build_team instead. Loopback owner-trust →
+// install with approveExec (GUI-only app, runtime="", no OS process).
 func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, prompt, model string) (map[string]any, error) {
-	res, err := coderGenerate(ctx, prompt, coderModel(model))
+	appID, name, icon, desc, html, err := designAppUI(ctx, prompt, coderModel(model))
 	if err != nil {
 		return nil, fmt.Errorf("design app: %w", err)
 	}
-	cat, _ := res["pending_id"].(string)
-	cat = strings.TrimSpace(cat)
-	if cat == "" {
-		return nil, fmt.Errorf("app id kosong dari design")
+	if !appUIIDRe.MatchString(appID) {
+		return nil, fmt.Errorf("app_id invalid (^[a-z0-9][a-z0-9-]{1,40}$): %q", appID)
 	}
-	packPath := filepath.Join(coderPendingDir(), cat+".fwpack")
-	raw, rerr := os.ReadFile(packPath)
-	if rerr != nil {
-		return nil, fmt.Errorf("baca pack %s: %w", cat, rerr)
+	if strings.TrimSpace(html) == "" || !strings.Contains(strings.ToLower(html), "<html") {
+		return nil, fmt.Errorf("HTML app kosong/invalid")
 	}
-	if ir := installPluginPack(host, store, raw, true); ir.status != 0 {
-		return nil, fmt.Errorf("install app gagal: %v", ir.body)
+	if name == "" {
+		name = appID
 	}
-	_ = os.Remove(packPath)
-	_ = os.Remove(filepath.Join(coderPendingDir(), cat+".json"))
+	if icon == "" {
+		icon = "🧩"
+	}
+	manifest := map[string]any{
+		"id": appID, "kind": "app", "name": name, "description": desc,
+		"icon": "ui/icon.svg", "version": "1.0.0", "runtime": "", "gui_entry": "ui/index.html",
+		"operations": []any{},
+	}
+	manRaw, _ := json.MarshalIndent(manifest, "", "  ")
+	pluginJSON, _ := json.Marshal(map[string]any{"kind": "app", "id": appID, "name": name})
+	iconSVG := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1e293b"/><text x="32" y="44" font-size="34" text-anchor="middle">` + icon + `</text></svg>`
+	pack, perr := zipPack(map[string][]byte{
+		"plugin.json":                      pluginJSON,
+		"apps/" + appID + "/manifest.json": manRaw,
+		"apps/" + appID + "/ui/index.html": []byte(html),
+		"apps/" + appID + "/ui/icon.svg":   []byte(iconSVG),
+	})
+	if perr != nil {
+		return nil, fmt.Errorf("assemble app: %w", perr)
+	}
+	// approveExec=true: owner-trusted loopback; this is a GUI-only app (no core process).
+	res, status := fwapps.InstallAppPack(pack, true)
+	if status != 0 {
+		return nil, fmt.Errorf("install app: %v", res)
+	}
+	_ = host
+	_ = store
 	return map[string]any{
-		"ok": true, "app_id": cat, "worker": cat + "-worker", "synth": cat + "-synth",
-		"note": "App '" + cat + "' live di AI Studio + bisa dipanggil/chat.",
+		"ok": true, "app_id": appID, "name": name,
+		"note": "App '" + name + "' (" + appID + ") LIVE di menu App — buka tab App buat jalanin.",
 	}, nil
 }
 

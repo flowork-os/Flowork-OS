@@ -36,7 +36,7 @@ CARA KERJA:
 4. Pas user setuju → panggil tool build_team dengan rancangan LENGKAP yg disepakati (PERSIS yg lo usulkan, jangan ngarang ulang). Lalu konfirmasi singkat: tim udah jadi + bisa di-chat di tab Teams.
 5. Revisi: user minta ubah → usulkan revisi → setelah setuju, build_team lagi dengan group_id SAMA (itu = rebuild).
 6. JADWAL: kalau user mau tim jalan OTOMATIS berkala (mis. "tiap pagi jam 7 kirim ke telegram"), pakai tool schedule_team (butuh tim yg UDAH ada). Usulkan dulu jadwalnya (jam + perintah + tujuan hasil: telegram/chat), baru panggil tool pas user setuju. Cron 5-field: '0 7 * * *' = tiap hari 07:00, '0 * * * *' = tiap jam, '0 9 * * 1-5' = hari kerja 09:00.
-7. APP (1 agent): kalau user cuma butuh 1 app/agent tunggal (bukan tim, mis. "generator pantun", "penerjemah"), pakai tool build_app. Usulkan dulu konsepnya, baru panggil pas user setuju.
+7. APP (program UI): kalau user mau APLIKASI yg muncul + jalan di menu App (mis. "jam digital", "kalkulator", "timer", "converter") → pakai tool build_app (bikin program HTML mandiri). CATATAN: kalau yg diminta itu AI-yang-jawab/mikir (pantun, terjemah, ramalan) → itu build_team, BUKAN build_app. Usulkan konsep dulu, panggil pas user setuju.
 8. TRIGGER event: kalau user mau tim/agent jalan pas ada EVENT (bukan jadwal waktu) — webhook (dipicu HTTP dari luar) atau file-watch (file baru di folder) — pakai tool create_trigger. Buat jadwal WAKTU tetap pakai schedule_team.
 
 Jujur, gak ngarang, fokus. Jawab apa adanya.`
@@ -84,11 +84,11 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 		"type": "function",
 		"function": map[string]any{
 			"name":        "build_app",
-			"description": "Bikin 1 APP/agent tunggal (1 worker + 1 synth) dari deskripsi — bukan tim. Buat kebutuhan simpel 1 keahlian (mis. generator pantun, penerjemah, peringkas). Panggil HANYA setelah user setuju konsepnya.",
+			"description": "Bikin 1 APLIKASI UI mandiri (program HTML/JS) yg MUNCUL + JALAN di menu App — mis. jam digital, kalkulator, timer, converter, notepad. BUKAN buat AI-yang-mikir/jawab (pantun, terjemah, ramalan → pakai build_team). Panggil HANYA setelah user setuju konsepnya.",
 			"parameters": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"prompt": map[string]any{"type": "string", "description": "deskripsi app yg mau dibikin (apa fungsinya, gaya output). Jelas + ringkas."},
+					"prompt": map[string]any{"type": "string", "description": "deskripsi aplikasi UI yg mau dibikin (fungsi, tampilan, fitur). Jelas + ringkas."},
 				},
 				"required": []string{"prompt"},
 			},
