@@ -1,3 +1,12 @@
+// === LOCKED FILE (soft) ===
+// Status: STABLE — DO NOT MODIFY without owner approval. (LOCKED ≠ FREEZE: boleh diedit dgn izin.)
+// Owner: Aola Sahidin (Mr.Dev / awenk audico) · Locked at: 2026-06-16 (owner-approved sprint).
+// Reason: R7 core-apply B1+B2+B3. VERIFIED E2E (dev, haiku strong): guard additive + error edukasi;
+//   sandbox worktree→codegen→test-gate(build+vet, GOWORK=off, anti-RCE no `go test`)→STAGE/commit;
+//   AUTO: re-probe model asli→commit lokal→auto-push (token KV). Self-edit+self-publish core OTONOM
+//   berhasil (b0b37b7 ke local remote). Imun boot-rollback di watchdog (organ independen, survive
+//   walau Flowork mati; jaga ROUTER+agent). Additive-only (papan abadi); edit-existing→STAGE/v2.
+//
 // selfevolve_coreapply.go — R7 SELF-EVOLUTION fase-2b: CORE-APPLY engine (🔴 DEV-only).
 // Owner-approved 2026-06-16 (diskusi panjang: additive-only auto-push + edit-stage + error
 // edukasi + boot-rollback). Sisi main: nyuntik kemampuan "ubah core" ke agentmgr.EvolveCoreApplyHandler.
@@ -123,9 +132,13 @@ func evolveCoreApplier() agentmgr.EvolveCoreApplier {
 			if cerr != nil {
 				return res, fmt.Errorf("commit lokal gagal: %w", cerr)
 			}
+			// B3 AUTO-PUSH: kalau owner aktifin + token ada → self-publish ke upstream. Gagal
+			// push ≠ fatal (commit lokal tetep ada; boot-rollback jaga sisi user). Token dari KV.
+			pushed, pnote := evolveMaybePush(ctx, root)
 			return agentmgr.EvolveCoreResult{
-				Committed: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
-				Note: "auto-commit LOKAL " + hash + " (re-probe OK) — BELUM push (push = B3/owner)",
+				Committed: true, Pushed: pushed, TargetFile: rel, Diff: diff,
+				TestOutput: trimStr(testOut, 2000), Model: model,
+				Note: "auto-commit LOKAL " + hash + " (re-probe OK). Push: " + pnote,
 			}, nil
 		}
 		return agentmgr.EvolveCoreResult{

@@ -49,11 +49,33 @@ heal() { # $1=name $2=port $3=dir(start.sh)
   ( cd "$dir" && FLOWORK_NO_UPDATE=1 setsid ./start.sh >>"$LOG" 2>&1 </dev/null & )
 }
 
+# B3 IMUN self-evolution: organ independen ini (survive walau Flowork mati) jaga juga dari
+# commit LETAL. Source helper rollback (kalau ada). Otak = ROUTER (:2402) wajib ikut sehat.
+ROLLBACK_HELPER="$ROOT/os/selfheal/evolve-rollback.sh"
+# shellcheck source=/dev/null
+[ -f "$ROLLBACK_HELPER" ] && . "$ROLLBACK_HELPER"
+ROLLBACK_THRESHOLD="${FLOWORK_ROLLBACK_THRESHOLD:-4}"
+
 log "watchdog START (root=$ROOT interval=${INTERVAL}s cooldown=${COOLDOWN}s pid=$$)"
 trap 'log "watchdog STOP (pid=$$)"; exit 0' TERM INT
 
+UNHEALTHY=0
 while true; do
   heal router 2402 "$ROOT/router"
   heal agent  1987 "$ROOT/agent"
+  # Sehat = OTAK (router) + agent dua-duanya up → catat last-known-good + reset streak.
+  if port_up 2402 && port_up 1987; then
+    UNHEALTHY=0
+    command -v evolve_record_good >/dev/null 2>&1 && evolve_record_good "$ROOT"
+  else
+    UNHEALTHY=$((UNHEALTHY+1))
+    # Gagal sehat BERULANG + build router/agent BENERAN rusak → commit letal → revert last-good.
+    if command -v evolve_rollback_if_needed >/dev/null 2>&1 \
+       && evolve_rollback_if_needed "$ROOT" "$UNHEALTHY" "$ROLLBACK_THRESHOLD"; then
+      log "[evolve] 🧬 ROLLBACK ke last-known-good — commit baru ngerusak build (router/agent). Penyebab → $(evolve_rollback_log)"
+      UNHEALTHY=0
+      LAST_RESTART[agent]=0; LAST_RESTART[router]=0   # cabut cooldown → heal rebuild source yg udah di-revert
+    fi
+  fi
   sleep "$INTERVAL"
 done
