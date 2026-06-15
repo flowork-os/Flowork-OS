@@ -835,6 +835,8 @@ func main() {
 	// R7 self-evolution fase-1: refleksi-diri (baca self-map → usul perbaikan → backlog + karma).
 	mux.HandleFunc("/api/evolve/reflect", agentmgr.EvolveReflectHandler(evolveProposer()))
 	mux.HandleFunc("/api/evolve/proposals", agentmgr.EvolveProposalsHandler)
+	// R7 fase-2 control-plane: saklar self-modify (off|stage|auto) + gate berlapis (KRUSIAL).
+	mux.HandleFunc("/api/evolve/config", agentmgr.EvolveConfigHandler(evolveGateDeps()))
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

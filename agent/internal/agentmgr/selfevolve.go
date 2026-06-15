@@ -11,6 +11,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -19,6 +21,107 @@ import (
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/httpx"
 )
+
+// EvolveKarmaThreshold — minimum siklus refleksi sukses sebelum mode AUTO boleh commit.
+// Owner-default 2026-06-15: ≥20 sukses + rasio ≥90%. Gate berlapis: GUI toggle + karma + model.
+const EvolveKarmaThreshold = 20
+
+// EvolveGateDeps — di-inject dari main: KV (mode toggle) + cek model kuat (anti-lokal).
+type EvolveGateDeps struct {
+	KVGet       func(string) (string, error)
+	KVSet       func(string, string) error
+	ModelStrong func() (bool, string) // (cloud kuat?, catatan) — guard anti LLM-lokal
+}
+
+func evolveMode(dep EvolveGateDeps) string {
+	if dep.KVGet == nil {
+		return "off"
+	}
+	m, _ := dep.KVGet("evolve_mode")
+	if m = strings.ToLower(strings.TrimSpace(m)); m == "stage" || m == "auto" {
+		return m
+	}
+	return "off"
+}
+
+// evolveKarmaReady — track-record refleksi cukup matang buat AUTO? (≥threshold + rasio ≥90%).
+func evolveKarmaReady() (ready bool, okV, failV float64) {
+	store, err := openAgentStore(defaultAgentID)
+	if err != nil {
+		return false, 0, 0
+	}
+	defer store.Close()
+	ok, _ := store.GetKarma("evolve_reflect_ok")
+	fail, _ := store.GetKarma("evolve_reflect_fail")
+	okV, failV = ok.MetricValue, fail.MetricValue
+	ratio := 1.0
+	if okV+failV > 0 {
+		ratio = okV / (okV + failV)
+	}
+	return okV >= EvolveKarmaThreshold && ratio >= 0.9, okV, failV
+}
+
+// EvolveAutoCommitAllowed — GATE BERLAPIS dipakai engine eksekusi (fase-2b) SEBELUM commit.
+// Semua wajib: mode=AUTO + karma matang + model cloud kuat (BUKAN lokal). Gagal satu → false.
+func EvolveAutoCommitAllowed(dep EvolveGateDeps) (bool, string) {
+	if evolveMode(dep) != "auto" {
+		return false, "mode bukan AUTO (owner belum arm)"
+	}
+	ready, okV, _ := evolveKarmaReady()
+	if !ready {
+		return false, fmt.Sprintf("karma belum matang (%.0f/%d sukses)", okV, EvolveKarmaThreshold)
+	}
+	if dep.ModelStrong != nil {
+		if strong, note := dep.ModelStrong(); !strong {
+			return false, "model lemah/lokal — auto-commit diblok: " + note
+		}
+	}
+	return true, "ok"
+}
+
+// EvolveConfigHandler — GET status gate lengkap / POST set mode (off|stage|auto).
+// Saklar owner buat self-modify. Default off. (kontrol KRUSIAL — owner pegang penuh.)
+func EvolveConfigHandler(dep EvolveGateDeps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if dep.KVGet == nil || dep.KVSet == nil {
+			httpx.WriteJSON(w, map[string]any{"error": "evolve config not wired"})
+			return
+		}
+		if r.Method == http.MethodPost {
+			var b struct {
+				Mode string `json:"mode"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&b)
+			mode := strings.ToLower(strings.TrimSpace(b.Mode))
+			if mode != "off" && mode != "stage" && mode != "auto" {
+				httpx.WriteJSON(w, map[string]any{"error": "mode harus off|stage|auto"})
+				return
+			}
+			if err := dep.KVSet("evolve_mode", mode); err != nil {
+				httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+				return
+			}
+			httpx.WriteJSON(w, map[string]any{"ok": true, "mode": mode})
+			return
+		}
+		mode := evolveMode(dep)
+		ready, okV, failV := evolveKarmaReady()
+		strong, modelNote := true, ""
+		if dep.ModelStrong != nil {
+			strong, modelNote = dep.ModelStrong()
+		}
+		httpx.WriteJSON(w, map[string]any{
+			"mode": mode,
+			"karma": map[string]any{
+				"reflect_ok": okV, "reflect_fail": failV,
+				"threshold": EvolveKarmaThreshold, "ready": ready,
+			},
+			"model":              map[string]any{"strong": strong, "note": modelNote},
+			"autocommit_allowed": mode == "auto" && ready && strong,
+			"note":               "AUTO hanya jalan kalau mode=auto + karma matang + model cloud kuat (bukan lokal). Eksekusi re-cek provider asli sebelum commit.",
+		})
+	}
+}
 
 // ProposalDraft — usulan mentah dari LLM (sebelum dikasih id + disimpan).
 type ProposalDraft struct {

@@ -10,10 +10,59 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/floworkdb"
 )
+
+// evolveModelStrong — GUARD ANTI-LLM-LOKAL (concern owner: token Claude habis → Gemma
+// lokal → auto-modify bisa NGERUSAK). Strong = model default Claude DAN provider cloud
+// aktif di router (/v1/models nyebut claude). Lemah/lokal → false (auto-commit diblok).
+// Cheap (no LLM call). Eksekusi (fase-2b) re-probe model ASLI sebelum commit (catch quota).
+func evolveModelStrong() (bool, string) {
+	model := coderModel("")
+	if !strings.HasPrefix(strings.ToLower(model), "claude") {
+		return false, "model default bukan Claude (lemah/lokal): " + model
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", "http://127.0.0.1:2402/v1/models", nil)
+	resp, err := (&http.Client{Timeout: 8 * time.Second}).Do(req)
+	if err != nil {
+		return false, "router tak terjangkau"
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if !strings.Contains(strings.ToLower(string(raw)), "claude") {
+		return false, "provider cloud (Claude) tidak aktif — kemungkinan mode lokal"
+	}
+	return true, "cloud (Claude) aktif: " + model
+}
+
+// evolveGateDeps — rakit dependency gate (KV toggle + guard model) buat handler config.
+func evolveGateDeps() agentmgr.EvolveGateDeps {
+	return agentmgr.EvolveGateDeps{
+		KVGet: func(k string) (string, error) {
+			db, e := floworkdb.Shared()
+			if e != nil {
+				return "", e
+			}
+			return db.GetKV(k)
+		},
+		KVSet: func(k, v string) error {
+			db, e := floworkdb.Shared()
+			if e != nil {
+				return e
+			}
+			return db.SetKV(k, v)
+		},
+		ModelStrong: evolveModelStrong,
+	}
+}
 
 func evolveProposer() agentmgr.EvolveProposer {
 	return func(ctx context.Context, selfMapContext, focus string) ([]agentmgr.ProposalDraft, error) {
