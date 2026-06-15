@@ -1115,15 +1115,48 @@ func (h *Host) karmaUpdate(pluginID, op, key string, value float64) (float64, er
 	}
 }
 
+// workspaceCataloged — set agent yang workspace-meta-nya UDAH di-catalog (1×/boot).
+// Choke-point trigger RebuildWorkspaceMetaForAgent lazy (async) → menu Workspace keisi
+// buat SEMUA agent tanpa nunggu admin klik "rebuild".
+var workspaceCataloged sync.Map
+
+// recordMistake — best-effort: catat 1 baris di Mistakes journal store agent. Pola sama
+// logInteraction (hold h.mu sepanjang resolve+write, anti race Unload).
+func (h *Host) recordMistake(agentID, category, title, content string) {
+	if h == nil || agentID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var agentPath string
+	for _, l := range h.lives {
+		if l.Discovery.Manifest != nil && l.Discovery.Manifest.ID == agentID {
+			agentPath = l.Discovery.Path
+			break
+		}
+	}
+	if agentPath == "" {
+		return
+	}
+	store, err := h.cachedStore(agentID, agentPath)
+	if err != nil {
+		return
+	}
+	_, _, _ = store.AddMistake(category, title, content, "invoke-choke-point")
+}
+
 // recordInvokeSelfKnowledge — SELF-AWARENESS (fuel R7), owner-approved 2026-06-15.
-// Di CHOKE-POINT InvokeAgentMessage: catat interaction(in/out) + decision + karma di store
-// agent yang di-invoke → SEMUA agent ke-cover OTOMATIS (gak perlu opt-in per-wasm; dulu cuma
-// mr-flow legacy yang self-log). Best-effort: semua error di-swallow biar nggak ganggu invoke.
-// cachedStore dipakai (murah). karma invoke_success/invoke_fail = track-record buat gate
-// auto-commit R7. (Mistakes=halu-detection & Workspace=resource-catalog di-wire terpisah.)
+// Di CHOKE-POINT InvokeAgentMessage: catat interaction(in/out)+decision+karma+mistake(on real
+// error)+catalog workspace di store agent yang di-invoke → SEMUA menu Diagnostics ke-cover
+// OTOMATIS buat SEMUA agent (dulu cuma mr-flow legacy opt-in). Best-effort: error di-swallow
+// biar nggak ganggu invoke. karma invoke_success/invoke_fail = track-record gate auto-commit R7.
 func (h *Host) recordInvokeSelfKnowledge(agentID, caller, text, reply string, callErr error) {
 	if h == nil || agentID == "" {
 		return
+	}
+	// Catalog workspace-meta 1×/boot/agent (async, non-blocking) → menu Workspace keisi.
+	if _, done := workspaceCataloged.LoadOrStore(agentID, true); !done {
+		go func() { _, _ = h.RebuildWorkspaceMetaForAgent(agentID) }()
 	}
 	clip := func(s string, n int) string {
 		if len(s) > n {
@@ -1133,9 +1166,14 @@ func (h *Host) recordInvokeSelfKnowledge(agentID, caller, text, reply string, ca
 	}
 	_ = h.logInteraction(agentID, "invoke", "in", caller, clip(text, 4000), nil)
 	if callErr != nil {
-		_ = h.logInteraction(agentID, "invoke", "out", agentID, "error: "+clip(callErr.Error(), 2000), nil)
-		_, _ = h.logDecision(agentID, "agent_invoke", "invoke gagal: "+clip(callErr.Error(), 240), "fail", map[string]any{"caller": caller}, 0)
+		emsg := callErr.Error()
+		_ = h.logInteraction(agentID, "invoke", "out", agentID, "error: "+clip(emsg, 2000), nil)
+		_, _ = h.logDecision(agentID, "agent_invoke", "invoke gagal: "+clip(emsg, 240), "fail", map[string]any{"caller": caller}, 0)
 		_, _ = h.karmaUpdate(agentID, "increment", "invoke_fail", 1)
+		// Mistakes journal: cuma error NYATA (skip timeout/cancel = infra, bukan kesalahan agent).
+		if !strings.Contains(emsg, "context canceled") && !strings.Contains(emsg, "context deadline") {
+			h.recordMistake(agentID, "invoke_error", "invoke gagal", clip(emsg, 1000))
+		}
 		return
 	}
 	_ = h.logInteraction(agentID, "invoke", "out", agentID, clip(reply, 8000), nil)
