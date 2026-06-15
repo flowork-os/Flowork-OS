@@ -22,7 +22,11 @@
 - **App ≠ Group.** App = program (jam, kalkulator, UI). Group = tim agent yg mikir/jawab. Architect HARUS bedain:
   AI-yang-jawab (pantun/terjemah/ramalan) = **Group**; program UI = **App**.
 - **Skill = inject** (knowledge), bukan template callable. (DB `/v1/skills/` = sistem template terpisah, beda konsep.)
-- **1 Orchestrator** (`mr-flow-next`). `mr-flow` legacy → dipensiunin (R3).
+- **1 Orchestrator** (`mr-flow-next`) — SATU otak routing di SEMUA channel (Telegram via `telegram-channel`
+  → target=mr-flow-next; HTTP/CLI `/api/chat` → mr-flow-next). `mr-flow` legacy = **dipensiunin sbg ORCHESTRATOR**
+  (daemon getUpdates-nya dormant, exit clean di boot) TAPI **tetap hidup sbg primary worker** — host scanner /
+  diagnostics / codescan / 40-tools. JANGAN dihapus (R3 verified 2026-06-15): scanapi/diagnostics/auditor invariant
+  masih `openAgent("mr-flow")`; hapus = tab GUI mati + auditor trigger. Cabut PERAN-nya, bukan bunuh agennya.
 - **Schedule vs Trigger** = 1 engine (trigger), beda `type` (time vs event). Menu beda = view doang.
 
 ## Kenapa ini penting (autonomi)

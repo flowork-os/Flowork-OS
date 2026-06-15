@@ -1,4 +1,8 @@
-// chat.go — CHANNEL HTTP/CLI (roadmap Channels, langkah AMAN). mr-flow UDAH
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). R3 verified:
+// default target = mr-flow-next (orchestrator tunggal); E2E /api/chat → reply orchestrator
+// koheren. LOCKED≠FREEZE (boleh diedit dgn izin owner). Lihat docs/TAXONOMY.md.
+//
+// chat.go — CHANNEL HTTP/CLI (roadmap Channels, langkah AMAN). mr-flow-next = core
 // channel-agnostic: rpc handle_message (route/classify/chat, parity Telegram).
 // Endpoint ini = transport ke-2 (web/CLI) yang INVOKE core itu — TANPA nyentuh
 // daemon Telegram LIVE (additive, nol risiko bot).
