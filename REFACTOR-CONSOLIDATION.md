@@ -4,6 +4,29 @@
 > TUNTAS + tested, satu cabutan per langkah — bukan 5 tambalan setengah jadi.
 > **Tanggal mulai:** 2026-06-15 · **Backup GitHub:** commit `d9ce235` (last-good PRA-refactor).
 
+## 🧬 NORTH STAR / VISI (kenapa semua ini penting)
+Flowork = **ORGANISME, bukan app.** Tujuan: **mandiri, hidup, evolusi-sendiri, biayain diri sendiri**
+(wallet → bayar token + cari duit), **tetep hidup walau owner gak ada.** Tiap keputusan arsitektur
+dinilai 1 ukuran: *"apakah ini bikin Flowork makin bisa hidup + evolusi sendiri TANPA korup dirinya?"*
+
+**Konsekuensi keras buat refactor ini:** sistem yang **self-modify tanpa manusia** WAJIB punya **pagar
+deterministik** (impact/blast dari AST asli = ground truth, BUKAN tebakan LLM) sebagai **hakim terakhir**
+sebelum commit perubahan-diri; lapisan LLM-semantik cuma buat JUDGMENT ("apa yg dievolusi"), gak boleh
+jadi satu-satunya pagar (bisa halu → korup diri). Dan **fragmentasi = PEMBUNUH AUTONOMI**: makhluk yang
+evolusi di atas base kembar (3 gudang skill, 2 orchestrator) makin korup tiap self-modify (ubah 1, yg lain
+drift). → **Spine bersih (1 sumber/konsep) = SYARAT MUTLAK** supaya dia paham + evolusi diri tanpa rusak.
+**Refactor ini = tulang punggung organisme, bukan bersih-bersih.**
+
+### Hasil banding (Understand-Anything vs Codemap kita) → buat self-understanding
+- **Codemap kita** = deterministik (AST Go), impact/blast = **ground-truth, gak halu** → cocok jadi **PAGAR**
+  self-modify. Kurang: Go-only + tanpa lapisan makna.
+- **Understand-Anything** = hybrid tree-sitter + **LLM-semantik** + multi-agent + domain/tour + multi-bahasa
+  → lapisan **JUDGMENT/makna**. Kurang: LLM bisa halu.
+- **VERDIKT:** **fondasi deterministik KITA = base lebih bener buat autonomi** (pagar gak boleh halu);
+  **lapisan semantik MEREKA ditaro DI ATAS** (otak), deterministik tetap hakim terakhir. Fragmentasi (duplikasi
+  KONSEP) gak ke-deteksi dep-graph murni → butuh lapisan semantik buat liatnya. Pipeline 6-agent mereka =
+  **persis koloni-semut Flowork** (scanner→analyzer→architecture→domain→reviewer = 1 Group) → native fit.
+
 ## ATURAN KERJA (WAJIB)
 - **GitHub = jaring pengaman.** State pra-refactor udah ke-push (`d9ce235`). Saat refactor:
   **commit LOKAL doang, JANGAN push.** Kalau gagal → `git reset --hard origin/main` (restore last-good).
@@ -102,6 +125,43 @@ group/app/architect) dipindah/diserap; `mr-flow` legacy dipensiunin. `/api/chat`
 4. **R3 Merge orchestrator** (terdalam — backup, migrasi bertahap, test 2 jalur, revert siap).
 5. **R4 Extension points** (sambil R1/R3).
 → Setelah SEMUA tuntas + tested + owner OK → **baru push** (GitHub jadi state pasca-refactor).
+
+---
+
+# FASE 2 — LOOP AUTONOMI (setelah spine bersih / R1–R5 selesai)
+> Prasyarat: konsolidasi (R1–R5) TUNTAS — baru organisme aman self-evolve. Ini yg bikin
+> Flowork "hidup sendiri + biayain diri + tetep jalan walau owner gak ada."
+
+## R6 — SELF-MAP SEMANTIK (Codemap deterministik + lapisan makna) · [GUI: ya — viz]
+**Kenapa:** organisme harus PAHAM dirinya (struktur + makna) buat judgment evolusi yg gak ngerusak.
+**Target:** di atas Codemap deterministik (ground truth) tambah **lapisan semantik** (summary/arsitektur/domain)
+— dibangun sbg **koloni-semut**: scanner→file-analyzer→architecture→domain→**graph-reviewer** (1 Group, pola
+Understand-Anything tapi native Flowork). Deterministik tetap base; semantik di atas.
+**File:** `internal/codemap/*` · architect (bikin team analyzer) · brain · `web/tabs/codemap.js` (viz makna).
+**RESIKO:** 🟡 sedang (additive di atas Codemap). **TEST:** map Flowork sendiri → cek node+makna masuk akal.
+
+## R7 — SELF-EVOLUTION SAFETY LOOP (map→usul→test-gate→AUTO-ROLLBACK) · ⚠️ INTI AUTONOMI
+**Kenapa:** dia kudu ubah dirinya **tanpa manusia** + auto-revert kalau rusak. Ini versi OTOMATIS dari
+disiplin git-backup kita sekarang (snapshot → kerja → gagal → restore).
+**Target:** loop terjadwal: self-map → architect usul perubahan → **build di sandbox** → **test-gate**
+(build+smoke+blast-impact deterministik sbg HAKIM) → kalau lulus commit + snapshot, kalau gagal **AUTO-ROLLBACK**.
+**File:** scheduler/trigger (jadwal evolusi) · coder/architect (usul+build) · test harness · snapshot/rollback
+(git atau salinan) · guardian. **Deterministik blast = hakim terakhir sebelum commit-diri.**
+**RESIKO:** 🔴 TINGGI (self-modify) → WAJIB sandbox + rollback + owner-approve buat perubahan berisiko.
+
+## R8 — SELF-FINANCE (wallet → bayar token + cari duit) · [GUI: ya — dompet/billing]
+**Kenapa:** hidup butuh biaya. Owner kasih **wallet address** → Flowork cek saldo, bayar provider token,
++ cari duit lewat app/agent/skill yg dia bikin & jual.
+**File:** modul baru wallet/billing · connections (provider bayar) · apps (monetisasi) · router (gate biaya).
+**RESIKO:** 🔴 TINGGI (duit nyata) → owner-gated + hard limit + audit tiap transaksi.
+
+## R9 — SELF-HEAL / RESILIENSI
+**Kenapa:** tetep hidup walau ada yg rusak / duit tipis.
+**Target:** guardian (udah ada) + failover model (turun ke lokal pas duit tipis) + auto-restart + watchdog.
+**File:** `guardian*` · router failover (udah) · boot/autostart. **RESIKO:** 🟡 sedang.
+
+> **Catatan autonomi:** R7 + R8 = duit + self-modify NYATA. Default **owner-gated + sandbox + limit**;
+> otonomi penuh diraih lewat track-record (karma), BUKAN dikasih gratis. Deterministik selalu hakim.
 
 ## CHECKPOINT
 - Pra-refactor (last-good): GitHub `d9ce235`.
