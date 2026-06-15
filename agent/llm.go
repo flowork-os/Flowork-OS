@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). routerForcedTool
+// (forced-tool) + routerChat (multi-turn full-context chat + tools, used by the Architect
+// brain) — both tested. DO NOT MODIFY without owner approval.
+//
 // llm.go — helper shared buat panggil router (LLM) dengan tool_choice DIPAKSA.
 // Dipakai CODER (design spec) + VERIFIER (LLM-judge). Pola classifier mr-flow:
 // forced-tool → output terstruktur, anti free-text halu. Loopback ke router :2402.

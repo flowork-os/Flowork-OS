@@ -1,3 +1,8 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). 06-15 fixes:
+//   coderTemplate fallback (clone any installed agent wasm) + coderModel honors the
+//   Settings Default Model (FLOWORK_LLM_MODEL) before the Opus const. Tested. DO NOT
+//   MODIFY without owner approval.
+//
 // coder.go — CODER: AI Utama yang BEREVOLUSI lewat BIKIN AGENT BARU (roadmap 2.2).
 // PANTANGAN MUTLAK: ga sentuh file INTI. Cara evolusi = generate `.fwpack` →
 // gerbang (VERIFIER → owner-approve) → install lewat pipeline plug-and-play yg

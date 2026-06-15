@@ -1,3 +1,7 @@
+// === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). ChatGPT-style
+// chat component (sessions, full-context, typing animation) used by AI Studio. Tested.
+// DO NOT MODIFY without owner approval.
+//
 // chatui.js — SHARED ChatGPT-style chat component, reused by the Group, Schedule and
 // Trigger tabs. Self-contained: own CSS (cu-* classes, no collision), own i18n
 // ('chatui' domain), per-mount state via closures (each tab gets an independent

@@ -1,6 +1,7 @@
 // === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). Tested E2E:
-// brainstorm → propose → build_team on confirm → revise; remembers context (incl.
-// across restart). Server-side full-context chat loop = "how Claude works".
+// brainstorm → propose → confirm. Tools: build_team, build_app (real App-menu app),
+// schedule_team, create_trigger (webhook/file). Remembers context (incl. across restart).
+// Server-side full-context chat loop = "how Claude works". DO NOT MODIFY w/o owner approval.
 //
 // architect_chat.go — SERVER-SIDE conversational brain for the Flowork Architect.
 // This is "how Claude works": every turn the FULL conversation (system + entire

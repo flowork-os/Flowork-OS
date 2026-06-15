@@ -3,6 +3,8 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
+// 2026-06-15 (owner-approved): added 'chatui' to DOMAINS (documented extension point) so
+//   the AI Studio / shared chat component's labels resolve. Additive; re-locked.
 // Reason: i18n dictionary loader. Audit pass — local fetch /i18n/<locale>/, fallback to key string on miss, no innerHTML..
 
 // Stable foundation — every GUI string flows through this module. Treat

@@ -10,6 +10,9 @@
 //   EVERY group's member pool). Now ONE pack, every crew member used, agent ids group-prefixed
 //   so the Groups GUI auto-claims them → no pollution (mirrors bundled investment/thinking).
 //   One LLM call (design) + fast local assembly. Loopback-only, owner trust = /api/coder/*.
+//   SCOPE NOW (all tested): build_team (group), build_app (REAL HTML App-menu app via
+//   designAppUI + fwapps.InstallAppPack), architectBuildFromPlan (chat build), authorSkill
+//   (skill_author → ~/.flow_router/skills, brain-injected). Lihat architect_chat.go.
 //
 // architect.go — FLOWORK ARCHITECT: stand up a whole TEAM (group) from one natural
 // prompt. "buatin team peramal" → ONE structured design call (Opus, forced tool)

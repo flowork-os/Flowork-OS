@@ -3,6 +3,9 @@
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
+// 2026-06-15 (owner-approved): classifyRoute GROUNDING — route tool prompt now prefers
+//   'chat' when nothing truly fits / on creation-intent (anti-misroute, e.g. "team
+//   peramal" no longer hijacked to "repo-reviewer"). Prompt-only; wasm rebuilt. Re-locked.
 // Locked at: 2026-05-30
 // Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
 //   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
