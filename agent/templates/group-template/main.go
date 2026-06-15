@@ -27,6 +27,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"unsafe"
 )
@@ -105,6 +106,7 @@ type groupCfg struct {
 	Members     []string
 	Synthesizer string
 	Task        string
+	Mode        string // A1: "" / "parallel" (default) | "debate" (multi-ronde kritik/revisi)
 }
 
 // kvGet reads one key from this group's OWN loket store (live). Reading live (not
@@ -125,13 +127,63 @@ func kvGet(k string) string {
 }
 
 func readCfg() groupCfg {
-	out := groupCfg{Synthesizer: kvGet("synthesizer"), Task: kvGet("task")}
+	out := groupCfg{Synthesizer: kvGet("synthesizer"), Task: kvGet("task"), Mode: kvGet("mode")}
 	for _, m := range strings.Split(kvGet("members"), ",") {
 		if m = strings.TrimSpace(m); m != "" {
 			out.Members = append(out.Members, m)
 		}
 	}
 	return out
+}
+
+// debateRounds — A1: total ronde fan-out. mode!=debate → 1 (parallel, perilaku lama, NOL regresi).
+// mode=debate → baca kv debate_rounds (default 2: 1 jawaban awal + 1 ronde kritik/revisi). Cap 4
+// (anti token-bakar / loop). <2 anggota → debat percuma → balik ke 1 ronde.
+func debateRounds(mode string, memberCount int) int {
+	if strings.ToLower(strings.TrimSpace(mode)) != "debate" || memberCount < 2 {
+		return 1
+	}
+	n := 2
+	if v := kvGet("debate_rounds"); v != "" {
+		if x, err := strconv.Atoi(v); err == nil && x >= 2 {
+			n = x
+		}
+	}
+	if n > 4 {
+		n = 4
+	}
+	return n
+}
+
+// broadcastRound — fan-out SATU pesan ke semua anggota (1 ronde) → kumpulin jawaban jadi
+// (worker map + sections berlabel). Dipakai ronde-1 (parallel) DAN tiap ronde debat. err≠nil
+// = broadcast gagal (caller degrade ke ronde sebelumnya).
+func broadcastRound(members []string, text string) (map[string]string, []string, error) {
+	r, err := loketCall("bus.broadcast", map[string]any{
+		"to": members, "type": "task", "payload": map[string]any{"text": text},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	var bc struct {
+		Replies []struct {
+			Target string          `json:"target"`
+			Reply  json.RawMessage `json:"reply"`
+			Error  string          `json:"error"`
+		} `json:"replies"`
+	}
+	_ = json.Unmarshal(r, &bc)
+	worker := map[string]string{}
+	var sections []string
+	for _, rep := range bc.Replies {
+		txt := replyText(rep.Reply)
+		if rep.Error != "" {
+			txt = "(error: " + rep.Error + ")"
+		}
+		worker[rep.Target] = txt
+		sections = append(sections, "### "+rep.Target+"\n"+txt)
+	}
+	return worker, sections, nil
 }
 
 // replyText pulls the human answer out of a member ant's raw emit, which is
@@ -200,41 +252,34 @@ func runTask(argsJSON string) {
 		taskText = cfg.Task + "\n\n" + subject
 	}
 
-	// 1. Fan out to every worker ant; each returns its own angle.
-	r, err := loketCall("bus.broadcast", map[string]any{
-		"to":      cfg.Members,
-		"type":    "task",
-		"payload": map[string]any{"text": taskText},
-	})
+	// 1. Round 1: every worker answers independently (the proven parallel fan-out).
+	worker, sections, err := broadcastRound(cfg.Members, taskText)
 	if err != nil {
 		emit(map[string]any{"error": err.Error(), "members": cfg.Members})
 		return
 	}
-	var bc struct {
-		Replies []struct {
-			Target string          `json:"target"`
-			Reply  json.RawMessage `json:"reply"`
-			Error  string          `json:"error"`
-		} `json:"replies"`
-	}
-	_ = json.Unmarshal(r, &bc)
 
-	// 2. Collect each worker's answer as a labelled section.
-	var sections []string
-	worker := map[string]string{}
-	for _, rep := range bc.Replies {
-		txt := replyText(rep.Reply)
-		if rep.Error != "" {
-			txt = "(error: " + rep.Error + ")"
+	// A1 DEBATE (opt-in kv mode=debate): ronde tambahan — tiap anggota LIHAT jawaban yang lain,
+	// KRITIK + REVISI. Diversity model per-agent bikin debat kaya (sociogenic RSI). Default
+	// parallel = skip blok ini = perilaku lama persis (NOL regresi).
+	rounds := debateRounds(cfg.Mode, len(cfg.Members))
+	for round := 2; round <= rounds; round++ {
+		debateText := "DISKUSI TIM — subjek:\n" + subject + "\n\nJawaban tiap anggota dari ronde sebelumnya:\n\n" +
+			strings.Join(sections, "\n\n") +
+			"\n\nTUGASMU: kritik poin yang lemah/keliru dari anggota lain, lalu REVISI jawabanmu sendiri " +
+			"(perkuat argumen, bantah yang salah, atau ubah pendapat kalau memang lebih benar). " +
+			"Balas HANYA jawaban final kamu yang sudah diperbaiki — ringkas, jangan ulang semua."
+		w2, s2, derr := broadcastRound(cfg.Members, debateText)
+		if derr != nil || len(s2) == 0 {
+			break // ronde gagal → pakai hasil ronde sebelumnya (degrade graceful)
 		}
-		worker[rep.Target] = txt
-		sections = append(sections, "### "+rep.Target+"\n"+txt)
+		worker, sections = w2, s2
 	}
 	combined := strings.Join(sections, "\n\n")
 
 	// 3. No synthesizer → return the gathered angles as-is.
 	if cfg.Synthesizer == "" {
-		emit(map[string]any{"group": selfID(), "members": cfg.Members, "reply": combined, "workers": worker})
+		emit(map[string]any{"group": selfID(), "members": cfg.Members, "reply": combined, "workers": worker, "rounds": rounds})
 		return
 	}
 
@@ -256,5 +301,5 @@ func runTask(argsJSON string) {
 	}
 	_ = json.Unmarshal(sr, &outer)
 	final := replyText(outer.Reply)
-	emit(map[string]any{"group": selfID(), "members": cfg.Members, "synthesizer": cfg.Synthesizer, "reply": final, "workers": worker})
+	emit(map[string]any{"group": selfID(), "members": cfg.Members, "synthesizer": cfg.Synthesizer, "reply": final, "workers": worker, "rounds": rounds})
 }

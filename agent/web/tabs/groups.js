@@ -325,6 +325,15 @@ function card(g, avail, claimedBy, mainEl) {
     <div class="gr-sec">${esc(L.task_label)}</div>
     <textarea class="gr-task" placeholder="${escAttr(L.task_label)}">${esc(g.task || '')}</textarea>
 
+    <div class="gr-sec">${esc(L.mode_label || 'Mode')}</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select class="gr-sel gr-mode" style="flex:1">
+        <option value="parallel" ${(g.mode || 'parallel') !== 'debate' ? 'selected' : ''}>${esc(L.mode_parallel || 'Parallel (fast)')}</option>
+        <option value="debate" ${g.mode === 'debate' ? 'selected' : ''}>${esc(L.mode_debate || 'Debate (multi-round)')}</option>
+      </select>
+      <input class="gr-in gr-rounds" type="number" min="2" max="4" style="width:130px" placeholder="${escAttr(L.rounds_ph || 'rounds (2-4)')}" value="${escAttr(g.debate_rounds || '')}">
+    </div>
+
     <div class="gr-foot">
       <button class="gr-btn gr-chat-open" title="Chat with this team">💬 ${esc(L.chat_btn)}</button>
       <button class="gr-btn gr-onoff ${g.enabled === false ? 'danger' : 'primary'}" title="Turn the whole group on/off (coordinator + all members)">${g.enabled === false ? 'OFF' : 'ON'}</button>
@@ -373,6 +382,8 @@ function card(g, avail, claimedBy, mainEl) {
       synthesizer: el.querySelector('.gr-synth').value,
       task: el.querySelector('.gr-task').value,
       display_name: el.querySelector('.gr-name').value.trim(),
+      mode: el.querySelector('.gr-mode').value,
+      debate_rounds: el.querySelector('.gr-rounds').value.trim(),
     };
     btn.disabled = true; msg.style.display = 'none';
     try {

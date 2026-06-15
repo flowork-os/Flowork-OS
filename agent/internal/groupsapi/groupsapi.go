@@ -4,20 +4,24 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Locked at: 2026-06-06
 // Reason: Groups audit (GUI→logic). ConfigHandler error-swallow fixed — the old
-//   `if err := KVSet(...); err == nil { … }` dropped a failure on the FIRST write
-//   and still returned {ok:true} (lied to the GUI); now every KVSet chains one err.
-//   id validated by idRe on Config/Delete/Create; Delete refuses non-group modules.
-//   Tested (groupsapi_test.go, 4/4 PASS).
+//
+//	`if err := KVSet(...); err == nil { … }` dropped a failure on the FIRST write
+//	and still returned {ok:true} (lied to the GUI); now every KVSet chains one err.
+//	id validated by idRe on Config/Delete/Create; Delete refuses non-group modules.
+//	Tested (groupsapi_test.go, 4/4 PASS).
+//
 // 2026-06-14 (owner-approved, gateway audit): GATEWAY BUG FIXED — DeleteHandler used
-//   to only remove the group's coordinator folder, leaving its MEMBER agents loaded +
-//   directly invokable (scheduler/triggers/kernel-rpc could still reach them even
-//   though the group — their entry door — was deleted). Now Delete disables (unloads)
-//   every member BEFORE removing the group, mirroring the ToggleHandler OFF cascade.
-//   Verified live: after delete, members return "plugin not loaded"; mr-flow unaffected.
+//
+//	to only remove the group's coordinator folder, leaving its MEMBER agents loaded +
+//	directly invokable (scheduler/triggers/kernel-rpc could still reach them even
+//	though the group — their entry door — was deleted). Now Delete disables (unloads)
+//	every member BEFORE removing the group, mirroring the ToggleHandler OFF cascade.
+//	Verified live: after delete, members return "plugin not loaded"; mr-flow unaffected.
 //
 // 2026-06-12 (owner-approved): ConfigHandler now also mirrors the roster to a
-//   secret-free group.json (see seed.go) so a group's membership is committable;
-//   SeedFromJSON() restores it into the loket store on a fresh install.
+//
+//	secret-free group.json (see seed.go) so a group's membership is committable;
+//	SeedFromJSON() restores it into the loket store on a fresh install.
 //
 // Package groupsapi serves the GUI "Groups" tab (§F2): list the GROUP modules,
 // show each group's roster (members + synthesizer + task), and edit it. A GROUP is
@@ -47,10 +51,10 @@ var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,39}$`)
 
 // Deps are the host-backed lookups the handler needs (no globals).
 type Deps struct {
-	AgentIDs       func() []string                     // all loaded module ids
-	LoketStorePath func(module string) (string, error) // → that module's loket.db
-	AgentsDir      string                              // where <id>.fwagent folders live
-	GroupWasmPath  string                              // template group wasm to copy on create
+	AgentIDs       func() []string                      // all loaded module ids
+	LoketStorePath func(module string) (string, error)  // → that module's loket.db
+	AgentsDir      string                               // where <id>.fwagent folders live
+	GroupWasmPath  string                               // template group wasm to copy on create
 	Toggle         func(id string, disabled bool) error // enable/disable one agent (= agentmgr.ToggleAgent)
 }
 
@@ -66,12 +70,14 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 }
 
 type groupView struct {
-	ID          string   `json:"id"`
-	DisplayName string   `json:"display_name"`
-	Members     []string `json:"members"`
-	Synthesizer string   `json:"synthesizer"`
-	Task        string   `json:"task"`
-	Enabled     bool     `json:"enabled"` // false = group toggled OFF (group_off=1)
+	ID           string   `json:"id"`
+	DisplayName  string   `json:"display_name"`
+	Members      []string `json:"members"`
+	Synthesizer  string   `json:"synthesizer"`
+	Task         string   `json:"task"`
+	Mode         string   `json:"mode"`          // A1: parallel|debate
+	DebateRounds string   `json:"debate_rounds"` // A1: total ronde debat
+	Enabled      bool     `json:"enabled"`       // false = group toggled OFF (group_off=1)
 	// Claims = every agent this group uses across ALL its roster roles (members,
 	// synthesizer, and auxiliary roles like questioner/how/caster), so the picker
 	// can hide an organ that already belongs to another group — not just its
@@ -192,9 +198,12 @@ func (h *Handler) ListHandler(w http.ResponseWriter, _ *http.Request) {
 				}
 			}
 			off, _, _ := st.KVGet("group_off")
+			mode, _, _ := st.KVGet("mode")
+			drounds, _, _ := st.KVGet("debate_rounds")
 			groups = append(groups, groupView{
 				ID: id, DisplayName: name,
 				Members: splitCSV(members), Synthesizer: strings.TrimSpace(synth), Task: strings.TrimSpace(task),
+				Mode: strings.TrimSpace(mode), DebateRounds: strings.TrimSpace(drounds),
 				Claims:  claims,
 				Enabled: strings.TrimSpace(off) != "1",
 			})
@@ -221,10 +230,12 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Members     []string `json:"members"`
-		Synthesizer string   `json:"synthesizer"`
-		Task        string   `json:"task"`
-		DisplayName string   `json:"display_name"`
+		Members      []string `json:"members"`
+		Synthesizer  string   `json:"synthesizer"`
+		Task         string   `json:"task"`
+		DisplayName  string   `json:"display_name"`
+		Mode         string   `json:"mode"`          // A1: "parallel" (default) | "debate"
+		DebateRounds string   `json:"debate_rounds"` // A1: total ronde debat (2-4); kosong = default
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeErr(w, http.StatusBadRequest, "bad body: "+err.Error())
@@ -263,6 +274,17 @@ func (h *Handler) ConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil && strings.TrimSpace(body.DisplayName) != "" {
 		err = st.KVSet("display_name", strings.TrimSpace(body.DisplayName))
+	}
+	// A1 debate config: mode (parallel|debate) + ronde. Validasi: mode selain 'debate' → 'parallel'.
+	if err == nil {
+		mode := strings.ToLower(strings.TrimSpace(body.Mode))
+		if mode != "debate" {
+			mode = "parallel"
+		}
+		err = st.KVSet("mode", mode)
+	}
+	if err == nil {
+		err = st.KVSet("debate_rounds", strings.TrimSpace(body.DebateRounds))
 	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
