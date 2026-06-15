@@ -44,7 +44,12 @@ export async function render(container) {
       const k = d.karma || {}, m = d.model || {};
       const yn = (b) => (b ? `<span style="color:#4ade80">${esc(L.valYes)}</span>` : `<span style="color:#f87171">${esc(L.valNo)}</span>`);
       const allow = d.autocommit_allowed;
+      const ed = (d.edition || 'public') === 'dev';
       statusEl.innerHTML = `
+        <div style="margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="background:${ed ? '#3b2410' : '#0c2a3b'};border:1px solid ${ed ? '#b45309' : '#0e7490'};color:${ed ? '#fbbf24' : '#67e8f9'};border-radius:6px;padding:2px 9px;font-size:0.8rem;font-weight:600">${esc(ed ? L.badgeDev : L.badgePublic)}</span>
+          <span style="color:#64748b;font-size:0.78rem">${esc(L.lblScope)}: ${esc(d.scope || '')}</span>
+        </div>
         <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:0.85rem">
           <div>${esc(L.lblActiveMode)}: <b style="font-size:1.05rem">${esc((d.mode || 'off').toUpperCase())}</b></div>
           <div>${esc(L.lblKarmaReady)}: ${yn(k.ready)} <span style="color:#64748b">(${Math.round(k.reflect_ok || 0)}/${k.threshold || 20} ${esc(L.suffixSuccess)})</span></div>

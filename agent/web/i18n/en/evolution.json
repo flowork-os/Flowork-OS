@@ -24,5 +24,8 @@
   "no_proposals": "No proposals yet. Click \"Reflect now\".",
   "confirm_auto": "Enable AUTO? Flowork will auto-commit changes that pass all gates (strong cloud model + mature karma). Continue?",
   "err_setmode": "Failed to set mode: ",
-  "err_reflect": "Reflection failed: "
+  "err_reflect": "Reflection failed: ",
+  "badge_dev": "🔧 DEV",
+  "badge_public": "🌍 PUBLIC",
+  "lbl_scope": "Scope"
 }

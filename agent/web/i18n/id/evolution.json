@@ -24,5 +24,8 @@
   "no_proposals": "Belum ada usulan. Klik \"Refleksi sekarang\".",
   "confirm_auto": "Aktifkan AUTO? Flowork akan auto-commit perubahan yang lolos semua gate (model cloud kuat + karma matang). Lanjut?",
   "err_setmode": "Gagal set mode: ",
-  "err_reflect": "Refleksi gagal: "
+  "err_reflect": "Refleksi gagal: ",
+  "badge_dev": "🔧 DEV",
+  "badge_public": "🌍 PUBLIC",
+  "lbl_scope": "Cakupan"
 }

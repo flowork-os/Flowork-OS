@@ -26,11 +26,32 @@ import (
 // Owner-default 2026-06-15: ≥20 sukses + rasio ≥90%. Gate berlapis: GUI toggle + karma + model.
 const EvolveKarmaThreshold = 20
 
-// EvolveGateDeps — di-inject dari main: KV (mode toggle) + cek model kuat (anti-lokal).
+// EvolveGateDeps — di-inject dari main: KV (mode toggle) + cek model kuat (anti-lokal)
+// + edisi (dev = evolusi penuh termasuk core; public = behavior-layer aja, core auto-update).
 type EvolveGateDeps struct {
 	KVGet       func(string) (string, error)
 	KVSet       func(string, string) error
 	ModelStrong func() (bool, string) // (cloud kuat?, catatan) — guard anti LLM-lokal
+	Edition     func() string         // "dev" | "public" (default public = aman)
+}
+
+func evolveEdition(dep EvolveGateDeps) string {
+	if dep.Edition == nil {
+		return "public"
+	}
+	if e := strings.ToLower(strings.TrimSpace(dep.Edition())); e == "dev" {
+		return "dev"
+	}
+	return "public"
+}
+
+// EvolveCoreChangeAllowed — boleh AUTO-commit perubahan CORE (Go/JS in-repo)?
+// HANYA edisi dev + semua gate auto lolos. Public: SELALU false (core = auto-update upstream).
+func EvolveCoreChangeAllowed(dep EvolveGateDeps) (bool, string) {
+	if evolveEdition(dep) != "dev" {
+		return false, "edisi public — core via auto-update upstream, tidak self-edit (anti divergen git)"
+	}
+	return EvolveAutoCommitAllowed(dep)
 }
 
 func evolveMode(dep EvolveGateDeps) string {
@@ -110,8 +131,15 @@ func EvolveConfigHandler(dep EvolveGateDeps) http.HandlerFunc {
 		if dep.ModelStrong != nil {
 			strong, modelNote = dep.ModelStrong()
 		}
+		edition := evolveEdition(dep)
+		scope := "behavior-layer saja (agent/skill/app). Core = auto-update upstream."
+		if edition == "dev" {
+			scope = "penuh — core (Go/JS) + behavior. Owner R&D, push ke upstream."
+		}
 		httpx.WriteJSON(w, map[string]any{
-			"mode": mode,
+			"mode":    mode,
+			"edition": edition,
+			"scope":   scope,
 			"karma": map[string]any{
 				"reflect_ok": okV, "reflect_fail": failV,
 				"threshold": EvolveKarmaThreshold, "ready": ready,

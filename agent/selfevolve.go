@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -61,6 +62,14 @@ func evolveGateDeps() agentmgr.EvolveGateDeps {
 			return db.SetKV(k, v)
 		},
 		ModelStrong: evolveModelStrong,
+		Edition: func() string {
+			// FLOWORK_EDITION=dev → evolusi penuh (core+behavior). Default public = aman
+			// (behavior-layer aja, core via auto-update). make-distributable set ini per profil.
+			if strings.EqualFold(strings.TrimSpace(os.Getenv("FLOWORK_EDITION")), "dev") {
+				return "dev"
+			}
+			return "public"
+		},
 	}
 }
 
