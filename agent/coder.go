@@ -78,6 +78,12 @@ func coderModel(req string) string {
 	if m := strings.TrimSpace(os.Getenv("FLOWORK_CODER_MODEL")); m != "" {
 		return m
 	}
+	// Honor Settings → Default Model (kv llm_default_model → FLOWORK_LLM_MODEL set at
+	// boot). So AI Studio / coder follow the owner's chosen default (single source of
+	// truth) instead of forcing Opus. coderModelDefault is only the last-resort fallback.
+	if m := strings.TrimSpace(os.Getenv("FLOWORK_LLM_MODEL")); m != "" {
+		return m
+	}
 	return coderModelDefault
 }
 
