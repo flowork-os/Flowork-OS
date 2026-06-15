@@ -620,10 +620,20 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 			ID: newID(), Goal: focus, TargetFile: d.TargetFile, Kind: d.Kind,
 			Rationale: d.Rationale, Risk: strings.ToLower(strings.TrimSpace(d.Risk)), Model: d.Model,
 		}
+		// A1 GERBANG PILAR (pre-debat, paling murah): proposal WAJIB nyentuh ≥1 dari 5 pilar tujuan
+		// (ekonomi/keamanan/warga/kecerdasan/mandiri). Kalau nggak = "ngelantur" → langsung REJECTED
+		// (tetap kesimpan + reason jelas biar owner bisa override kalau classifier salah). Klasifikasi
+		// deterministik (keyword) = jalan di model lokal, gak butuh dewan ≥4.7.
+		pillars := agentdb.ClassifyPillars(focus + " " + d.Kind + " " + d.Rationale + " " + d.TargetFile)
+		p.Pillar = strings.Join(pillars, ",")
+		if len(pillars) == 0 {
+			p.Status = "rejected"
+			p.Rationale = "[NGELANTUR — gak masuk 5 pilar tujuan] " + p.Rationale
+		}
 		if err := store.AddEvolveProposal(p); err == nil {
 			saved = append(saved, map[string]any{
 				"id": p.ID, "target_file": p.TargetFile, "kind": p.Kind,
-				"rationale": p.Rationale, "risk": p.Risk,
+				"rationale": p.Rationale, "risk": p.Risk, "pillar": p.Pillar, "status": p.Status,
 			})
 		}
 	}

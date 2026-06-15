@@ -22,6 +22,7 @@ type EvolveProposal struct {
 	Status     string `json:"status"`      // proposed | approved | rejected | applied
 	Model      string `json:"model"`
 	CreatedAt  string `json:"created_at"`
+	Pillar     string `json:"pillar"` // A1: pilar tujuan yg disentuh (CSV id, mis. "ekonomi,keamanan"). "" = ngelantur / belum diklasifikasi.
 }
 
 func (s *Store) ensureEvolveSchema() error {
@@ -62,6 +63,8 @@ func (s *Store) ensureEvolveSchema() error {
 	// Migrasi ADDITIVE (idempoten): kolom content = isi file utuh (buat commit-on-approve persis
 	// yg direview). ALTER gagal "duplicate column" kalau udah ada → diabaikan (aman).
 	_, _ = s.db.Exec(`ALTER TABLE evolve_stage ADD COLUMN content TEXT NOT NULL DEFAULT ''`)
+	// A1 governance: pilar tujuan yg disentuh proposal (CSV id). ADDITIVE idempoten.
+	_, _ = s.db.Exec(`ALTER TABLE evolve_proposal ADD COLUMN pillar TEXT NOT NULL DEFAULT ''`)
 	return nil
 }
 
@@ -77,12 +80,12 @@ func (s *Store) AddEvolveProposal(p EvolveProposal) error {
 		p.Status = "proposed"
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO evolve_proposal (id, goal, target_file, kind, rationale, risk, status, model, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO evolve_proposal (id, goal, target_file, kind, rationale, risk, status, model, created_at, pillar)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 		  goal=excluded.goal, target_file=excluded.target_file, kind=excluded.kind,
-		  rationale=excluded.rationale, risk=excluded.risk, model=excluded.model;
-	`, p.ID, p.Goal, p.TargetFile, p.Kind, p.Rationale, p.Risk, p.Status, p.Model, p.CreatedAt)
+		  rationale=excluded.rationale, risk=excluded.risk, model=excluded.model, pillar=excluded.pillar;
+	`, p.ID, p.Goal, p.TargetFile, p.Kind, p.Rationale, p.Risk, p.Status, p.Model, p.CreatedAt, p.Pillar)
 	return err
 }
 
@@ -94,9 +97,9 @@ func (s *Store) GetEvolveProposal(id string) (EvolveProposal, bool, error) {
 		return p, false, err
 	}
 	row := s.db.QueryRow(`
-		SELECT id, goal, target_file, kind, rationale, risk, status, model, created_at
+		SELECT id, goal, target_file, kind, rationale, risk, status, model, created_at, pillar
 		FROM evolve_proposal WHERE id=?`, id)
-	err := row.Scan(&p.ID, &p.Goal, &p.TargetFile, &p.Kind, &p.Rationale, &p.Risk, &p.Status, &p.Model, &p.CreatedAt)
+	err := row.Scan(&p.ID, &p.Goal, &p.TargetFile, &p.Kind, &p.Rationale, &p.Risk, &p.Status, &p.Model, &p.CreatedAt, &p.Pillar)
 	if err == sql.ErrNoRows {
 		return p, false, nil
 	}
@@ -130,7 +133,7 @@ func (s *Store) ListEvolveProposals(limit int) ([]map[string]any, error) {
 		limit = 100
 	}
 	rows, err := s.db.Query(`
-		SELECT id, goal, target_file, kind, rationale, risk, status, model, created_at
+		SELECT id, goal, target_file, kind, rationale, risk, status, model, created_at, pillar
 		FROM evolve_proposal ORDER BY created_at DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
@@ -138,13 +141,13 @@ func (s *Store) ListEvolveProposals(limit int) ([]map[string]any, error) {
 	defer rows.Close()
 	var out []map[string]any
 	for rows.Next() {
-		var id, goal, tf, kind, rat, risk, status, model, ca string
-		if err := rows.Scan(&id, &goal, &tf, &kind, &rat, &risk, &status, &model, &ca); err != nil {
+		var id, goal, tf, kind, rat, risk, status, model, ca, pillar string
+		if err := rows.Scan(&id, &goal, &tf, &kind, &rat, &risk, &status, &model, &ca, &pillar); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]any{
 			"id": id, "goal": goal, "target_file": tf, "kind": kind, "rationale": rat,
-			"risk": risk, "status": status, "model": model, "created_at": ca,
+			"risk": risk, "status": status, "model": model, "created_at": ca, "pillar": pillar,
 		})
 	}
 	return out, rows.Err()
