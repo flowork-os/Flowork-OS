@@ -839,6 +839,9 @@ func main() {
 	mux.HandleFunc("/api/evolve/config", agentmgr.EvolveConfigHandler(evolveGateDeps()))
 	// Capability eval: buktiin model layak self-modify (compile+run, kalibrasi Opus 4.7).
 	mux.HandleFunc("/api/evolve/eval", evolveEvalHandler())
+	// R7 fase-2b ENGINE EKSEKUSI (behavior-layer): apply proposal add-agent/skill/app →
+	// reuse architect → ~/.flowork (additive, di luar git). Gate: saklar+model (anti-lokal).
+	mux.HandleFunc("/api/evolve/apply", agentmgr.EvolveApplyHandler(evolveGateDeps(), evolveApplier(host, fdb, groupsAPI)))
 	mux.HandleFunc("/api/agents/protector/approval/queue", agentmgr.ApprovalQueueHandler)
 	mux.HandleFunc("/api/agents/protector/approve_pending", agentmgr.ApproveHandler)
 	mux.HandleFunc("/api/agents/protector/reject_pending", agentmgr.RejectHandler)

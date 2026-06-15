@@ -27,5 +27,11 @@
   "err_reflect": "Refleksi gagal: ",
   "badge_dev": "🔧 DEV",
   "badge_public": "🌍 PUBLIC",
-  "lbl_scope": "Cakupan"
+  "lbl_scope": "Cakupan",
+  "apply_btn": "🚀 Terapkan",
+  "apply_busy": "⏳ membangun…",
+  "confirm_apply": "Terapkan usulan ini? Flowork bakal bangun ke behavior-layer (~/.flowork) — additive & bisa dihapus (tinggal hapus agent/app buat undo). Lanjut?",
+  "err_apply": "Apply gagal: ",
+  "status_applied_badge": "✅ applied",
+  "core_only_dev": "perubahan core — perlu core-apply DEV"
 }

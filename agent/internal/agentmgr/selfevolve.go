@@ -100,6 +100,114 @@ func EvolveAutoCommitAllowed(dep EvolveGateDeps) (bool, string) {
 	return true, "ok"
 }
 
+// EvolveBehaviorApplyAllowed — GATE buat APPLY proposal BEHAVIOR-LAYER (add-agent/skill/app).
+// Lapisan ~/.flowork DI LUAR git → additive + reversible (tinggal hapus agent/app) → lebih
+// longgar dari core-commit:
+//   - manual (owner klik tombol Apply): cukup mode != off (armed) + model kuat (anti-lokal —
+//     jangan biarin Gemma rusak bikin agent sampah). Owner in-the-loop → karma TIDAK diwajibin.
+//   - auto (cron/terjadwal): full gate EvolveAutoCommitAllowed (mode=auto + karma + model).
+// Beda dari core-apply (EvolveCoreChangeAllowed) yg 🔴 di-git + DEV-only.
+func EvolveBehaviorApplyAllowed(dep EvolveGateDeps, auto bool) (bool, string) {
+	if auto {
+		return EvolveAutoCommitAllowed(dep)
+	}
+	if evolveMode(dep) == "off" {
+		return false, "mode OFF — arm dulu (stage/auto) di tab Evolution sebelum apply"
+	}
+	if dep.ModelStrong != nil {
+		if strong, note := dep.ModelStrong(); !strong {
+			return false, "model lemah/lokal — apply diblok biar gak bikin agent sampah: " + note
+		}
+	}
+	return true, "ok"
+}
+
+// EvolveApplier — di-INJECT dari main (decoupling, sama pola EvolveProposer/summarizer).
+// Dikasih proposal yg lolos gate → BANGUN artefak behavior-layer (reuse architect:
+// add-agent→team, add-app→HTML app, add-skill→SKILL.md) ke ~/.flowork. Balikin ringkasan
+// hasil. agentmgr SENGAJA ga tau soal architect (isolasi) — main yg nyuntik kemampuannya.
+type EvolveApplier func(ctx context.Context, p agentdb.EvolveProposal) (map[string]any, error)
+
+// EvolveApplyHandler — POST /api/evolve/apply?id=<proposalID>[&auto=1]. Engine eksekusi
+// fase-2b BEHAVIOR-LAYER (AMAN, additive, di luar git). Idempoten: status 'applied' → no-op.
+func EvolveApplyHandler(dep EvolveGateDeps, apply EvolveApplier) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
+			return
+		}
+		if apply == nil {
+			httpx.WriteJSON(w, map[string]any{"error": "applier not wired"})
+			return
+		}
+		id := strings.TrimSpace(r.URL.Query().Get("id"))
+		if id == "" {
+			httpx.WriteJSON(w, map[string]any{"error": "param id wajib"})
+			return
+		}
+		auto := r.URL.Query().Get("auto") == "1"
+		// GATE dulu (saklar + model), SEBELUM buka store / panggil LLM.
+		if ok, why := EvolveBehaviorApplyAllowed(dep, auto); !ok {
+			httpx.WriteJSON(w, map[string]any{"error": "gate behavior-apply nolak: " + why})
+			return
+		}
+		store, err := openAgentStore(defaultAgentID)
+		if err != nil {
+			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
+			return
+		}
+		defer store.Close()
+		p, found, gerr := store.GetEvolveProposal(id)
+		if gerr != nil {
+			httpx.WriteJSON(w, map[string]any{"error": gerr.Error()})
+			return
+		}
+		if !found {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal " + id + " ga ketemu"})
+			return
+		}
+		if p.Status == "applied" {
+			httpx.WriteJSON(w, map[string]any{"ok": true, "already": true, "note": "proposal sudah applied sebelumnya", "id": id})
+			return
+		}
+		if p.Status == "rejected" {
+			httpx.WriteJSON(w, map[string]any{"error": "proposal di-reject owner — ga bisa apply"})
+			return
+		}
+		// SCOPE behavior-apply: cuma kind ADDITIVE non-core. Kind core (fix/refactor/doc/test)
+		// = nyentuh file repo → core-apply (Milestone B, dev-only, git-worktree). Tolak tegas.
+		kind := strings.ToLower(strings.TrimSpace(p.Kind))
+		switch kind {
+		case "add-agent", "add-skill", "add-app":
+			// behavior-layer, lanjut.
+		default:
+			httpx.WriteJSON(w, map[string]any{"error": "kind '" + p.Kind + "' = perubahan core (in-repo), butuh core-apply DEV-only — belum didukung di behavior-apply"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 290*time.Second)
+		defer cancel()
+		res, aerr := apply(ctx, p)
+		if aerr != nil {
+			_, _ = store.IncrementKarma("evolve_apply_fail", 1)
+			httpx.WriteJSON(w, map[string]any{"error": "apply gagal: " + aerr.Error()})
+			return
+		}
+		out := map[string]any{"ok": true, "id": id, "kind": p.Kind, "status": "applied"}
+		for k, v := range res {
+			if k != "ok" {
+				out[k] = v
+			}
+		}
+		if serr := store.SetEvolveProposalStatus(id, "applied"); serr != nil {
+			// Artefak kebangun TAPI gagal tandai 'applied' — JUJUR ke owner (anti-overclaim).
+			// Apply ulang akan bangun-ulang (idempoten via architect ON CONFLICT; aman tapi boros).
+			out["warn"] = "artefak kebangun tapi gagal tandai status 'applied': " + serr.Error()
+		}
+		_, _ = store.IncrementKarma("evolve_apply_ok", 1)
+		httpx.WriteJSON(w, out)
+	}
+}
+
 // EvolveConfigHandler — GET status gate lengkap / POST set mode (off|stage|auto).
 // Saklar owner buat self-modify. Default off. (kontrol KRUSIAL — owner pegang penuh.)
 func EvolveConfigHandler(dep EvolveGateDeps) http.HandlerFunc {

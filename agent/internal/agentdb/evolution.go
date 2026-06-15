@@ -5,7 +5,11 @@
 
 package agentdb
 
-import "time"
+import (
+	"database/sql"
+	"fmt"
+	"time"
+)
 
 // EvolveProposal — satu usulan evolusi dari refleksi-diri.
 type EvolveProposal struct {
@@ -58,8 +62,34 @@ func (s *Store) AddEvolveProposal(p EvolveProposal) error {
 	return err
 }
 
-// SetEvolveProposalStatus — owner approve/reject/applied.
+// GetEvolveProposal — ambil 1 usulan by id (buat engine eksekusi fase-2b: apply).
+// Balikin (proposal, found, error). found=false kalau id ga ada (bukan error).
+func (s *Store) GetEvolveProposal(id string) (EvolveProposal, bool, error) {
+	var p EvolveProposal
+	if err := s.ensureEvolveSchema(); err != nil {
+		return p, false, err
+	}
+	row := s.db.QueryRow(`
+		SELECT id, goal, target_file, kind, rationale, risk, status, model, created_at
+		FROM evolve_proposal WHERE id=?`, id)
+	err := row.Scan(&p.ID, &p.Goal, &p.TargetFile, &p.Kind, &p.Rationale, &p.Risk, &p.Status, &p.Model, &p.CreatedAt)
+	if err == sql.ErrNoRows {
+		return p, false, nil
+	}
+	if err != nil {
+		return p, false, err
+	}
+	return p, true, nil
+}
+
+// SetEvolveProposalStatus — owner approve/reject/applied. Status divalidasi ke set kanonik
+// (defensive — jangan biarin field status korup dari caller yg salah).
 func (s *Store) SetEvolveProposalStatus(id, status string) error {
+	switch status {
+	case "proposed", "approved", "rejected", "applied":
+	default:
+		return fmt.Errorf("status invalid: %q (harus proposed|approved|rejected|applied)", status)
+	}
 	if err := s.ensureEvolveSchema(); err != nil {
 		return err
 	}

@@ -83,13 +83,28 @@ export async function render(container) {
     } catch (e) { alert(L.errSetmode + e.message); }
   }
 
+  // behavior-layer kinds = applicable via /api/evolve/apply (additive ~/.flowork). Core
+  // kinds (fix/refactor/doc/test) = needs DEV core-apply (Milestone B), shown as a note.
+  const BEHAVIOR_KINDS = new Set(['add-agent', 'add-skill', 'add-app']);
+
   async function loadProposals() {
     try {
       const d = await (await fetch('/api/evolve/proposals?limit=30')).json();
       const items = d.items || [];
       if (!items.length) { propEl.innerHTML = `<div style="color:#64748b">${esc(L.noProposals)}</div>`; return; }
       const riskColor = { low: '#4ade80', medium: '#fbbf24', high: '#f87171' };
-      propEl.innerHTML = items.map((p) => `
+      propEl.innerHTML = items.map((p) => {
+        const kind = (p.kind || '').toLowerCase();
+        const canApply = BEHAVIOR_KINDS.has(kind) && p.status !== 'applied' && p.status !== 'rejected';
+        let footer = '';
+        if (p.status === 'applied') {
+          footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
+        } else if (canApply) {
+          footer = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
+        } else {
+          footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.coreOnlyDev)}</span>`;
+        }
+        return `
         <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:10px 12px;margin-bottom:8px">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:4px">
             <span style="background:#1e293b;border-radius:4px;padding:1px 7px;font-size:0.72rem">${esc(p.kind || '?')}</span>
@@ -97,10 +112,35 @@ export async function render(container) {
             <code style="color:#818cf8;font-size:0.76rem">${esc(p.target_file || '')}</code>
             <span style="margin-left:auto;color:#475569;font-size:0.7rem">${esc(p.status || '')}</span>
           </div>
-          <div style="font-size:0.84rem;color:#cbd5e1">${esc(p.rationale || '')}</div>
-        </div>`).join('');
+          <div style="font-size:0.84rem;color:#cbd5e1;margin-bottom:8px">${esc(p.rationale || '')}</div>
+          <div style="display:flex;justify-content:flex-end">${footer}</div>
+        </div>`;
+      }).join('');
     } catch (e) { propEl.innerHTML = `<span style="color:#f87171">❌ ${esc(e.message)}</span>`; }
   }
+
+  // Apply a behavior-layer proposal — build it for real (gated server-side by saklar+model).
+  async function applyProposal(id, btn) {
+    if (!confirm(L.confirmApply)) return;
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = L.applyBusy;
+    try {
+      const r = await fetch('/api/evolve/apply?id=' + encodeURIComponent(id), { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      await loadProposals();
+      await loadConfig();
+    } catch (e) {
+      alert(L.errApply + e.message);
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
+  // Delegated: Apply buttons are re-rendered each loadProposals(), so listen on the parent once.
+  propEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-apply-id]');
+    if (b) applyProposal(b.getAttribute('data-apply-id'), b);
+  });
 
   reflectBtn.addEventListener('click', async () => {
     reflectBtn.disabled = true; const o = reflectBtn.textContent; reflectBtn.textContent = L.reflectBusy;

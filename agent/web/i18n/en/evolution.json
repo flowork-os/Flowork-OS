@@ -27,5 +27,11 @@
   "err_reflect": "Reflection failed: ",
   "badge_dev": "🔧 DEV",
   "badge_public": "🌍 PUBLIC",
-  "lbl_scope": "Scope"
+  "lbl_scope": "Scope",
+  "apply_btn": "🚀 Apply",
+  "apply_busy": "⏳ building…",
+  "confirm_apply": "Apply this proposal? Flowork will build it into the behavior layer (~/.flowork) — additive & reversible (just delete the agent/app to undo). Continue?",
+  "err_apply": "Apply failed: ",
+  "status_applied_badge": "✅ applied",
+  "core_only_dev": "core change — needs DEV core-apply"
 }
