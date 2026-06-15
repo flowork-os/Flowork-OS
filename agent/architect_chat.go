@@ -25,7 +25,7 @@ import (
 
 // architectSystemPrompt — lean persona for the conversational architect (ant-principle
 // aware: design focused specialists + a lead; propose first, build on confirm).
-const architectSystemPrompt = `Lo "Flowork Architect" — partner ngobrol buat MERANCANG & MEMBANGUN tim (group) agent dari obrolan, persis kayak user ngobrol sama Claude pas bikin aplikasi.
+const architectSystemPrompt = `Lo "Flowork Architect" (AI Studio) — partner ngobrol buat MERANCANG & MEMBANGUN dari obrolan, persis kayak user ngobrol sama Claude pas bikin aplikasi. Lo bisa bikin: TIM (group), APP (1 worker+synth), dan JADWAL otomatis.
 
 PRINSIP FLOWORK (WAJIB): Flowork = koloni semut. Tiap agent FOKUS 1 tugas, persona PENDEK → prompt kecil (biar enteng walau model lokal). 1 tim = 2-4 specialist (worker) yg saling melengkapi + 1 lead (synthesizer) yg gabungin jawaban mereka jadi 1.
 
@@ -36,6 +36,7 @@ CARA KERJA:
 4. Pas user setuju → panggil tool build_team dengan rancangan LENGKAP yg disepakati (PERSIS yg lo usulkan, jangan ngarang ulang). Lalu konfirmasi singkat: tim udah jadi + bisa di-chat di tab Teams.
 5. Revisi: user minta ubah → usulkan revisi → setelah setuju, build_team lagi dengan group_id SAMA (itu = rebuild).
 6. JADWAL: kalau user mau tim jalan OTOMATIS berkala (mis. "tiap pagi jam 7 kirim ke telegram"), pakai tool schedule_team (butuh tim yg UDAH ada). Usulkan dulu jadwalnya (jam + perintah + tujuan hasil: telegram/chat), baru panggil tool pas user setuju. Cron 5-field: '0 7 * * *' = tiap hari 07:00, '0 * * * *' = tiap jam, '0 9 * * 1-5' = hari kerja 09:00.
+7. APP (1 agent): kalau user cuma butuh 1 app/agent tunggal (bukan tim, mis. "generator pantun", "penerjemah"), pakai tool build_app. Usulkan dulu konsepnya, baru panggil pas user setuju.
 
 Jujur, gak ngarang, fokus. Jawab apa adanya.`
 
@@ -78,7 +79,21 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 			},
 		},
 	}
-	tools := []map[string]any{buildTool, scheduleTool}
+	appTool := map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":        "build_app",
+			"description": "Bikin 1 APP/agent tunggal (1 worker + 1 synth) dari deskripsi — bukan tim. Buat kebutuhan simpel 1 keahlian (mis. generator pantun, penerjemah, peringkas). Panggil HANYA setelah user setuju konsepnya.",
+			"parameters": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"prompt": map[string]any{"type": "string", "description": "deskripsi app yg mau dibikin (apa fungsinya, gaya output). Jelas + ringkas."},
+				},
+				"required": []string{"prompt"},
+			},
+		},
+	}
+	tools := []map[string]any{buildTool, scheduleTool, appTool}
 
 	// Up to 3 tool rounds, then a final tool-free turn to force a text wrap-up.
 	for iter := 0; iter < 3; iter++ {
@@ -99,7 +114,7 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 		}
 		messages = append(messages, asst)
 		for _, tc := range res.ToolCalls {
-			out := architectRunTool(ctx, host, store, groups, tc)
+			out := architectRunTool(ctx, host, store, groups, model, tc)
 			messages = append(messages, map[string]any{"role": "tool", "tool_call_id": tc.ID, "content": out})
 		}
 	}
@@ -115,12 +130,28 @@ func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.
 
 // architectRunTool — execute one tool the architect chose. Returns a JSON string fed
 // back as the tool result (the model reads it and confirms to the user).
-func architectRunTool(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, tc chatToolCall) string {
+func architectRunTool(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, model string, tc chatToolCall) string {
 	fail := func(msg string) string {
 		b, _ := json.Marshal(map[string]any{"ok": false, "error": msg})
 		return string(b)
 	}
 	switch tc.Name {
+	case "build_app":
+		var a struct {
+			Prompt string `json:"prompt"`
+		}
+		if err := json.Unmarshal([]byte(tc.Arguments), &a); err != nil {
+			return fail("decode app: " + err.Error())
+		}
+		if strings.TrimSpace(a.Prompt) == "" {
+			return fail("prompt app kosong")
+		}
+		res, err := architectBuildApp(ctx, host, store, a.Prompt, model)
+		if err != nil {
+			return fail(err.Error())
+		}
+		b, _ := json.Marshal(res)
+		return string(b)
 	case "build_team":
 		var plan teamPlan
 		if err := json.Unmarshal([]byte(tc.Arguments), &plan); err != nil {

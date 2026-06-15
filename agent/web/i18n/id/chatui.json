@@ -1,0 +1,20 @@
+{
+  "new": "Chat baru",
+  "sessions_empty": "Belum ada chat — mulai satu",
+  "pick": "Pilih chat di kiri, atau mulai yang baru.",
+  "input_ph": "Ketik pesan…  (Enter kirim, Shift+Enter = baris baru)",
+  "model_default": "Model default",
+  "model_opus": "Opus 4.8 (terbaik)",
+  "model_haiku": "Haiku 4.5 (cepat)",
+  "model_local": "Lokal (flowork-brain)",
+  "target_architect": "🪄 AI Studio — bikin tim / app / jadwal",
+  "target_group_prefix": "💬 ",
+  "rename_prompt": "Judul baru:",
+  "delete_confirm": "Hapus chat ini? History-nya ikut kehapus.",
+  "intro_architect": "AI Studio — bilang aja mau apa, gw bikinin: tim, app/agent tunggal, atau jadwalin biar jalan otomatis (mis. 'tiap pagi, kirim ke Telegram'). Persis kayak chat buat bikinnya.",
+  "intro_group": "Lagi ngobrol sama tim ini — dia inget seluruh percakapan.",
+  "send": "KIRIM",
+  "thinking": "tim lagi kerja…",
+  "fail": "chat gagal: ",
+  "loading": "memuat…"
+}

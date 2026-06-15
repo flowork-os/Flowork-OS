@@ -38,6 +38,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -46,6 +48,36 @@ import (
 	"flowork-gui/internal/groupsapi"
 	"flowork-gui/internal/kernelhost"
 )
+
+// architectBuildApp — build a single APP (task category: 1 worker + 1 synth) from a
+// prompt, reusing the AI Studio coder engine (coderGenerate stages a pack → install).
+// This is the "app" arm of the unified AI Studio chat (alongside build_team /
+// schedule_team). Loopback owner-trust → auto-install (no separate approval gate).
+func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, prompt, model string) (map[string]any, error) {
+	res, err := coderGenerate(ctx, prompt, coderModel(model))
+	if err != nil {
+		return nil, fmt.Errorf("design app: %w", err)
+	}
+	cat, _ := res["pending_id"].(string)
+	cat = strings.TrimSpace(cat)
+	if cat == "" {
+		return nil, fmt.Errorf("app id kosong dari design")
+	}
+	packPath := filepath.Join(coderPendingDir(), cat+".fwpack")
+	raw, rerr := os.ReadFile(packPath)
+	if rerr != nil {
+		return nil, fmt.Errorf("baca pack %s: %w", cat, rerr)
+	}
+	if ir := installPluginPack(host, store, raw, true); ir.status != 0 {
+		return nil, fmt.Errorf("install app gagal: %v", ir.body)
+	}
+	_ = os.Remove(packPath)
+	_ = os.Remove(filepath.Join(coderPendingDir(), cat+".json"))
+	return map[string]any{
+		"ok": true, "app_id": cat, "worker": cat + "-worker", "synth": cat + "-synth",
+		"note": "App '" + cat + "' live di AI Studio + bisa dipanggil/chat.",
+	}, nil
+}
 
 // idReGroup is tighter than groupsapi's idRe (2-40): a group_id here also becomes
 // the lead category "<group_id>-lead", which must satisfy coderCatRe (max 31). Cap

@@ -1,0 +1,20 @@
+{
+  "new": "New chat",
+  "sessions_empty": "No chats yet — start one",
+  "pick": "Pick a chat on the left, or start a new one.",
+  "input_ph": "Type a message…  (Enter to send, Shift+Enter = newline)",
+  "model_default": "Default model",
+  "model_opus": "Opus 4.8 (best)",
+  "model_haiku": "Haiku 4.5 (fast)",
+  "model_local": "Local (flowork-brain)",
+  "target_architect": "🪄 AI Studio — build team / app / schedule",
+  "target_group_prefix": "💬 ",
+  "rename_prompt": "New title:",
+  "delete_confirm": "Delete this chat? Its history is removed.",
+  "intro_architect": "AI Studio — tell me what you want and I build it: a team, a single app/agent, or schedule one to run automatically (e.g. 'every morning, send to Telegram'). Like chatting to build it.",
+  "intro_group": "Chatting with this team — it remembers the whole conversation.",
+  "send": "SEND",
+  "thinking": "the team is working…",
+  "fail": "chat failed: ",
+  "loading": "loading…"
+}

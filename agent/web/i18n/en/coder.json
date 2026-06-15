@@ -1,7 +1,7 @@
 {
   "title": "AI Studio",
   "tag": "Coder Engine",
-  "sub": "Request an app → AI designs it · Verifier validates · you authorize. It evolves by BUILDING agents — the core stays untouched.",
+  "sub": "One chat to build anything — a team, a single app/agent, or schedule one to run automatically. Just describe it; the AI designs + builds it.",
   "status_online": "System Online",
   "design_request": "Design Request",
   "task_placeholder": "Describe the app you want — e.g. 'funny poem generator', 'javanese translator', 'tech term explainer'…",
