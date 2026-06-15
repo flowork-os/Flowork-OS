@@ -103,13 +103,71 @@ func evolveCoreApplier() agentmgr.EvolveCoreApplier {
 			return res, fmt.Errorf("test-gate GAGAL (kode belum lolos build/vet/test):\n%s", trimStr(testOut, 1500))
 		}
 
-		// ── Diff buat STAGE (review owner) ──────────────────────────────────────────
+		// ── Diff (dari sandbox) ─────────────────────────────────────────────────────
 		diff := evolveWorktreeDiff(ctx, wt, rel)
+
+		// ── AUTO (B2): re-probe model asli → commit LOKAL. Manual → STAGE (B1). ──────
+		// Gate auto (dev+mode=auto+karma+model) udah dicek handler. Di sini lapis terakhir:
+		// re-probe FRESH (anti failover-ke-lokal di tengah operasi) sebelum nyentuh main.
+		if auto {
+			strong, note := evolveReprobeStrong(ctx)
+			if !strong {
+				// Model jatuh lemah/lokal mid-operasi → JANGAN commit core. Turunin ke STAGE.
+				return agentmgr.EvolveCoreResult{
+					Staged: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
+					Note: "re-probe model GAGAL (" + note + ") → diturunin ke STAGE, ga auto-commit core",
+				}, nil
+			}
+			msg := "evolve(auto): tambah " + rel + " — " + trimStr(strings.TrimSpace(p.Rationale), 80)
+			hash, cerr := evolveCommitFile(ctx, root, rel, content, msg)
+			if cerr != nil {
+				return res, fmt.Errorf("commit lokal gagal: %w", cerr)
+			}
+			return agentmgr.EvolveCoreResult{
+				Committed: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
+				Note: "auto-commit LOKAL " + hash + " (re-probe OK) — BELUM push (push = B3/owner)",
+			}, nil
+		}
 		return agentmgr.EvolveCoreResult{
 			Staged: true, TargetFile: rel, Diff: diff, TestOutput: trimStr(testOut, 2000), Model: model,
 			Note: "lolos test-gate",
 		}, nil
 	}
+}
+
+// evolveReprobeStrong — re-probe model asli FRESH (bypass cache capCache) tepat sebelum commit
+// core. Anti failover-ke-lokal di tengah operasi: token cloud bisa habis SETELAH gate lolos →
+// codegen jalan di model lemah → re-probe ini nangkep + batal commit. ~90s, tapi auto-commit langka.
+func evolveReprobeStrong(ctx context.Context) (bool, string) {
+	c, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	r := runCapabilityEval(c, coderModel(""))
+	return r.Passed, coderModel("") + ": " + r.Detail
+}
+
+// evolveCommitFile — tulis file baru ke REPO ASLI + git add + commit ke LOCAL main (NO push).
+// Path-scoped (commit cuma rel) → file dirty lain di working tree ga ikut. Author = organisme.
+// Balikin short-hash commit. B2: lokal doang; push = B3 (token setting page).
+func evolveCommitFile(ctx context.Context, root, rel, content, msg string) (string, error) {
+	abs := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
+		return "", fmt.Errorf("mkdir: %w", err)
+	}
+	if err := os.WriteFile(abs, []byte(content), 0o644); err != nil {
+		return "", fmt.Errorf("tulis: %w", err)
+	}
+	if out, err := exec.CommandContext(ctx, "git", "-C", root, "add", "--", rel).CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git add: %v: %s", err, trimStr(string(out), 200))
+	}
+	commit := exec.CommandContext(ctx, "git", "-C", root, "commit", "-m", msg, "--", rel)
+	commit.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=Flowork Evolusi", "GIT_AUTHOR_EMAIL=evolusi@flowork.local",
+		"GIT_COMMITTER_NAME=Flowork Evolusi", "GIT_COMMITTER_EMAIL=evolusi@flowork.local")
+	if out, err := commit.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git commit: %v: %s", err, trimStr(string(out), 200))
+	}
+	hash, _ := exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "--short", "HEAD").Output()
+	return strings.TrimSpace(string(hash)), nil
 }
 
 // evolveRepoRoot — root repo git (toplevel). Dari dir binary (portable, no-hardcode).

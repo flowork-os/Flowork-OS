@@ -4,10 +4,63 @@
 package main
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// evolveCommitFile beneran nge-commit ke repo (B2) — diuji di temp git repo (no real-repo risk).
+func TestEvolveCommitFile(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git ga ada")
+	}
+	repo := t.TempDir()
+	ctx := context.Background()
+	run := func(args ...string) {
+		c := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		c.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("init", "-q")
+	_ = os.WriteFile(filepath.Join(repo, "seed.txt"), []byte("x"), 0o644)
+	run("add", "-A")
+	run("commit", "-qm", "seed")
+
+	hash, err := evolveCommitFile(ctx, repo, "pkg/new.go", "package pkg\n", "evolve(auto): test")
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if hash == "" {
+		t.Fatal("empty hash")
+	}
+	// File ada + ke-commit.
+	if _, err := os.Stat(filepath.Join(repo, "pkg", "new.go")); err != nil {
+		t.Fatalf("file not written: %v", err)
+	}
+	logOut, _ := exec.Command("git", "-C", repo, "log", "-1", "--pretty=%an|%s").Output()
+	got := strings.TrimSpace(string(logOut))
+	if !strings.Contains(got, "Flowork Evolusi") || !strings.Contains(got, "evolve(auto): test") {
+		t.Errorf("commit author/msg salah: %q", got)
+	}
+	// Path-scoped: file dirty lain di working tree TIDAK ikut ke-commit.
+	_ = os.WriteFile(filepath.Join(repo, "dirty.txt"), []byte("y"), 0o644)
+	h2, err := evolveCommitFile(ctx, repo, "pkg/two.go", "package pkg\n", "evolve(auto): two")
+	if err != nil {
+		t.Fatalf("commit2: %v", err)
+	}
+	if h2 == hash {
+		t.Error("hash should advance")
+	}
+	st, _ := exec.Command("git", "-C", repo, "status", "--porcelain").Output()
+	if !strings.Contains(string(st), "dirty.txt") {
+		t.Error("dirty.txt should remain uncommitted (path-scoped commit)")
+	}
+}
 
 func TestEvolveSafeRepoPath(t *testing.T) {
 	root := "/repo"

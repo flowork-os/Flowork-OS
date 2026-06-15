@@ -337,9 +337,15 @@ func EvolveCoreApplyHandler(dep EvolveGateDeps, apply EvolveCoreApplier) http.Ha
 			out["test_output"] = res.TestOutput
 			out["diff_lines"] = strings.Count(res.Diff, "\n")
 			out["note"] = "Diff lolos test-gate → DISTAGE buat review owner (tab Evolution). Belum commit."
-		} else {
-			out["committed"] = res.Committed
+		} else if res.Committed {
+			// AUTO (B2): udah commit lokal ke core → proposal SELESAI.
+			_ = store.SetEvolveProposalStatus(id, "applied")
+			_, _ = store.IncrementKarma("evolve_coreapply_committed", 1)
+			out["committed"] = true
 			out["pushed"] = res.Pushed
+			out["diff_lines"] = strings.Count(res.Diff, "\n")
+			out["note"] = res.Note
+		} else {
 			out["note"] = res.Note
 		}
 		httpx.WriteJSON(w, out)
