@@ -262,7 +262,7 @@
     }
   ],
   "dispatch": {
-    "defaultModel": "claude-opus-4-8",
+    "defaultModel": "",
     "fallbackStrategy": "priority_ordered",
     "rtkTokenSaver": true,
     "intentRouting": {
