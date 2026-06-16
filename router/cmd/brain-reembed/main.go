@@ -110,9 +110,11 @@ func main() {
 			// Truncate konten kepanjangan (rune-safe) → cegah Ollama 400 "input length exceeds
 			// the context length" (bge-m3 ctx 4096 tok). Tanpa ini, 1 drawer kepanjangan = embed
 			// gagal → resume retry rowid SAMA → loop infinite (re-embed stuck, gak pernah DONE).
-			// 3000 rune aman utk semua bahasa; prefix cukup representatif buat embedding makna.
-			if r := []rune(it.txt); len(r) > 3000 {
-				it.txt = string(r[:3000])
+			// 1500 rune: konten dense/CJK bisa >1 token/rune, jadi 3000 rune masih ke-exceed
+			// ctx 4096 (terbukti); 1500 rune ≈ worst-case CJK ~3000 token < 4096 = aman. Prefix
+			// 1500 rune tetap representatif buat embedding makna drawer.
+			if r := []rune(it.txt); len(r) > 1500 {
+				it.txt = string(r[:1500])
 			}
 			items = append(items, it)
 		}
