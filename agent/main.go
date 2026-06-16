@@ -777,6 +777,8 @@ func main() {
 	// FASE 8: Curator skill (per-agent) — list+grade + jalanin curator.
 	mux.HandleFunc("/api/agents/skills", agentmgr.SkillsListHandler)
 	mux.HandleFunc("/api/agents/skills/curate", agentmgr.SkillsCurateHandler)
+	mux.HandleFunc("/api/skills/export", skillsExportHandler) // A2 fase-1: bundle SKILL.md → .fwskill pack
+	mux.HandleFunc("/api/skills/import", skillsImportHandler) // A2 fase-1: import .fwskill (owner-gated + verifier)
 	mux.HandleFunc("/api/agents/scheduler/runs", agentmgr.SchedulerRunsHandler)
 	mux.HandleFunc("/api/agents/scheduler/trigger", agentmgr.SchedulerTriggerHandler)
 	mux.HandleFunc("/api/agents/sneakernet/export", agentmgr.SneakernetExportHandler)
