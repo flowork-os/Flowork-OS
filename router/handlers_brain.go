@@ -4,6 +4,8 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — HTTP handler.
+// Update 2026-06-16 (owner-approved #6): brain search handler pakai brain.SemanticRetrieve (by-MAKNA)
+// ganti Retrieve (FTS). Re-locked.
 
 // Brain dashboard API for the shared knowledge brain..
 
@@ -264,7 +266,8 @@ func brainTestHandler(w http.ResponseWriter, r *http.Request) {
 	if topK <= 0 {
 		topK = 5
 	}
-	snips, _ := brain.Retrieve(r.Context(), db, body.Query, brain.RetrieveOpts{
+	// #6 (owner 2026-06-16): search by-MAKNA (SemanticRetrieve), fallback FTS sementara.
+	snips, _ := brain.SemanticRetrieve(r.Context(), db, body.Query, brain.RetrieveOpts{
 		Limit: topK, Wings: body.Wings, MaxContentLen: 400,
 	})
 	skills := brain.SelectSkills(body.Query, 3)

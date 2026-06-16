@@ -4,6 +4,8 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Audit pass — Brain drawer/embeddings/skills.
+// Update 2026-06-16 (owner-approved #6): auto-context agent pakai brain.SemanticRetrieve (by-MAKNA)
+// ganti Retrieve (FTS). Re-locked.
 // 2026-06-13 (release audit → test → re-lock): added MaxSkillBodyChars cap to buildBrainSystem
 //   (capSkillBody, default 0 = legacy no-cap). PROVEN: dumping big external skills (24×~11KB) sent
 //   the commander prompt 2791→10764 tok (+286%); cap=700 dropped it to 756 (−93%). Lets big skills
@@ -87,7 +89,9 @@ func maybeEnrichBrain(ctx context.Context, req *OpenAIRequest, settings *store.S
 	if maxLen <= 0 {
 		maxLen = 600
 	}
-	snips, err := brain.Retrieve(ctx, db, query, brain.RetrieveOpts{
+	// #6 (owner 2026-06-16): auto-context agent pakai SemanticRetrieve (by-MAKNA) — grounding agent
+	// jadi semantik, bukan keyword. Fallback FTS otomatis selama index belum jadi.
+	snips, err := brain.SemanticRetrieve(ctx, db, query, brain.RetrieveOpts{
 		Limit: topK, Wings: settings.Brain.Wings, MaxContentLen: maxLen,
 	})
 	if err != nil {

@@ -101,7 +101,8 @@ func embedQueryLocal(ctx context.Context, query string) ([]float32, error) {
 }
 
 // vectorRetrieve — semantic murni: embed -> vecindex top-k -> konten dari drawers. nil kalau off.
-func vectorRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen int) []Snippet {
+// wings (opsional): batasi ke wing tertentu (over-fetch lalu filter SQL — jaga paritas dgn FTS).
+func vectorRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen int, wings []string) []Snippet {
 	idx := loadVIndex()
 	if idx == nil || db == nil {
 		return nil
@@ -110,18 +111,30 @@ func vectorRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen
 	if err != nil || len(qv) != idx.Dim() {
 		return nil
 	}
-	hits := idx.Search(qv, limit)
+	searchK := limit
+	if len(wings) > 0 {
+		searchK = limit * 6 // over-fetch: sebagian bakal kebuang filter wing
+	}
+	hits := idx.Search(qv, searchK)
 	if len(hits) == 0 {
 		return nil
 	}
 	ph := make([]string, len(hits))
-	args := make([]any, len(hits))
+	args := make([]any, 0, len(hits)+len(wings))
 	for i, h := range hits {
 		ph[i] = "?"
-		args[i] = h.ID
+		args = append(args, h.ID)
 	}
-	rows, err := db.QueryContext(ctx,
-		"SELECT id, wing, room, content FROM drawers WHERE id IN ("+strings.Join(ph, ",")+")", args...)
+	q := "SELECT id, wing, room, content FROM drawers WHERE id IN (" + strings.Join(ph, ",") + ")"
+	if len(wings) > 0 {
+		wp := make([]string, len(wings))
+		for i, w := range wings {
+			wp[i] = "?"
+			args = append(args, w)
+		}
+		q += " AND wing IN (" + strings.Join(wp, ",") + ")"
+	}
+	rows, err := db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil
 	}
@@ -136,15 +149,18 @@ func vectorRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen
 			byID[id] = Snippet{DrawerID: id, Wing: wing, Room: room, Content: content}
 		}
 	}
-	// jaga URUTAN vector (relevansi makna), skor = dot ter-normalisasi (0,1].
-	out := make([]Snippet, 0, len(hits))
+	// jaga URUTAN vector (relevansi makna); skor = dot ter-normalisasi (0,1]. Cap di limit.
+	out := make([]Snippet, 0, limit)
 	var top float64 = 1
-	if len(hits) > 0 && hits[0].Score > 0 {
+	if hits[0].Score > 0 {
 		top = float64(hits[0].Score)
 	}
 	for _, h := range hits {
+		if len(out) >= limit {
+			break
+		}
 		if sn, ok := byID[h.ID]; ok {
-			sn.Score = float64(h.Score) / top // 1.0 buat teratas, turun (relatif)
+			sn.Score = float64(h.Score) / top
 			out = append(out, sn)
 		}
 	}
@@ -152,13 +168,14 @@ func vectorRetrieve(ctx context.Context, db *sql.DB, query string, limit, maxLen
 }
 
 // SemanticRetrieve — ARSITEK BARU (by-makna). Vector murni kalau index siap; FTS SEMENTARA kalau
-// belum (transisi). BUKAN hybrid/fusion. Drop-in pengganti Retrieve di handler search-drawers.
+// belum (transisi). BUKAN hybrid/fusion. Drop-in pengganti Retrieve di SEMUA jalur search agent
+// (search-drawers, enrichment auto-context, handler search). Hormatin opts.Wings.
 func SemanticRetrieve(ctx context.Context, db *sql.DB, query string, opts RetrieveOpts) ([]Snippet, error) {
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 6
 	}
-	if vec := vectorRetrieve(ctx, db, query, limit, opts.MaxContentLen); len(vec) > 0 {
+	if vec := vectorRetrieve(ctx, db, query, limit, opts.MaxContentLen, opts.Wings); len(vec) > 0 {
 		return vec, nil // semantic murni (arsitek baru)
 	}
 	return Retrieve(ctx, db, query, opts) // fallback SEMENTARA (index belum jadi)

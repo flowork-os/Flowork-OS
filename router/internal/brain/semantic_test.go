@@ -27,7 +27,7 @@ func TestSemanticLive(t *testing.T) {
 		t.Fatalf("index gak ke-load dari %s", idxP)
 	}
 	// vectorRetrieve langsung (vector murni) — buktiin bukan FTS fallback.
-	vec := vectorRetrieve(context.Background(), db, "honeypot rug pull scam token", 5, 100)
+	vec := vectorRetrieve(context.Background(), db, "honeypot rug pull scam token", 5, 100, nil)
 	t.Logf("vector murni balik %d snippet (by-makna):", len(vec))
 	for i, s := range vec {
 		t.Logf("  %d. [%.4f] (%s) %s", i+1, s.Score, s.Wing, s.Content)
