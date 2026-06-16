@@ -359,6 +359,18 @@ func handleMessage(argsJSON string) {
 		return
 	}
 
+	// Saham/investasi PRE-ROUTER (deterministik) → ASYNC. Tim investment (6 agent) di model LOKAL
+	// >4 menit → kalau sync, channel timeout ("loket: no response", OPS-1). Solusi: delegasi ASYNC
+	// via task_run (category "saham" = mirror group investment) — balik ACK CEPET, crew jalan di
+	// background, hasil dikabarin balik ke chat pas kelar (notifyTelegram). Bot gak pernah timeout.
+	if in.ChatID != 0 && isInvestmentCommand(in.Text) {
+		args := json.RawMessage(`{"category":"saham","subject":` + jsonStr(in.Text) +
+			`,"notify_chat_id":` + jsonStr(strconv.FormatInt(in.ChatID, 10)) + `}`)
+		_ = toolRun("task_run", args) // async: run jalan di belakang, notify Telegram pas kelar
+		emit(map[string]any{"reply": "⏳ Oke bro, gw lempar ke Tim Saham — lagi dianalisa (harga, fundamental, teknikal, risiko). Beberapa menit ya, hasilnya gw kabarin di chat ini pas kelar 📈", "agent": selfID()})
+		return
+	}
+
 	// Doctrine is SACRED and injected FIRST — the always-on anti-halu layer.
 	doktrin := readWS("doktrin.md")
 	persona := readWS("prompt.md")
@@ -1030,6 +1042,21 @@ func isComputerCommand(text string) bool {
 // problem through with the `thinking` GROUP, so mr-flow delegates reliably instead
 // of the LLM choosing to answer (or ask back) on its own. Kept specific so it never
 // hijacks ordinary chat.
+// isInvestmentCommand — deteksi niat analisa SAHAM/investasi (owner's persona: SEMUA saham WAJIB
+// ke tim investment). Dipakai pre-router ASYNC (di bawah) — tim investment 6-agent di model LOKAL
+// >4 menit, jadi gak bisa sync (timeout). Keyword sengaja sempit (saham/emiten/ihsg/bursa) biar
+// gak salah-trigger chat biasa.
+func isInvestmentCommand(text string) bool {
+	s := strings.ToLower(text)
+	kw := []string{"saham", "emiten", "ihsg", "bursa efek", "bursa saham"}
+	for _, k := range kw {
+		if strings.Contains(s, k) {
+			return true
+		}
+	}
+	return false
+}
+
 func isThinkingCommand(text string) bool {
 	s := strings.ToLower(text)
 	kw := []string{

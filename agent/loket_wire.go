@@ -49,7 +49,7 @@ import (
 // "stop / collect-partial" lifecycle). Registered here (non-frozen) so the frozen kernel
 // (internal/loket/providers.go) never needs editing again to change coordination.
 func init() {
-	budget := 120 * time.Second
+	budget := 240 * time.Second // 240s (was 120s, OPS-1 2026-06-16): group/council fan-out members on the LOCAL model can need >120s; override via FLOWORK_FANOUT_BUDGET.
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_FANOUT_BUDGET")); v != "" {
 		if d, err := time.ParseDuration(v); err == nil && d > 0 {
 			budget = d
@@ -208,7 +208,12 @@ func llmCompleteProvider(ctx context.Context, _ string, args json.RawMessage) (j
 	// never an exfil vector.
 	url := routerclient.New(os.Getenv("ROUTER_DEFAULT_URL")).BaseURL + "/v1/chat/completions"
 
-	cctx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	// 240s (was 120s, owner-approved 2026-06-16): the llm.complete provider cap that EVERY agent LLM
+	// call rides through. On the slow LOCAL model a heavy generation (e.g. a crew SYNTHESIZER ngerangkum
+	// banyak analis + RAG) routinely needs >120s; the old cap cut it mid-stream → agent fell back to
+	// "LLM offline". This was the layer OPS-1 missed (it fixed CallHandler + http client, NOT this
+	// provider context). Ceiling only — fast calls still return fast.
+	cctx, cancel := context.WithTimeout(ctx, 240*time.Second)
 	defer cancel()
 	// Light retry on transient 5xx / network blips — the same failure the legacy
 	// agent rode out (router 502 "all providers failed", anthropic 529 overload).

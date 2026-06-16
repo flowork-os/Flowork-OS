@@ -67,9 +67,12 @@ func loketCall(capName string, args any) (json.RawMessage, error) {
 	body, _ := json.Marshal(map[string]any{"cap": capName, "args": json.RawMessage(argsJSON)})
 
 	reqJSON, _ := json.Marshal(map[string]any{
-		"method":         "POST",
-		"url":            loketURL,
-		"timeout_ms":     120000,
+		"method": "POST",
+		"url":    loketURL,
+		// 240s (was 120s) — match kernel loket CallHandler + mr-flow-next (OPS-1, owner-approved
+		// 2026-06-16). Crew SYNTHESIZER (ngerangkum output banyak analis + RAG) generate LAMA di
+		// model LOKAL; 120s ke-cut di tengah → "LLM offline". 240s kasih ruang synth kelar.
+		"timeout_ms":     240000,
 		"max_resp_bytes": 4 << 20,
 		"headers":        map[string]string{"Content-Type": "application/json"},
 		"body_base64":    base64.StdEncoding.EncodeToString(body),
