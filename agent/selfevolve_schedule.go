@@ -1,6 +1,7 @@
 // === LOCKED FILE (soft) === Status: STABLE — DO NOT MODIFY without owner approval (LOCKED ≠ FREEZE).
 // Owner: Aola Sahidin (Mr.Dev) · Locked 2026-06-16. Reason: R7 Milestone D trigger terjadwal. VERIFIED
-// Update 2026-06-16 (owner-approved): + JANITOR anti-numpuk tiap siklus (prune usulan rejected).
+// Update 2026-06-16 (owner-approved): + JANITOR anti-numpuk tiap siklus (prune usulan rejected)
+// + SELF-BOOTSTRAP eval strong-model (sekali, otonom, cache persisten) biar gerbang nyalain diri.
 // E2E: schedule config get/set; run=1 mode=off→reflect 5, no auto-apply (gate closed); run=1 mode=auto→
 // reflect + AUTO-APPLY 3 behavior (2 skill+1 agent), 2 core di-skip (review). Loop otonom penuh nyala.
 //
@@ -67,6 +68,15 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 	}
 	_ = db.SetKV("evolve_schedule_last", time.Now().UTC().Format(time.RFC3339))
 
+	// SELF-BOOTSTRAP EVAL (otonom): kalau model kuat belum pernah dievaluasi, jalanin SEKALI di sini —
+	// gak nyuruh owner klik "Evaluate". Hasil di-cache PERSISTEN (DB) → cuma sekali walau restart.
+	// Visi owner: Flowork tetep berevolusi walau owner gak ada → gerbang strong-model nyalain diri.
+	var evalBootstrap map[string]any
+	if !capabilityEvaluated() {
+		er := evolveEvalAndCache()
+		evalBootstrap = map[string]any{"model": er.Model, "passed": er.Passed, "score": er.Score, "total": er.Total}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
 	defer cancel()
 	saved, rerr := agentmgr.EvolveReflectOnce(ctx, evolveProposer(), "refleksi terjadwal otonom")
@@ -74,6 +84,9 @@ func runEvolveScheduledCycle(host *kernelhost.Host, fdb *floworkdb.Store, groups
 		return map[string]any{"error": "refleksi: " + rerr.Error()}
 	}
 	out := map[string]any{"ok": true, "reflected": len(saved), "proposals": saved}
+	if evalBootstrap != nil {
+		out["eval_bootstrap"] = evalBootstrap
+	}
 	// mode=auto → auto-apply behavior (gated internal; return kosong kalau belum auto).
 	applied := agentmgr.EvolveScheduleAutoApply(evolveGateDeps(), evolveApplier(host, fdb, groups), evolveCouncilJudge(), saved)
 	if len(applied) > 0 {

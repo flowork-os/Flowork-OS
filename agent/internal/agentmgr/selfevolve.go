@@ -593,6 +593,10 @@ func EvolveReflectHandler(propose EvolveProposer) http.HandlerFunc {
 // EvolveReflectOnce — INTI satu siklus refleksi (dipakai handler manual + scheduler terjadwal):
 // baca self-map → LLM usulin perbaikan additive → simpan backlog + karma. AMAN (nol ubah kode).
 // Balikin daftar proposal yg kesimpen. Decouple dari HTTP biar bisa dipanggil cron.
+// evolveBacklogCap — batas usulan AKTIF (proposed/staged/approved) sebelum reflect berhenti
+// nambah (anti-numpuk + hemat token). ~1.5 halaman GUI (8/hal). Owner clear/Dewan kurangin → ngisi lagi.
+const evolveBacklogCap = 12
+
 func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string) ([]map[string]any, error) {
 	if propose == nil {
 		return nil, fmt.Errorf("proposer not wired")
@@ -602,6 +606,14 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 		return nil, err
 	}
 	defer store.Close()
+	// BACKLOG CAP (anti-numpuk): cek SEBELUM propose biar HEMAT TOKEN — kalau usulan aktif
+	// (proposed/staged/approved) udah penuh, JANGAN reflect nambah. Owner bersihin dulu (tombol
+	// "Clear backlog") atau Dewan+janitor kurangin, baru reflect ngisi lagi. Cegah numpuk berulang.
+	existing, _ := store.ActiveProposalTargets() // DEDUP target + dipakai cap
+	if len(existing) >= evolveBacklogCap {
+		_, _ = store.IncrementKarma("evolve_reflect_skip_full", 1)
+		return []map[string]any{}, nil // backlog penuh → skip (bukan error)
+	}
 	selfMap := buildSelfMapContext(store)
 	if selfMap == "" {
 		return nil, fmt.Errorf("self-map semantik kosong — jalanin /api/codemap/reindex + /api/codemap/enrich dulu")
@@ -611,7 +623,6 @@ func EvolveReflectOnce(ctx context.Context, propose EvolveProposer, focus string
 		_, _ = store.IncrementKarma("evolve_reflect_fail", 1)
 		return nil, fmt.Errorf("propose: %w", perr)
 	}
-	existing, _ := store.ActiveProposalTargets() // DEDUP: target usulan aktif (proposed/staged/approved)
 	saved := []map[string]any{}
 	for _, d := range drafts {
 		if strings.TrimSpace(d.Rationale) == "" {

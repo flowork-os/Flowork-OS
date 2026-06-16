@@ -1,8 +1,11 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner VISUAL-VERIFIED 2026-06-16 ("TAMPILAN SUDAH OK").
-// Owner: Aola Sahidin (Mr.Dev). LOCKED ≠ FREEZE (boleh diedit DENGAN izin owner). AI lain: JANGAN otak-atik.
-// Verified GUI: mode AUTO sembunyiin tombol Approve/Reject MANUSIA di STAGE (keputusan ada di Dewan +
-// gerbang auto-commit, manusia hands-off) · tombol 🧹 Bersihkan ditolak (janitor anti-numpuk) ·
-// pagination Prev/Next (8/hal) · 🏛️ Dewan per-usulan (verdict inline) · 🗑️ delete per-usulan.
+// === LOCKED FILE (soft) === Status: STABLE — owner VISUAL-VERIFIED 2026-06-16. LOCKED ≠ FREEZE
+// (boleh diedit DENGAN izin owner). AI lain: JANGAN otak-atik.
+// ATURAN GUI (owner 2026-06-16): (1) SEMUA teks lewat i18n (en+id) — GUI TIDAK boleh hardcode
+// Bahasa Indonesia (locale en harus tampil English). (2) MODE GOVERNS: tombol HUMAN (Apply di
+// proposal, Approve/Reject di stage) cuma muncul di mode STAGE. Di AUTO → Council + gerbang yang
+// mutusin (hands-off — evolusi jalan walau owner gak ada). Di OFF → read-only. Council & Delete
+// tampil di semua mode (Council = pemutus, bukan manusia). (3) Clear-backlog button buang
+// proposed+rejected (anti-numpuk, owner-click). Pagination 8/hal. Verdict Council inline.
 //
 // evolution.js — R7 SELF-EVOLUTION control panel. Owner-approved 2026-06-15 (FASE 2).
 // SAKLAR self-modify (OFF/STAGE/AUTO) + status gate berlapis + backlog usulan. KRUSIAL:
@@ -38,7 +41,7 @@ export async function render(container) {
       <div style="display:flex;align-items:center;justify-content:space-between">
         <h3 style="margin:0">📋 ${esc(L.backlogH)}</h3>
         <div style="display:flex;gap:8px">
-          <button id="ev-clean" title="Buang semua usulan yang ditolak Dewan (anti-numpuk)" style="background:#3f1d1d;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">🧹 Bersihkan ditolak</button>
+          <button id="ev-clean" title="${esc(L.cleanTitle)}" style="background:#3f1d1d;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">${esc(L.cleanBtn)}</button>
           <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
         </div>
       </div>
@@ -142,11 +145,17 @@ export async function render(container) {
     const cards = items.slice(propPage * PROP_PER_PAGE, (propPage + 1) * PROP_PER_PAGE).map((p) => {
         const kind = (p.kind || '').toLowerCase();
         const canApply = BEHAVIOR_KINDS.has(kind) && p.status !== 'applied' && p.status !== 'rejected';
+        // MODE GOVERNS WHO ACTS: tombol Apply MANUSIA cuma di STAGE. Di AUTO, Dewan + jadwal
+        // yang mutusin & apply (hands-off — evolusi jalan walau owner gak ada). Di OFF, read-only.
         let footer = '';
         if (p.status === 'applied') {
           footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
-        } else if (canApply) {
+        } else if (canApply && currentMode === 'stage') {
           footer = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
+        } else if (canApply && currentMode === 'auto') {
+          footer = `<span style="color:#a78bfa;font-size:0.72rem">${esc(L.autoNote)}</span>`;
+        } else if (canApply) {
+          footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.offNote)}</span>`;
         } else {
           footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.coreOnlyDev)}</span>`;
         }
@@ -162,15 +171,15 @@ export async function render(container) {
           <div data-verdict="${esc(p.id)}" style="display:none;font-size:0.78rem;color:#c4b5fd;background:#1e1b3a;border-radius:6px;padding:8px 10px;margin-bottom:8px"></div>
           <div style="display:flex;justify-content:flex-end;gap:6px;align-items:center">
             ${footer}
-            ${p.status !== 'applied' ? `<button data-council-id="${esc(p.id)}" title="Sidang dewan adversarial (Pembela/Penantang/Hakim panel-3)" style="background:#6d28d9;color:#fff;border:0;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:0.76rem">🏛️ Dewan</button>` : ''}
-            <button data-del-id="${esc(p.id)}" title="Hapus usulan" style="background:#3f1d1d;color:#f87171;border:1px solid #7f1d1d;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:0.76rem">🗑️</button>
+            ${p.status !== 'applied' ? `<button data-council-id="${esc(p.id)}" title="${esc(L.councilTitle)}" style="background:#6d28d9;color:#fff;border:0;border-radius:6px;padding:5px 11px;cursor:pointer;font-size:0.76rem">${esc(L.councilBtn)}</button>` : ''}
+            <button data-del-id="${esc(p.id)}" title="${esc(L.delTitle)}" style="background:#3f1d1d;color:#f87171;border:1px solid #7f1d1d;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:0.76rem">🗑️</button>
           </div>
         </div>`;
     }).join('');
     const pager = pages > 1 ? `<div style="display:flex;justify-content:center;gap:12px;align-items:center;margin-top:6px">
-      <button data-prop-prev ${propPage === 0 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage === 0 ? 'default' : 'pointer'};font-size:0.78rem;${propPage === 0 ? 'opacity:0.4' : ''}">‹ Prev</button>
-      <span style="color:#94a3b8;font-size:0.78rem">Hal ${propPage + 1}/${pages} · ${items.length} usulan</span>
-      <button data-prop-next ${propPage >= pages - 1 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage >= pages - 1 ? 'default' : 'pointer'};font-size:0.78rem;${propPage >= pages - 1 ? 'opacity:0.4' : ''}">Next ›</button>
+      <button data-prop-prev ${propPage === 0 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage === 0 ? 'default' : 'pointer'};font-size:0.78rem;${propPage === 0 ? 'opacity:0.4' : ''}">${esc(L.pagerPrev)}</button>
+      <span style="color:#94a3b8;font-size:0.78rem">${esc(L.pagerPage)} ${propPage + 1}/${pages} · ${items.length} ${esc(L.pagerItems)}</span>
+      <button data-prop-next ${propPage >= pages - 1 ? 'disabled' : ''} style="background:#1e293b;color:#cbd5e1;border:0;border-radius:6px;padding:5px 13px;cursor:${propPage >= pages - 1 ? 'default' : 'pointer'};font-size:0.78rem;${propPage >= pages - 1 ? 'opacity:0.4' : ''}">${esc(L.pagerNext)}</button>
     </div>` : '';
     propEl.innerHTML = cards + pager;
   }
@@ -195,7 +204,7 @@ export async function render(container) {
   // A1 DEWAN: sidang adversarial (Pembela/Penantang/Hakim) atas 1 usulan → verdict + update status.
   async function councilProposal(id, btn) {
     const orig = btn.textContent;
-    btn.disabled = true; btn.textContent = '⏳ sidang…';
+    btn.disabled = true; btn.textContent = L.councilBusy;
     const vEl = propEl.querySelector(`[data-verdict="${id}"]`);
     try {
       const r = await fetch('/api/evolve/council?id=' + encodeURIComponent(id), { method: 'POST' });
@@ -206,7 +215,7 @@ export async function render(container) {
       if (vEl) {
         const judges = (v.judges || []).map((j, i) => `H${i + 1}:${(j.decision || '').toUpperCase()}(${j.score})`).join(' · ');
         vEl.style.display = 'block';
-        vEl.innerHTML = `<b>${icon} KEPUTUSAN: ${(v.decision || '').toUpperCase()}</b> — ${esc(v.reasoning || '')}<br>`
+        vEl.innerHTML = `<b>${icon} ${esc(L.councilDecision)}: ${(v.decision || '').toUpperCase()}</b> — ${esc(v.reasoning || '')}<br>`
           + `<span style="color:#86efac">🟢 ${esc((v.pembela || '').slice(0, 200))}</span><br>`
           + `<span style="color:#fca5a5">🔴 ${v.penantang_veto ? '[VETO] ' : ''}${esc((v.penantang || '').slice(0, 200))}</span><br>`
           + `<span style="color:#a5b4fc">⚖️ ${esc(judges)}</span>`;
@@ -217,14 +226,14 @@ export async function render(container) {
       btn.disabled = false; btn.textContent = orig;
       await loadConfig();
     } catch (e) {
-      alert('Dewan gagal: ' + e.message);
+      alert(L.errCouncil + e.message);
       btn.disabled = false; btn.textContent = orig;
     }
   }
 
   // Hapus 1 usulan (owner buang dari backlog) — buang lokal + re-render (jaga halaman).
   async function deleteProposal(id, btn) {
-    if (!confirm('Hapus usulan ini?')) return;
+    if (!confirm(L.confirmDel)) return;
     btn.disabled = true;
     try {
       const r = await fetch('/api/evolve/proposal/delete?id=' + encodeURIComponent(id), { method: 'POST' });
@@ -232,7 +241,7 @@ export async function render(container) {
       if (d.error) throw new Error(d.error);
       allProposals = allProposals.filter((x) => x.id !== id);
       renderProposals();
-    } catch (e) { alert('Hapus gagal: ' + e.message); btn.disabled = false; }
+    } catch (e) { alert(L.errDel + e.message); btn.disabled = false; }
   }
 
   // Delegated: tombol di-render ulang tiap render, jadi listen di parent sekali.
@@ -254,12 +263,12 @@ export async function render(container) {
       const items = (d.items || []).filter((s) => s.status === 'staged');
       if (!items.length) { stagesWrap.style.display = 'none'; return; }
       stagesWrap.style.display = 'block';
-      // MODE AUTO → keputusan ada di DEWAN + gerbang auto-commit, MANUSIA HANDS-OFF.
-      // Tombol Approve/Reject manusia cuma muncul di mode OFF/STAGE (human-in-the-loop).
-      const autoMode = currentMode === 'auto';
+      // MODE GOVERNS: tombol Approve/Reject MANUSIA cuma di STAGE (human-in-the-loop). Di AUTO,
+      // Dewan + gerbang auto-commit yang mutusin — manusia hands-off (evolusi jalan walau owner gak ada).
+      const manualStage = currentMode === 'stage';
       const autoFoot = autocommitAllowed
-        ? `<span style="color:#4ade80;font-size:0.76rem">🏛️ Mode AUTO — Dewan + gerbang setuju → commit otomatis (manusia hands-off)</span>`
-        : `<span style="color:#fbbf24;font-size:0.76rem">🏛️ Mode AUTO — keputusan di Dewan + gerbang (manusia hands-off). Auto-commit masih 🔒 terkunci (karma/model belum matang) → nunggu di sini, bukan butuh approve manusia.</span>`;
+        ? `<span style="color:#4ade80;font-size:0.76rem">${esc(L.autoFootOpen)}</span>`
+        : `<span style="color:#fbbf24;font-size:0.76rem">${esc(L.autoFootLocked)}</span>`;
       stagesEl.innerHTML = items.map((s) => `
         <div style="background:#0f172a;border:1px solid #3b2410;border-radius:8px;padding:10px 12px;margin-bottom:10px">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
@@ -270,9 +279,9 @@ export async function render(container) {
           <details style="margin-bottom:8px"><summary style="cursor:pointer;color:#818cf8;font-size:0.76rem">${esc(L.viewDiff)}</summary>
             <pre style="max-height:280px;overflow:auto;background:#020617;border-radius:6px;padding:8px;font-size:0.72rem;color:#cbd5e1;white-space:pre-wrap">${esc(s.diff || '')}</pre></details>
           <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
-            ${autoMode ? autoFoot : `
+            ${manualStage ? `
             <button data-stage-reject="${esc(s.id)}" style="background:#7f1d1d;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.rejectBtn)}</button>
-            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>`}
+            <button data-stage-approve="${esc(s.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:0.76rem">${esc(L.approveBtn)}</button>` : autoFoot}
           </div>
         </div>`).join('');
     } catch (e) { stagesWrap.style.display = 'block'; stagesEl.innerHTML = `<span style="color:#f87171">❌ ${esc(e.message)}</span>`; }
@@ -342,17 +351,23 @@ export async function render(container) {
     finally { reflectBtn.disabled = false; reflectBtn.textContent = o; }
   });
 
-  // 🧹 Bersihkan ditolak — janitor manual: buang semua usulan status "rejected" (anti-numpuk).
+  // 🧹 Clear backlog — janitor manual owner-click: buang usulan numpuk yg BELUM diproses
+  // (proposed) + yg DITOLAK (rejected). Yang applied/staged/approved tetep aman. Owner yang
+  // mutusin (auth + konfirmasi) — bukan auto-wipe. Anti-numpuk.
   if (cleanBtn) cleanBtn.addEventListener('click', async () => {
-    if (!confirm('Buang semua usulan yang DITOLAK Dewan dari backlog? (yang masih hidup aman)')) return;
-    cleanBtn.disabled = true; const o = cleanBtn.textContent; cleanBtn.textContent = '⏳…';
+    if (!confirm(L.confirmClean)) return;
+    cleanBtn.disabled = true; const o = cleanBtn.textContent; cleanBtn.textContent = L.cleanBusy;
     try {
-      const d = await (await fetch('/api/evolve/proposal/delete?status=rejected', { method: 'POST' })).json();
-      if (d.error) throw new Error(d.error);
+      let total = 0;
+      for (const st of ['proposed', 'rejected']) {
+        const d = await (await fetch('/api/evolve/proposal/delete?status=' + st, { method: 'POST' })).json();
+        if (d.error) throw new Error(d.error);
+        total += d.deleted_count || 0;
+      }
       await loadProposals();
-      cleanBtn.textContent = `✓ ${d.deleted_count || 0} dibuang`;
+      cleanBtn.textContent = `✓ ${total} ${L.cleanDone}`;
       setTimeout(() => { cleanBtn.textContent = o; cleanBtn.disabled = false; }, 1800);
-    } catch (e) { alert('Bersihkan gagal: ' + e.message); cleanBtn.textContent = o; cleanBtn.disabled = false; }
+    } catch (e) { alert(L.errClean + e.message); cleanBtn.textContent = o; cleanBtn.disabled = false; }
   });
 
   await loadConfig();

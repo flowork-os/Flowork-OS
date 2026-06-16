@@ -15,12 +15,16 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"flowork-gui/internal/floworkdb"
 )
 
 // capResult — hasil eval kapabilitas 1 model.
@@ -148,7 +152,63 @@ func capabilityMeetsBar() (bool, string) {
 		r := c.(capResult)
 		return r.Passed, model + ": " + r.Detail + " (" + itoaSmall(r.Score) + "/" + itoaSmall(r.Total) + ")"
 	}
+	// FALLBACK PERSISTEN: cache in-memory ilang tiap restart. Baca dari KV (DB) → eval gak perlu
+	// diulang tiap boot (hemat token + gerbang strong-model tetep "lulus" walau abis restart).
+	if r, ok := capCacheLoad(model); ok {
+		capCache.Store(model, r) // warm in-memory
+		return r.Passed, model + ": " + r.Detail + " (" + itoaSmall(r.Score) + "/" + itoaSmall(r.Total) + ")"
+	}
 	return false, model + ": belum dievaluasi — klik Evaluate"
+}
+
+// capabilityEvaluated — true kalau model AKTIF udah pernah dievaluasi (lulus ATAU gagal), in-memory
+// atau persisten. Dipakai self-bootstrap cron biar eval cuma jalan SEKALI (gak ngulang tiap siklus).
+func capabilityEvaluated() bool {
+	model := coderModel("")
+	if _, ok := capCache.Load(model); ok {
+		return true
+	}
+	if _, ok := capCacheLoad(model); ok {
+		return true
+	}
+	return false
+}
+
+// capCacheKey — KV key hasil eval per-model.
+func capCacheKey(model string) string { return "evolve_capcache:" + model }
+
+// capCachePersist — simpan hasil eval ke KV (DB) biar survive restart. Format: passed|score|total|at|detail.
+func capCachePersist(r capResult) {
+	db, err := floworkdb.Shared()
+	if err != nil {
+		return
+	}
+	pass := 0
+	if r.Passed {
+		pass = 1
+	}
+	_ = db.SetKV(capCacheKey(r.Model), fmt.Sprintf("%d|%d|%d|%d|%s", pass, r.Score, r.Total, r.At, r.Detail))
+}
+
+// capCacheLoad — baca hasil eval persisten dari KV. ok=false kalau belum pernah dievaluasi.
+func capCacheLoad(model string) (capResult, bool) {
+	db, err := floworkdb.Shared()
+	if err != nil {
+		return capResult{}, false
+	}
+	v, _ := db.GetKV(capCacheKey(model))
+	if strings.TrimSpace(v) == "" {
+		return capResult{}, false
+	}
+	p := strings.SplitN(v, "|", 5)
+	if len(p) < 5 {
+		return capResult{}, false
+	}
+	pass, _ := strconv.Atoi(p[0])
+	score, _ := strconv.Atoi(p[1])
+	total, _ := strconv.Atoi(p[2])
+	at, _ := strconv.ParseInt(p[3], 10, 64)
+	return capResult{Model: model, Passed: pass == 1, Score: score, Total: total, At: at, Detail: p[4]}, true
 }
 
 // evolveEvalAndCache — jalanin eval kapabilitas model aktif (BLOCKING ~90s) + cache.
@@ -162,6 +222,7 @@ func evolveEvalAndCache() capResult {
 	defer cancel()
 	r := runCapabilityEval(ctx, model)
 	capCache.Store(model, r)
+	capCachePersist(r) // survive restart → eval gak perlu diulang tiap boot
 	return r
 }
 
