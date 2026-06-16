@@ -1,3 +1,8 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-16 (LOCKED ≠ FREEZE). AI lain:
+// JANGAN otak-atik tanpa izin owner. Sisi main self-evolution: proposer LLM + evolveGateDeps
+// (edition dev/public, ModelStrong=capabilityMeetsBar). Prompt KIND-RULES (kode≠add-skill) + LARANG
+// delete/LOCKED. coderModel()=Opus buat evolusi. Wire ke agentmgr (loop autonomy di sana).
+//
 // selfevolve.go — R7 SELF-EVOLUTION fase-1 (sisi main: proposer LLM). Owner-approved
 // 2026-06-15 (FASE 2 autonomi). Wire routerChat ke agentmgr.EvolveReflectHandler:
 // kasih self-map semantik (R6) → LLM usulin perbaikan ADDITIVE & AMAN. FASE-1 = usulan
