@@ -83,7 +83,9 @@ SOV_SEED="${FLOWORK_SOVEREIGN_SEED:-}"
 done
 if [ -f "$SOV_SEED" ] && [ -f "$ROUTER_SRC/seed/router-config.seed.json" ]; then
 	RSRC="$WORK/router-src"; rm -rf "$RSRC"; cp -a "$ROUTER_SRC" "$RSRC"
-	rm -rf "$RSRC/.git"; rm -f "$RSRC"/*.db 2>/dev/null || true
+	# drop giant runtime DATA dirs — NOT compile inputs (router only embeds seed/web/i18n).
+	# Copying brain (~33G) + models (~14G) into scratch was bloating os/.work ~47G PER BUILD.
+	rm -rf "$RSRC/.git" "$RSRC/brain" "$RSRC/models" "$RSRC/out" "$RSRC/bin"; rm -f "$RSRC"/*.db 2>/dev/null || true
 	cp "$SOV_SEED" "$RSRC/seed/router-config.seed.json"
 	build_static "$RSRC" flowork-router
 	log "  router built with SOVEREIGN seed (first run routes to local Ollama)"
