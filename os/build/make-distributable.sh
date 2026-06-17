@@ -15,7 +15,7 @@
 #   env:   FLOWORK_HOME (dev source of live state, default ~/.flowork)
 set -euo pipefail
 MODE="${1:-}"; SIZE="${2:-6G}"
-case "$MODE" in public|dev) ;; *) echo "usage: $0 <public|dev> [SIZE]" >&2; exit 2;; esac
+case "$MODE" in public|dev|simple) ;; *) echo "usage: $0 <public|dev|simple> [SIZE]" >&2; exit 2;; esac
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SELF_DIR/.." && pwd)"
@@ -40,6 +40,17 @@ if [ "$MODE" = public ]; then
 	export FLOWORK_AB_SIZE="${FLOWORK_AB_SIZE:-1600M}"
 	USB_SIZE="${PUBLIC_SIZE:-3000M}"   # +launcher partition (~320M) over the bare 2.6G
 	echo "    public: secrets -> change_this_token, NO model, slim image ($USB_SIZE), DATA auto-grows on boot"
+elif [ "$MODE" = simple ]; then
+	# simple: bake the owner's SETTINGS/credentials (flowork.db) so the stick boots configured,
+	# but NO local LLM/model — it relies on the cloud router (ideal for a slow PC). Slim image.
+	export FLOWORK_SOVEREIGN_SEED="$SOV_REAL"
+	export FLOWORK_STATE_SEED="${FLOWORK_STATE_SEED:-${FLOWORK_HOME:-$HOME/.flowork}}"
+	export FLOWORK_NO_MODEL=1
+	export FLOWORK_AB_SIZE="${FLOWORK_AB_SIZE:-1600M}"
+	USB_SIZE="${SIMPLE_SIZE:-3000M}"
+	[ -f "$FLOWORK_STATE_SEED/flowork.db" ] \
+		&& echo "    simple: settings/tokens baked from $FLOWORK_STATE_SEED, NO local model (cloud router), slim ($USB_SIZE)" \
+		|| echo "    simple: no flowork.db at $FLOWORK_STATE_SEED — boots to a clean DB"
 else
 	# dev: real seed + bake the owner's live state.
 	export FLOWORK_SOVEREIGN_SEED="$SOV_REAL"
