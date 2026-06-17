@@ -110,14 +110,18 @@ $SUDO mkdir -p "$ESP/boot/grub"
 $SUDO cp "$KERNEL" "$ESP/boot/vmlinuz"
 $SUDO cp "$INITRD" "$ESP/boot/initramfs.gz"
 $SUDO tee "$ESP/boot/grub/grub.cfg" >/dev/null <<'CFG'
-set timeout=3
+set timeout=10
 set default=0
-menuentry "Flowork OS" {
-    linux  /boot/vmlinuz console=tty0 console=ttyS0,115200 loglevel=4 net.ifnames=0
+# DEFAULT = nomodeset ("safe graphics"): many real machines hang right after the EFI stub
+# when the kernel tries to drive the GPU via KMS (no output, looks frozen at "EFI stub..."). The
+# basic EFI/VESA framebuffer boots everywhere. Verbose (no loglevel=4) so kernel progress shows.
+# A "normal graphics / KMS" entry stays second for capable GPUs.
+menuentry "Flowork OS (safe graphics - recommended)" {
+    linux  /boot/vmlinuz console=tty0 console=ttyS0,115200 nomodeset net.ifnames=0
     initrd /boot/initramfs.gz
 }
-menuentry "Flowork OS (safe graphics / nomodeset)" {
-    linux  /boot/vmlinuz console=tty0 console=ttyS0,115200 loglevel=4 nomodeset net.ifnames=0
+menuentry "Flowork OS (normal graphics / KMS)" {
+    linux  /boot/vmlinuz console=tty0 console=ttyS0,115200 net.ifnames=0
     initrd /boot/initramfs.gz
 }
 CFG
