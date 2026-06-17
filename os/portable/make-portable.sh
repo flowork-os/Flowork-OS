@@ -35,6 +35,25 @@ build linux   amd64 linux
 build darwin  amd64 macos-intel
 build darwin  arm64 macos-apple
 
+# ── SIDE-CAR ASSETS ─────────────────────────────────────────────────────────
+# Copy repo-local sidecar folders so the portable output can be mounted and manually
+# synced into a target install without baking them into the build scratch.
+# This keeps the build clean while still making `bin`, `models`, and `apps` available.
+SIDECAR_ENABLED="${FLOWORK_PORTABLE_SIDECAR:-1}"
+if [ "$SIDECAR_ENABLED" != "0" ]; then
+    echo "[portable] copying sidecar assets (bin/models/apps)"
+    mkdir -p "$OUT/sidecar"
+    if [ -d "$REPO/router/bin" ]; then
+        cp -a "$REPO/router/bin" "$OUT/sidecar/"
+    fi
+    if [ -d "$REPO/router/models" ]; then
+        cp -a "$REPO/router/models" "$OUT/sidecar/"
+    fi
+    if [ -d "$REPO/agent/apps" ]; then
+        cp -a "$REPO/agent/apps" "$OUT/sidecar/"
+    fi
+fi
+
 # ── DEV/Full data-seed ───────────────────────────────────────────────────────
 # A Full/dev build bakes a SLIM snapshot of the owner's live state so the portable boots
 # ready-to-use (settings, tokens, agents) — the launcher seeds it into the local data dir on
