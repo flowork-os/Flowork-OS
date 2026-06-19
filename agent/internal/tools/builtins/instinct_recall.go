@@ -3,24 +3,19 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-20
-// Reason: CGM instinct_recall tool (coding/security instinct before coding) — built+vet
-//   green, registered via init(). Extend = new file, jangan modify ini.
-//   (Catatan: room-scoped retrieval tuning = perbaikan ROUTER endpoint, bukan file ini.)
+// Update 2026-06-20 (owner autonomy-grant): retrieval di-ALIH ke GRAPH LOKAL.
+//   891 pola instinct udah di-project jadi cognitive_nodes type='instinct' (embedded).
+//   Pakai store.SearchNodesByEmbedding semantic by-makna. SIDESTEP knot vindex shared
+//   (V2 vec-db kosong → gak bisa rebuild incremental). Verified: SQL→parameterized,
+//   reentrancy, repo-layout. Re-locked.
+// Reason: CGM instinct_recall tool (coding/security instinct before coding).
 //
 // instinct_recall.go — Phase 3B (§4.10, D7): retrieve coding/security INSTINCT
-// sebelum agent nulis code. File BARU (register via init(), pola agent_run.go —
-// JANGAN modify builtins.go locked).
+// sebelum agent nulis code. File BARU (register via init(), pola agent_run.go).
 //
-// Beda dari brain_search_shared (korpus umum) & graph_recall (twin/relasi lokal):
-// ini KHUSUS narik POLA INSTINCT distilasi (room coding_instinct / security_instinct)
-// dari shared brain → fact-sheet RINGKAS budget-capped → agent sadar pola+celah
-// SEBELUM ngoding. Anti muntah prompt: cuma top-k relevan, di-cap.
-//
-// CAPABILITY: rpc:router:brain (sama brain_search_shared).
-//
-// Retrieval = FTS shared brain (routerclient.SearchBrain), filter client-side ke
-// room instinct (endpoint search-drawers gak punya filter room → over-fetch+filter).
-// Embedding semantic = bonus kalau brain udah di-reindex; FTS udah cukup buat keyword.
+// Retrieval: embed query (router bge-m3) → store.SearchNodesByEmbedding(type=
+// 'instinct') atas GRAPH LOKAL → fact-sheet RINGKAS budget-capped. Beda dari
+// graph_recall (semua type + relasi) & brain_search_shared (FTS korpus umum).
 
 package builtins
 
@@ -28,7 +23,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/routerclient"
 	"flowork-gui/internal/tools"
 )
@@ -36,21 +33,17 @@ import (
 func init() { tools.Register(&instinctRecallTool{}) }
 
 const (
-	instinctDefaultK  = 6
-	instinctMaxChars  = 1400 // budget-cap (anti muntah prompt, pola §4.8)
-	instinctOverFetch = 20   // over-fetch lalu filter room (endpoint gak filter room)
+	instinctDefaultK = 6
+	instinctMaxChars = 1400 // budget-cap (anti muntah prompt, pola §4.8)
 )
-
-// room instinct yang valid (distilasi, bukan korpus mentah).
-var instinctRooms = map[string]bool{"coding_instinct": true, "security_instinct": true}
 
 type instinctRecallTool struct{}
 
 func (instinctRecallTool) Name() string       { return "instinct_recall" }
-func (instinctRecallTool) Capability() string { return "rpc:router:brain" }
+func (instinctRecallTool) Capability() string { return "state:read" }
 func (instinctRecallTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Tarik POLA INSTINCT coding+security (distilasi dari model kuat) yang relevan SEBELUM nulis/review code. Return fact-sheet ringkas 'WHEN trigger -> rule'. Pakai pas mulai task coding (apalagi yg nyentuh input/auth/network/crypto). Beda dari brain_search_shared (umum) & graph_recall (twin lokal).",
+		Description: "Tarik POLA INSTINCT coding+security (distilasi dari model kuat) yang relevan SEBELUM nulis/review code. Return fact-sheet ringkas 'WHEN trigger -> rule'. Pakai pas mulai task coding — apalagi yg nyentuh input/auth/network/crypto/kontrak (mata-hacker: sadar celah sebelum nulis).",
 		Params: []tools.Param{
 			{Name: "query", Type: tools.ParamString, Description: "deskripsi task coding / area kode (mis. 'parse user input ke SQL query')", Required: true},
 			{Name: "k", Type: tools.ParamInt, Description: "max insting (default 6)", Required: false, Default: instinctDefaultK},
@@ -85,35 +78,28 @@ func (instinctRecallTool) Run(ctx context.Context, args map[string]any) (tools.R
 			routerURL = u
 		}
 	}
-
-	// over-fetch lalu filter ke room instinct (endpoint gak punya filter room).
-	resp, err := routerclient.New(routerURL).SearchBrain(ctx, query, instinctOverFetch)
-	if err != nil {
-		return tools.Result{}, fmt.Errorf("instinct recall: %w", err)
+	// embed query (router bge-m3) → seed semantic ke graph instinct nodes.
+	ectx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	vec, eerr := routerclient.New(routerURL).EmbedText(ectx, "", query)
+	cancel()
+	if eerr != nil {
+		return tools.Result{}, fmt.Errorf("instinct recall embed: %w", eerr)
 	}
 
 	var instincts []string
-	seen := map[string]bool{}
 	var sb strings.Builder
 	sb.WriteString("# Coding/security instincts — apply BEFORE writing code\n")
-	for _, h := range resp.Hits {
-		if !instinctRooms[h.Room] {
-			continue // bukan room instinct (skip korpus umum)
-		}
-		line := strings.TrimSpace(strings.ReplaceAll(h.Content, "\n", " "))
-		if line == "" || seen[line] {
+	for _, n := range store.SearchNodesByEmbedding("instinct", agentdb.Quantize(vec), k) {
+		line := strings.TrimSpace(strings.ReplaceAll(n.Label, "\n", " "))
+		if line == "" {
 			continue
 		}
-		seen[line] = true
 		entry := "- " + line + "\n"
 		if sb.Len()+len(entry) > instinctMaxChars {
 			break
 		}
 		sb.WriteString(entry)
 		instincts = append(instincts, line)
-		if len(instincts) >= k {
-			break
-		}
 	}
 
 	sheet := ""
