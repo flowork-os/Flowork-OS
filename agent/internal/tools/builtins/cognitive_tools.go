@@ -3,6 +3,11 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-19
+// Update 2026-06-20 (owner autonomy-grant): WIRE EMBEDDER — RecallDeps.Embed kini
+//   nyolok ke router /v1/embeddings (bge-m3) → seed graph recall jadi SEMANTIK
+//   (by-makna), bukan label-only. Aktifin recall semantik atas SELURUH graph lokal
+//   (twin/code/tool/agent). Degrade aman kalau router down (EmbedText error → seed
+//   fallback ke label). Re-locked.
 // Reason: CGM graph_recall tool — built + unit-tested. Extend = new file, jangan modify ini.
 //
 // cognitive_tools.go — tool yang nyentuh Cognitive Graph (CGM) lokal agent.
@@ -11,9 +16,6 @@
 // (budget-capped, anti muntah prompt). Beda dari brain_search (FTS teks): ini
 // HUBUNGAN/konteks antar-entitas (roadmap §4.8). Pola: tools.FromStore(ctx) +
 // store.RecallFactSheet (agentdb/cognitive_recall.go, locked).
-//
-// Catatan: Embed=nil (seed label-only) buat sekarang — degrade aman tanpa router.
-// Wiring embedder (semantic seed via /v1/embeddings) = langkah berikut.
 
 package builtins
 
@@ -21,8 +23,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/routerclient"
 	"flowork-gui/internal/tools"
 )
 
@@ -57,7 +61,22 @@ func (graphRecallTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	case int:
 		maxChars = v
 	}
-	sheet, err := store.RecallFactSheet(ctx, query, agentdb.RecallDeps{MaxChars: maxChars})
+	// Embedder: seed graph recall by-MAKNA (router /v1/embeddings, bge-m3). Resolve
+	// router URL dari agent kv (pola brain_search/instinct_recall). Degrade aman:
+	// kalau router down, EmbedText error → RecallFactSheet fallback ke seed label.
+	routerURL := routerclient.DefaultRouterURL
+	if cfg, lerr := store.Load(); lerr == nil {
+		if u, ok := cfg["router_url"].(string); ok && u != "" {
+			routerURL = u
+		}
+	}
+	rc := routerclient.New(routerURL)
+	embed := func(ec context.Context, text string) ([]float32, error) {
+		c, cancel := context.WithTimeout(ec, 30*time.Second)
+		defer cancel()
+		return rc.EmbedText(c, "", text)
+	}
+	sheet, err := store.RecallFactSheet(ctx, query, agentdb.RecallDeps{Embed: embed, MaxChars: maxChars})
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("graph_recall: %w", err)
 	}
