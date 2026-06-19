@@ -58,3 +58,7 @@ node_modules/
 
 # llama-server binary/symlink — local build artifact, bundled per-OS by make-distributable (NOT in git; #10 portable)
 /router/bin/
+
+# CGM dev scratch (one-time ingestion tools + intermediates — NEVER ship)
+_scratch_cgm/
+**/_scratch_cgm/
