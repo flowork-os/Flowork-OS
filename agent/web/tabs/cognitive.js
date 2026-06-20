@@ -4,6 +4,11 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-19
 // Reason: CGM GUI tab (D3 force-graph) — verified live login+screenshot — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+// 2026-06-20 (owner-approved): ANTI-BERANTAKAN (handoff GUI TODO #2). 500+ node
+//   (label instinct PANJANG "WHEN ... -> ...") → teks numpuk, kabel keputus. Fix:
+//   (a) truncate label viz (cgTrunc, 18 char + …), (b) klik node → panel detail
+//   penuh (#cgDetail: label full + type/conf/status/hits/why). Verified live
+//   screenshot. Re-locked.
 //
 // cognitive.js — Cognitive Graph (CGM) tab. D3 force-directed "balls connected"
 // view of an agent's per-agent twin graph (roadmap_opus8.md §4.9, D14).
@@ -16,6 +21,9 @@ const TYPE_COLOR = {
   knowledge: '#22d3ee', doctrine: '#fb7185', persona: '#818cf8', memory: '#fcd34d',
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// cgTrunc — potong label panjang di viz biar ga numpuk (anti-berantakan); detail
+// penuh muncul pas node di-klik (#cgDetail) atau hover (title).
+const cgTrunc = (s, n = 18) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n) + '…' : s; };
 
 function loadD3() {
   return new Promise((resolve, reject) => {
@@ -48,6 +56,7 @@ export async function render(container) {
       </div>
       <svg id="cgSvg" width="100%" height="560"
         style="background:radial-gradient(circle at 50% 40%, #0e1530, #070a16);border:1px solid #1e293b;border-radius:10px"></svg>
+      <div id="cgDetail" style="margin-top:8px;font-size:.8rem;color:#64748b;min-height:1.4em">Klik node buat lihat detail penuh.</div>
       <div id="cgTensions" style="margin-top:12px;font-size:.8rem"></div>
     </div>`;
 
@@ -95,8 +104,9 @@ async function draw(d3, container, agentId) {
     .attr('opacity', (n) => n.status === 'shadow' ? 0.45 : 0.95)
     .attr('stroke', (n) => n.status === 'quarantined' ? '#ef4444' : '#0b1020').attr('stroke-width', 2);
   node.append('title').text((n) => `${n.label} (${n.type}) · conf ${n.confidence} · ${n.status} · hits ${n.hit_count}`);
-  node.append('text').text((n) => n.label).attr('x', (n) => radius(n) + 4).attr('y', 4)
-    .attr('font-size', 11).attr('fill', '#cbd5e1');
+  node.append('text').text((n) => cgTrunc(n.label)).attr('x', (n) => radius(n) + 4).attr('y', 4)
+    .attr('font-size', 11).attr('fill', '#cbd5e1').style('pointer-events', 'none');
+  node.style('cursor', 'pointer').on('click', (ev, n) => showCgDetail(container, n));
 
   const sim = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(links).id((d) => d.id).distance(120).strength(0.3))
@@ -126,4 +136,19 @@ async function drawTensions(container, agentId) {
   if (!items.length) { el.innerHTML = `<span style="color:#475569">No open contradictions.</span>`; return; }
   el.innerHTML = `<div style="color:#fbbf24;font-weight:600;margin-bottom:4px">⚠ Open contradictions (owner decides)</div>` +
     items.map((t) => `<div style="color:#cbd5e1">• ${esc(t.from_id)} —${esc(t.relation_type)}→ <s>${esc(t.old_to_id)}</s> / ${esc(t.new_to_id)}</div>`).join('');
+}
+
+// showCgDetail — klik node → tampil detail PENUH di #cgDetail (label panjang ga
+// muat di viz yg di-truncate). Reuse field node dari /api/agents/cognitive/graph.
+function showCgDetail(container, n) {
+  const el = container.querySelector('#cgDetail');
+  if (!el) return;
+  const f = (k, v) => (v || v === 0) ? `<span style="color:#64748b">${k}</span> ${esc(v)}` : '';
+  const meta = [f('type', n.type), f('conf', n.confidence), f('status', n.status),
+    f('hits', n.hit_count), f('source', n.source_kind), f('domain', n.where_domain)].filter(Boolean).join(' · ');
+  el.innerHTML = `<div style="background:#0b1020;border:1px solid #334155;border-radius:8px;padding:8px 11px">`
+    + `<div style="color:#e2e8f0;font-weight:600;margin-bottom:3px;word-break:break-word">${esc(n.label)}</div>`
+    + `<div style="display:flex;gap:12px;flex-wrap:wrap;color:#94a3b8;font-size:.74rem">${meta}</div>`
+    + (n.why ? `<div style="margin-top:5px;color:#cbd5e1;word-break:break-word">${esc(n.why)}</div>` : '')
+    + `</div>`;
 }
