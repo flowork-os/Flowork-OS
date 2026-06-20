@@ -60,39 +60,67 @@ import (
 
 var appUIIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
 
-// designAppUI — one forced-tool call: design a self-contained single-file HTML app
-// (frontend only, CSS+JS embedded, NO external CDN/library, runs offline) from a prompt.
-func designAppUI(ctx context.Context, prompt, model string) (appID, name, icon, desc, html string, err error) {
+// designAppUI — one forced-tool call: design a Flowork app = UI HTML mandiri + KONEKTOR AGEN.
+// Owner 2026-06-21 (rule): TIAP app WAJIB bisa dipakai AI agent (≥1 operasi + backend), bukan cuma
+// user. Output: html (UI) + operations[] (agent-callable) + core_py (backend python serve operasi,
+// protokol stdio jam-digital). Balik appID,name,icon,desc,html,operationsJSON,corePy.
+func designAppUI(ctx context.Context, prompt, model string) (appID, name, icon, desc, html, operationsJSON, corePy string, err error) {
 	tool := map[string]any{
 		"type": "function",
 		"function": map[string]any{
-			"name":        "design_app_ui",
-			"description": "Rancang 1 APLIKASI UI mandiri: SATU file HTML (CSS+JS embedded, TANPA library/CDN eksternal, jalan offline). Buat program frontend: jam, kalkulator, timer, converter, notepad, dll. WAJIB dipanggil sekali.",
+			"name":        "design_app",
+			"description": "Rancang 1 APLIKASI Flowork = UI HTML mandiri + KONEKTOR AGEN. WAJIB dipanggil sekali. STANDAR WAJIB owner: tiap app HARUS punya ≥1 'operations' (kemampuan inti yg bisa dipanggil AI agent) + 'core_py' (backend python yg jalanin operasi). Bukan cuma UI buat user.",
 			"parameters": map[string]any{
 				"type": "object",
 				"properties": map[string]any{
-					"app_id":      map[string]any{"type": "string", "description": "id slug unik lowercase-dash, 2-40 char (mis. 'jam-digital')."},
-					"name":        map[string]any{"type": "string", "description": "nama app (mis. 'Jam Digital')."},
+					"app_id":      map[string]any{"type": "string", "description": "id slug unik lowercase-dash, 2-40 char (mis. 'kalkulator')."},
+					"name":        map[string]any{"type": "string", "description": "nama app (mis. 'Kalkulator')."},
 					"icon":        map[string]any{"type": "string", "description": "1 emoji."},
 					"description": map[string]any{"type": "string", "description": "1 kalimat fungsi app."},
-					"html":        map[string]any{"type": "string", "description": "SATU file HTML LENGKAP (<!doctype html>…</html>) dgn CSS+JS embedded, self-contained, TANPA CDN/library eksternal, responsive."},
+					"html":        map[string]any{"type": "string", "description": "SATU file HTML LENGKAP (<!doctype html>…</html>) CSS+JS embedded, self-contained, TANPA CDN/library eksternal, responsive. UI buat user."},
+					"operations": map[string]any{
+						"type":        "array",
+						"description": "MINIMAL 1 operasi yg bisa dipanggil AI AGENT (konektor). Tiap operasi = kemampuan inti app berguna buat agent (kalkulator→'calculate', converter→'convert', timer→'set_timer'). JANGAN kosong.",
+						"minItems":    1,
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"name":         map[string]any{"type": "string", "description": "snake_case (mis. 'calculate')."},
+								"description":  map[string]any{"type": "string", "description": "buat AGENT: operasi ini ngapain + kapan dipakai + balikin apa."},
+								"input_schema": map[string]any{"type": "object", "description": "JSON-schema parameter: {type:'object', properties:{...}, required:[...]}. properties kosong kalau ga butuh input."},
+							},
+							"required": []string{"name", "description", "input_schema"},
+						},
+					},
+					"core_py": map[string]any{"type": "string", "description": "Backend PYTHON3 yg IMPLEMENT SEMUA operasi. PROTOKOL STDIO WAJIB: loop baca 1 baris JSON {\"op\":..,\"args\":..} dari stdin → fungsi handle(op,args) → tulis 1 baris {\"result\":..} atau {\"error\":..} ke stdout + flush. HANYA Python stdlib (no pip). Pola: `import sys,json\\ndef handle(op,args):\\n  if op=='calculate': return {'result': args['a']+args['b']}\\n  return {'error':'unknown op:'+str(op)}\\nfor line in sys.stdin:\\n  line=line.strip()\\n  if not line: continue\\n  try: req=json.loads(line); out=handle(req.get('op',''), req.get('args') or {})\\n  except Exception as e: out={'error':str(e)}\\n  sys.stdout.write(json.dumps(out)+'\\\\n'); sys.stdout.flush()`."},
 				},
-				"required": []string{"app_id", "name", "icon", "description", "html"},
+				"required": []string{"app_id", "name", "icon", "description", "html", "operations", "core_py"},
 			},
 		},
 	}
 	args, e := routerForcedTool(ctx, model,
-		"Lo desainer aplikasi web mini. Bikin SATU file HTML mandiri (CSS+JS embedded, tanpa CDN/library eksternal, jalan offline) sesuai permintaan. Rapi, fungsional, tema gelap kalau cocok.",
-		"Bikin aplikasi UI: "+prompt, tool, "design_app_ui", 6000)
+		"Lo desainer aplikasi Flowork. Tiap app = UI HTML mandiri (CSS+JS embedded, no CDN, offline) + "+
+			"KONEKTOR AGEN: ≥1 operasi yg bisa dipanggil AI agent, di-serve backend Python (protokol stdio). "+
+			"STANDAR WAJIB owner: app HARUS bisa dipakai agent, bukan cuma user. Rapi & fungsional.",
+		"Bikin aplikasi: "+prompt, tool, "design_app", 8000)
 	if e != nil {
-		return "", "", "", "", "", e
+		return "", "", "", "", "", "", "", e
 	}
-	var raw map[string]string
+	var raw struct {
+		AppID       string          `json:"app_id"`
+		Name        string          `json:"name"`
+		Icon        string          `json:"icon"`
+		Description string          `json:"description"`
+		HTML        string          `json:"html"`
+		Operations  json.RawMessage `json:"operations"`
+		CorePy      string          `json:"core_py"`
+	}
 	if e := json.Unmarshal(args, &raw); e != nil {
-		return "", "", "", "", "", fmt.Errorf("decode app spec: %w", e)
+		return "", "", "", "", "", "", "", fmt.Errorf("decode app spec: %w", e)
 	}
-	return strings.ToLower(strings.TrimSpace(raw["app_id"])), strings.TrimSpace(raw["name"]),
-		strings.TrimSpace(raw["icon"]), strings.TrimSpace(raw["description"]), raw["html"], nil
+	return strings.ToLower(strings.TrimSpace(raw.AppID)), strings.TrimSpace(raw.Name),
+		strings.TrimSpace(raw.Icon), strings.TrimSpace(raw.Description), raw.HTML,
+		string(raw.Operations), raw.CorePy, nil
 }
 
 // architectBuildApp — build a REAL App-menu application (a self-contained HTML/JS
@@ -101,17 +129,15 @@ func designAppUI(ctx context.Context, prompt, model string) (appID, name, icon, 
 // AI-that-answers (pantun, translate), use build_team instead. Loopback owner-trust →
 // install with approveExec (GUI-only app, runtime="", no OS process).
 func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, prompt, model string) (map[string]any, error) {
-	// Owner 2026-06-20: design APP UI pindah ke AGENT ai-studio (model GUI). Coba agent dulu; agent
-	// ga ke-load / HTML-in-JSON invalid → FALLBACK designAppUI lama (forced-tool, escape reliable).
-	appID, name, icon, desc, html, ok := aiStudioDesignAppUI(ctx, host, prompt)
-	designModel := aiStudioModel() + " (ai-studio)"
-	if !ok {
-		var err error
-		appID, name, icon, desc, html, err = designAppUI(ctx, prompt, coderModel(model))
-		if err != nil {
-			return nil, fmt.Errorf("design app: %w", err)
-		}
-		designModel = coderModel(model) + " (fallback)"
+	// Design via forced-tool (terstruktur, reliable buat html + operations + core.py). Model =
+	// ai-studio per-agent (owner: model dari agent) kalau caller ga override.
+	appModel := strings.TrimSpace(model)
+	if appModel == "" {
+		appModel = aiStudioModel()
+	}
+	appID, name, icon, desc, html, opsJSON, corePy, err := designAppUI(ctx, prompt, appModel)
+	if err != nil {
+		return nil, fmt.Errorf("design app: %w", err)
 	}
 	if !appUIIDRe.MatchString(appID) {
 		return nil, fmt.Errorf("app_id invalid (^[a-z0-9][a-z0-9-]{1,40}$): %q", appID)
@@ -119,16 +145,33 @@ func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *flowor
 	if strings.TrimSpace(html) == "" || !strings.Contains(strings.ToLower(html), "<html") {
 		return nil, fmt.Errorf("HTML app kosong/invalid")
 	}
+	// RULE owner 2026-06-21: app WAJIB punya konektor agen (≥1 operasi + backend). Tolak kalau ga ada.
+	var ops []map[string]any
+	if json.Unmarshal([]byte(opsJSON), &ops) != nil || len(ops) == 0 {
+		return nil, fmt.Errorf("app WAJIB punya ≥1 operasi (konektor agen) — desain ga ngasih operasi yg bisa dipanggil agent")
+	}
+	if strings.TrimSpace(corePy) == "" || !strings.Contains(corePy, "def handle") {
+		return nil, fmt.Errorf("core.py backend kosong/invalid (wajib `def handle(op, args)` + loop stdio)")
+	}
 	if name == "" {
 		name = appID
 	}
 	if icon == "" {
 		icon = "🧩"
 	}
+	// Normalisasi tiap operasi: WAJIB tool:true (= konektor agent) + gui:true; default mutates:false.
+	for i := range ops {
+		ops[i]["tool"] = true
+		ops[i]["gui"] = true
+		if _, has := ops[i]["mutates"]; !has {
+			ops[i]["mutates"] = false
+		}
+	}
 	manifest := map[string]any{
 		"id": appID, "kind": "app", "name": name, "description": desc,
-		"icon": "ui/icon.svg", "version": "1.0.0", "runtime": "", "gui_entry": "ui/index.html",
-		"operations": []any{},
+		"icon": "ui/icon.svg", "version": "1.0.0",
+		"runtime": "process", "core_entry": "python3 core.py", "gui_entry": "ui/index.html",
+		"operations": ops,
 	}
 	manRaw, _ := json.MarshalIndent(manifest, "", "  ")
 	pluginJSON, _ := json.Marshal(map[string]any{"kind": "app", "id": appID, "name": name})
@@ -136,22 +179,31 @@ func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *flowor
 	pack, perr := zipPack(map[string][]byte{
 		"plugin.json":                      pluginJSON,
 		"apps/" + appID + "/manifest.json": manRaw,
+		"apps/" + appID + "/core.py":       []byte(corePy),
 		"apps/" + appID + "/ui/index.html": []byte(html),
 		"apps/" + appID + "/ui/icon.svg":   []byte(iconSVG),
 	})
 	if perr != nil {
 		return nil, fmt.Errorf("assemble app: %w", perr)
 	}
-	// approveExec=true: owner-trusted loopback; this is a GUI-only app (no core process).
+	// approveExec=true: owner-trusted loopback. App ini punya core process (runtime:process) buat
+	// serve operasi ke agent — caps-consent di-auto-approve krn loopback (sama pola coder/architect).
 	res, status := fwapps.InstallAppPack(pack, true)
 	if status != 0 {
 		return nil, fmt.Errorf("install app: %v", res)
 	}
 	_ = host
 	_ = store
+	opNames := make([]string, 0, len(ops))
+	for _, o := range ops {
+		if n, _ := o["name"].(string); n != "" {
+			opNames = append(opNames, n)
+		}
+	}
 	return map[string]any{
-		"ok": true, "app_id": appID, "name": name, "design_model": designModel,
-		"note": "App '" + name + "' (" + appID + ") LIVE di menu App — buka tab App buat jalanin.",
+		"ok": true, "app_id": appID, "name": name, "design_model": appModel + " (ai-studio)",
+		"operations": opNames,
+		"note":       "App '" + name + "' (" + appID + ") LIVE di menu App + " + fmt.Sprintf("%d", len(opNames)) + " operasi konektor agen (agent bisa pakai via tool).",
 	}, nil
 }
 
