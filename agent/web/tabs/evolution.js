@@ -41,6 +41,7 @@ export async function render(container) {
       <div style="display:flex;align-items:center;justify-content:space-between">
         <h3 style="margin:0">📋 ${esc(L.backlogH)}</h3>
         <div style="display:flex;gap:8px">
+          <button id="ev-eval" title="Cek apakah model aktif lolos bar 'strong cloud' (gerbang auto-commit). ~90s." style="background:#1e293b;color:#a5b4fc;border:1px solid #475569;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">🎯 Eval Model</button>
           <button id="ev-clean" title="${esc(L.cleanTitle)}" style="background:#3f1d1d;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:0.82rem">${esc(L.cleanBtn)}</button>
           <button id="ev-reflect" style="background:#6366f1;color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer">${esc(L.reflectBtn)}</button>
         </div>
@@ -144,17 +145,22 @@ export async function render(container) {
     const riskColor = { low: '#4ade80', medium: '#fbbf24', high: '#f87171' };
     const cards = items.slice(propPage * PROP_PER_PAGE, (propPage + 1) * PROP_PER_PAGE).map((p) => {
         const kind = (p.kind || '').toLowerCase();
-        const canApply = BEHAVIOR_KINDS.has(kind) && p.status !== 'applied' && p.status !== 'rejected';
-        // MODE GOVERNS WHO ACTS: tombol Apply MANUSIA cuma di STAGE. Di AUTO, Dewan + jadwal
-        // yang mutusin & apply (hands-off — evolusi jalan walau owner gak ada). Di OFF, read-only.
+        const pending = p.status !== 'applied' && p.status !== 'rejected';
+        const canApply = BEHAVIOR_KINDS.has(kind) && pending;
+        const canCore = !BEHAVIOR_KINDS.has(kind) && pending; // core kinds (fix/refactor/doc/test) → core-apply (evo-coder)
+        // MODE GOVERNS WHO ACTS: tombol MANUSIA (Apply/Core-Apply) cuma di STAGE. Di AUTO, Dewan +
+        // jadwal yang mutusin & apply (hands-off — evolusi jalan walau owner gak ada). Di OFF, read-only.
         let footer = '';
         if (p.status === 'applied') {
           footer = `<span style="color:#4ade80;font-size:0.74rem">${esc(L.statusAppliedBadge)}</span>`;
         } else if (canApply && currentMode === 'stage') {
           footer = `<button data-apply-id="${esc(p.id)}" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">${esc(L.applyBtn)}</button>`;
-        } else if (canApply && currentMode === 'auto') {
+        } else if (canCore && currentMode === 'stage') {
+          // CORE-APPLY (owner 2026-06-20): eksekusi coding core via evo-coder → sandbox → test-gate → STAGE diff.
+          footer = `<button data-coreapply-id="${esc(p.id)}" title="Eksekusi coding (evo-coder) → sandbox → test-gate → stage diff buat review" style="background:#b45309;color:#fff;border:0;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.76rem">🛠 Core-Apply</button>`;
+        } else if ((canApply || canCore) && currentMode === 'auto') {
           footer = `<span style="color:#a78bfa;font-size:0.72rem">${esc(L.autoNote)}</span>`;
-        } else if (canApply) {
+        } else if (canApply || canCore) {
           footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.offNote)}</span>`;
         } else {
           footer = `<span style="color:#64748b;font-size:0.72rem">${esc(L.coreOnlyDev)}</span>`;
@@ -202,6 +208,24 @@ export async function render(container) {
   }
 
   // A1 DEWAN: sidang adversarial (Pembela/Penantang/Hakim) atas 1 usulan → verdict + update status.
+  // CORE-APPLY (owner 2026-06-20): eksekusi coding core via evo-coder → sandbox git-worktree →
+  // test-gate (build+vet) → STAGE diff buat review owner. NOL commit langsung (gate jaga).
+  async function coreApplyProposal(id, btn) {
+    if (!confirm('Core-Apply: evo-coder bakal generate kode → sandbox → test-gate → STAGE diff buat lo review (no auto-commit). Lanjut?')) return;
+    const orig = btn.textContent;
+    btn.disabled = true; btn.textContent = '🛠 coding…';
+    try {
+      const r = await fetch('/api/evolve/core-apply?id=' + encodeURIComponent(id), { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      await loadProposals(); await loadStages(); await loadConfig();
+      alert('✅ Core-apply selesai — cek bagian "Staged" buat review diff-nya.');
+    } catch (e) {
+      alert('❌ Core-apply: ' + e.message);
+      btn.disabled = false; btn.textContent = orig;
+    }
+  }
+
   async function councilProposal(id, btn) {
     const orig = btn.textContent;
     btn.disabled = true; btn.textContent = L.councilBusy;
@@ -249,6 +273,7 @@ export async function render(container) {
     if (e.target.closest('[data-prop-prev]')) { propPage--; renderProposals(); return; }
     if (e.target.closest('[data-prop-next]')) { propPage++; renderProposals(); return; }
     const ap = e.target.closest('[data-apply-id]'); if (ap) return applyProposal(ap.getAttribute('data-apply-id'), ap);
+    const ca = e.target.closest('[data-coreapply-id]'); if (ca) return coreApplyProposal(ca.getAttribute('data-coreapply-id'), ca);
     const co = e.target.closest('[data-council-id]'); if (co) return councilProposal(co.getAttribute('data-council-id'), co);
     const dl = e.target.closest('[data-del-id]'); if (dl) return deleteProposal(dl.getAttribute('data-del-id'), dl);
   });
@@ -339,6 +364,18 @@ export async function render(container) {
       await loadProposals(); await loadStages(); await loadConfig(); await loadSchedule();
     } catch (e) { alert(L.errSchedule + e.message); }
     finally { schedRun.disabled = false; schedRun.textContent = o; }
+  });
+
+  const evalBtn = container.querySelector('#ev-eval');
+  if (evalBtn) evalBtn.addEventListener('click', async () => {
+    evalBtn.disabled = true; const o = evalBtn.textContent; evalBtn.textContent = '🎯 eval… (~90s)';
+    try {
+      const d = await (await fetch('/api/evolve/eval', { method: 'POST' })).json();
+      if (d.error) throw new Error(d.error);
+      alert(`🎯 Eval model: ${d.passed ? '✅ LOLOS bar (gerbang auto-commit kebuka)' : '❌ GA lolos (auto-commit diblok)'}\nScore: ${d.score}/${d.total}\nModel: ${d.model}\n${(d.detail || '').slice(0, 200)}`);
+      await loadConfig();
+    } catch (e) { alert('❌ Eval: ' + e.message); }
+    finally { evalBtn.disabled = false; evalBtn.textContent = o; }
   });
 
   reflectBtn.addEventListener('click', async () => {
