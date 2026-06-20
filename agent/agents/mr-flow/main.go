@@ -131,7 +131,7 @@ const (
 	// buat LANJUT lintas-turn (tidur→bangun→sambung) = unbounded sepanjang waktu.
 	// maxToolIters = safety-backstop GEDE (anti runaway no-progress), bukan batas kerja.
 	maxToolIters         = 100    // backstop iterasi (anti pure-infinite no-time-advance); batas NYATA = loopBudgetMs
-	loopBudgetMs  uint64 = 250000 // budget waktu in-turn (~250s); turn-timeout 290s = backstop keras, 40s margin balik bersih
+	loopBudgetMs  uint64 = 200000 // budget waktu in-turn (~200s); turn-timeout 290s — margin GEDE biar wrap-up/ScheduleWakeup call (26B lambat ~40s) ga ke-kill
 	maxGhostNudges       = 6      // ghost-guard: max paksa-lanjut pas NARASI-tanpa-tool (anti-ghosting). Bukan batas kerja (tool-call ga ngitung) — cukup tinggi biar loop sah jalan, tetep bounded anti narasi-loop
 	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
 	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
@@ -651,15 +651,14 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	budgetNudged := false // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
 	for iter := 0; iter < maxToolIters; iter++ {
 		// TIME-BOUND (bukan cap-angka): selama masih ada budget waktu turn, loop jalan
-		// TERUS (kerja autonomus panjang). Pas budget abis: SEKALI kasih peringatan biar
-		// model wrap-up hasil ATAU ScheduleWakeup buat lanjut lintas-turn; lewatin lagi → break.
-		if hostTimeNowMs()-loopStartMs > loopBudgetMs {
-			if !budgetNudged {
-				budgetNudged = true
-				msgs = append(msgs, map[string]any{"role": "user", "content": loopBudgetMsg})
-			} else {
-				break // udah dikasih kesempatan wrap-up, tetep lewat → balik bersih sebelum turn-timeout
-			}
+		// TERUS (kerja autonomus panjang). Pas budget abis (SEKALI): FILTER tool jadi
+		// ScheduleWakeup-only → loop ga bisa lanjut kerja-tool lagi, model DIPAKSA milih:
+		// (a) ScheduleWakeup = lanjut lintas-turn (unbounded over time), atau (b) jawab
+		// teks = hasil sejauh ini. Iterasi setelah ini PASTI return (anti ke-kill timeout).
+		if !budgetNudged && hostTimeNowMs()-loopStartMs > loopBudgetMs {
+			budgetNudged = true
+			toolSpecs = keepOnlyTool(toolSpecs, "ScheduleWakeup")
+			msgs = append(msgs, map[string]any{"role": "user", "content": loopBudgetMsg})
 		}
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
@@ -776,6 +775,12 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		msgs = append(msgs, map[string]any{
 			"role": "tool", "tool_call_id": id, "content": result,
 		})
+		// BUDGET MODE: model milih ScheduleWakeup = keputusan LANJUT lintas-turn.
+		// Wakeup udah ke-register (runTool di atas) → return konfirmasi SEKARANG (jangan
+		// loop lagi → anti ke-kill timeout). Lanjutan jalan otomatis pas wakeup due.
+		if budgetNudged && tc.Function.Name == "ScheduleWakeup" {
+			return "⏳ Tugasnya panjang — gw udah jadwalin lanjutan biar nyambung otomatis (tidur→bangun). Progress kesimpen; gw lanjut sendiri sebentar lagi."
+		}
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
 }
@@ -822,6 +827,25 @@ func looksLikeGhostPromise(s string) bool {
 		}
 	}
 	return false
+}
+
+// keepOnlyTool — saring spec tool jadi cuma yang namanya `keep` (dipakai pas budget
+// waktu abis: sisain ScheduleWakeup doang → loop ga bisa kerja-tool lagi, model milih
+// lanjut-via-wakeup atau jawab teks). Kalau ga ketemu → balik kosong (no-tools = paksa
+// teks wrap-up). Aman dua-duanya.
+func keepOnlyTool(specs []json.RawMessage, keep string) []json.RawMessage {
+	out := make([]json.RawMessage, 0, 1)
+	for _, s := range specs {
+		var f struct {
+			Function struct {
+				Name string `json:"name"`
+			} `json:"function"`
+		}
+		if json.Unmarshal(s, &f) == nil && f.Function.Name == keep {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // fetchToolSpecs — ambil tools yang di-expose ke LLM (OpenAI function-schema)
