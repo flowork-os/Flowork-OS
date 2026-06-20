@@ -3,6 +3,10 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30 (re-audited 2026-06-06; security audit 2026-06-11)
+// Update 2026-06-20 (owner-approved): InteractionsHandler +method DELETE = CLEAR
+//   history (§6.1 anti-anchor) via PruneInteractions (param older_days; default=semua).
+//   Soft-delete chat-log di workspace PERSONAL — twin/graph/brain di store beda, aman.
+//   Additive. Re-locked.
 // Update 2026-06-11 (owner-approved security audit, unfreeze→refreeze): (1) the
 //   loopback-secret check in ToolRunHandler now uses subtle.ConstantTimeCompare
 //   instead of ==; (2) extractFile caps per-entry extraction with a 64MB
@@ -1160,7 +1164,7 @@ func DecisionsHandler(w http.ResponseWriter, r *http.Request) {
 // di-auto-inject ke system prompt (over-prompt risk, lihat standar
 // section 11). Max 500 row per call, default 50.
 func InteractionsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed"})
 		return
 	}
@@ -1180,6 +1184,26 @@ func InteractionsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer store.Close()
+
+	// DELETE = CLEAR history (anti-anchor §6.1): soft-delete interactions. Param
+	// `older_days` (default/0 = SEMUA). AMAN: interactions ada di workspace PERSONAL
+	// (state.db privat) — twin/cognitive-graph/brain di tabel/store BEDA, ga kesentuh.
+	// Cuma chat-log yang kehapus → bunuh history-anchoring tanpa ilangin knowledge.
+	if r.Method == http.MethodDelete {
+		olderDays := 0
+		if s := strings.TrimSpace(r.URL.Query().Get("older_days")); s != "" {
+			if n, perr := strconv.Atoi(s); perr == nil && n > 0 {
+				olderDays = n
+			}
+		}
+		n, derr := store.PruneInteractions(time.Duration(olderDays) * 24 * time.Hour)
+		if derr != nil {
+			httpx.WriteJSON(w, map[string]any{"error": "clear: " + derr.Error()})
+			return
+		}
+		httpx.WriteJSON(w, map[string]any{"ok": true, "cleared": n, "older_days": olderDays})
+		return
+	}
 
 	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
 	actor := strings.TrimSpace(r.URL.Query().Get("actor"))

@@ -4,6 +4,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-30
 // Reason: Diagnostics tab (custom 604 LOC, vertical pills layout). Audit pass — esc() on all 8 section renderers, agent_id hardcoded mr-flow, encodeURIComponent on query..
+// 2026-06-20 (owner-approved): §6.1 UI CLEAR — tombol 🧹 Clear di view Interactions
+//   (DELETE /api/agents/interactions, confirm dulu) buat bunuh history-anchoring. Cuma
+//   muncul di section interactions. twin/graph/brain ga kesentuh. Verified live. Re-locked.
 
 import { esc, escAttr, fetchJSON, loadStyle } from '../js/utils.js';
 
@@ -518,6 +521,7 @@ export async function render(root, agentId) {
             <h3 id="dgTitle">…</h3>
             <span class="dg-content-sub" id="dgSub"></span>
             <input class="dg-filter" id="dgFilter" type="text" placeholder="Filter…" />
+            <button class="dg-refresh" id="dgClear" style="display:none;margin-left:6px" title="Clear chat history (anti-anchoring) — twin/brain/graph TIDAK kehapus, cuma chat-log">🧹 Clear</button>
           </div>
           <div class="dg-list" id="dgList"><div class="dg-loading">Loading…</div></div>
         </section>
@@ -583,6 +587,8 @@ export async function render(root, agentId) {
     const sec = SECTIONS.find((s) => s.key === key);
     root.querySelector('#dgTitle').innerHTML = `${sec.icon} ${esc(sec.label)}`;
     root.querySelector('#dgSub').textContent = sec.sub;
+    const cb = root.querySelector('#dgClear');
+    if (cb) cb.style.display = (key === 'interactions') ? '' : 'none';
     if (cache.has(key)) {
       paintList(key);
       loadSection(key).catch(() => {});
@@ -608,6 +614,30 @@ export async function render(root, agentId) {
     await loadSection(activeKey);
     SECTIONS.filter((s) => s.key !== activeKey).forEach((s) => loadSection(s.key).catch(() => {}));
   };
+
+  // §6.1 UI CLEAR — tombol Clear history (anti-anchoring). DELETE interactions
+  // (workspace personal); twin/cognitive-graph/brain ga kesentuh (tabel beda).
+  const dgClearBtn = root.querySelector('#dgClear');
+  if (dgClearBtn) {
+    dgClearBtn.style.display = activeKey === 'interactions' ? '' : 'none';
+    dgClearBtn.onclick = async () => {
+      if (!confirm('Clear SEMUA chat history agent ini?\n\n(twin / cognitive-graph / brain TIDAK kehapus — cuma chat-log, buat bunuh history-anchoring.)')) return;
+      dgClearBtn.disabled = true;
+      dgClearBtn.textContent = '🧹 …';
+      try {
+        const r = await fetch(`/api/agents/interactions?id=${encodeURIComponent(AGENT_ID)}`, { method: 'DELETE' });
+        const d = await r.json().catch(() => ({}));
+        alert(d.ok ? `Cleared ${d.cleared} interaksi.` : `Gagal: ${esc(d.error || 'unknown')}`);
+      } catch (e) {
+        alert('Error: ' + (e.message || e));
+      }
+      dgClearBtn.disabled = false;
+      dgClearBtn.textContent = '🧹 Clear';
+      cache.clear();
+      await loadSection(activeKey);
+      SECTIONS.filter((s) => s.key !== activeKey).forEach((s) => loadSection(s.key).catch(() => {}));
+    };
+  }
 
   for (const s of SECTIONS) loadSection(s.key).catch(() => {});
 }

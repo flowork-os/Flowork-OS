@@ -22,6 +22,12 @@
 - Persona/prompt → DB: `config.prompt` + `self_prompt` (slot versioned) + `constitution` (sacred). **HARAM** baca persona dari file `prompt.md`/`doktrin.md` (jebakan agent lama → mismatch DB-vs-file).
 - Reference benar: `agents/mr-flow/main.go` `buildSystemPrompt()` (3-tier: STABLE persona+aturan / KONTEKS self_prompt+skill / VOLATILE waktu+memory).
 
+## 1b. DUA WORKSPACE (kernel mount) — PERSONAL vs SHARED
+Tiap agent punya **2 workspace** (penting buat isolasi + privasi):
+- **`/workspace/`** — **PERSONAL** (privat agent). Isi: `state.db` (interactions, decisions, mistakes, karma, **cognitive graph/twin**, config, schedules, secrets), file kerja privat. **HARAM** dibaca agent lain. Clear-history (§6.1) cuma nyentuh sini (chat-log), twin/graph aman.
+- **`/shared/`** — **SHARED** sama agent lain / user. Isi: pertukaran file antar-agent, tools yang agent bikin sendiri (`/shared/<id>/tools/`), output bersama. Pakai **bus** (event) > fs:shared kalau bisa.
+*Aturan:* data personal/sensitif → PERSONAL only. Yang dishare sengaja → SHARED. Jangan bocorin personal ke shared/mesh (privasi owner, D2/D8).
+
 ## 2. DNA SACRED — `ProvisionAgentDNA(agentID)` (idempotent)
 Dipanggil saat **boot loop** + **install path** → agent lahir warga penuh TANPA restart. Isi: konstitusi sacred + edu-errors + antibody + ensure schema cognitive graph.
 **Konstitusi sacred wajib** (`constitution.go` `sacredSeed`, amplitude 999999, always-inject):
