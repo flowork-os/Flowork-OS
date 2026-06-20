@@ -1082,12 +1082,17 @@ async function renderAppGrants(host, agentID) {
     host.innerHTML = '<span style="opacity:.6">Belum ada app terinstall. Pasang app dulu di tab Apps → otomatis muncul di sini.</span>';
     return;
   }
-  host.innerHTML = apps.map((ap) =>
-    `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer">
-      <input type="checkbox" data-app-id="${escAttr(ap.id)}" ${ap.permitted ? 'checked' : ''}>
-      <span>${esc(ap.name || ap.id)} <span style="opacity:.5">(${esc(ap.id)})</span></span>
-    </label>`).join('') +
-    '<div style="margin-top:6px;font-size:11px;opacity:.5">Uncentang = capability app:&lt;id&gt; dicabut, agent ga bisa pakai app itu.</div>';
+  host.innerHTML = apps.map((ap) => {
+    const conn = (ap.connectors | 0);
+    const tag = conn > 0
+      ? `<span style="opacity:.5">(${esc(ap.id)} · ${conn} tool)</span>`
+      : `<span style="color:#f59e0b">(${esc(ap.id)} · user-only, ga ada konektor agent)</span>`;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer">
+      <input type="checkbox" data-app-id="${escAttr(ap.id)}" ${ap.permitted ? 'checked' : ''} ${conn > 0 ? '' : 'disabled'}>
+      <span>${esc(ap.name || ap.id)} ${tag}</span>
+    </label>`;
+  }).join('') +
+    '<div style="margin-top:6px;font-size:11px;opacity:.5">Uncentang = capability app:&lt;id&gt; dicabut, agent ga bisa pakai app itu. App tanpa konektor (0 tool) ga bisa dipakai agent — cuma buat user di tab Apps.</div>';
   host.querySelectorAll('input[data-app-id]').forEach((i) => i.addEventListener('change', async () => {
     const appID = i.getAttribute('data-app-id');
     i.disabled = true;

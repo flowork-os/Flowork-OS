@@ -56,8 +56,17 @@ func appGrantsHandler(mgr *fwapps.Manager, host *kernelhost.Host) http.HandlerFu
 			// app dihapus otomatis ga muncul. Row izin sisa utk app mati = inert.
 			out := []map[string]any{}
 			for _, a := range mgr.List() {
+				// konektor = jumlah operasi tool:true (yg bisa dipanggil agent).
+				// 0 = app USER-ONLY (cuma GUI), centang ga ngasih tool ke agent.
+				connectors := 0
+				for _, o := range a.Operations {
+					if o.Tool {
+						connectors++
+					}
+				}
 				out = append(out, map[string]any{
 					"id": a.ID, "name": a.Name, "permitted": granted[a.ID],
+					"connectors": connectors,
 				})
 			}
 			tfWriteJSON(w, 0, map[string]any{"apps": out, "count": len(out)})

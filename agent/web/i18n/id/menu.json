@@ -124,7 +124,9 @@
       "btn_save": "💾 Simpan",
       "save_ok": "✅ Tersimpan. Hot-reload akan re-inject env ke agent.",
       "save_err": "Gagal simpan:",
-      "load_err": "Gagal load config:"
+      "load_err": "Gagal load config:",
+      "apps_h": "Aplikasi yang boleh dipakai",
+      "apps_sub": "Centang = agent boleh pakai app ini (langsung berlaku, tanpa restart). Daftar ikut app terinstall — app baru muncul otomatis, app dihapus ilang otomatis."
     },
     "settings": {
       "title": "Pengaturan",
@@ -227,14 +229,6 @@
       "title": "Dokumen",
       "desc": "Panduan & tutorial Flowork.",
       "soon": "📖 Dokumentasi lagi disiapin — kontennya segera nyusul."
-    }
-  },
-  "menu": {
-    "tab": {
-      "agents": {
-        "apps_h": "Allowed apps",
-        "apps_sub": "Checked = this agent may use the app (applies live, no restart). The list follows installed apps — new apps appear automatically, removed apps disappear."
-      }
     }
   }
 }

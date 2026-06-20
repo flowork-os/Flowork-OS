@@ -124,7 +124,9 @@
       "btn_save": "💾 Save",
       "save_ok": "✅ Saved. Hot-reload re-injects env into the agent.",
       "save_err": "Save failed:",
-      "load_err": "Load config failed:"
+      "load_err": "Load config failed:",
+      "apps_h": "Allowed apps",
+      "apps_sub": "Checked = this agent may use the app (applies live, no restart). The list follows installed apps — new apps appear automatically, removed apps disappear."
     },
     "settings": {
       "title": "Settings",
@@ -227,14 +229,6 @@
       "title": "Document",
       "desc": "Guides & tutorials for Flowork.",
       "soon": "📖 Documentation is being prepared — content coming soon."
-    }
-  },
-  "menu": {
-    "tab": {
-      "agents": {
-        "apps_h": "Allowed apps",
-        "apps_sub": "Checked = this agent may use the app (applies live, no restart). The list follows installed apps — new apps appear automatically, removed apps disappear."
-      }
     }
   }
 }
