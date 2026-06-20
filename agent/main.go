@@ -98,6 +98,7 @@ import (
 	"flowork-gui/internal/scanapi"
 	"flowork-gui/internal/scheduler"
 	"flowork-gui/internal/settingsapi"
+	"flowork-gui/internal/sidecar"
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
@@ -487,8 +488,11 @@ func main() {
 
 	// APPS platform (ROADMAP 4): program dipakai MANUSIA (GUI) & AGENT (tool) di state yang SAMA,
 	// core LINTAS BAHASA (runtime:process). Load apps/<id>/ → daftarkan operasi sbg tool agent.
-	appsMgr := fwapps.NewManager(filepath.Join(filepath.Dir(loader.AgentsDir()), "apps")) // ~/.flowork/apps (data home, NOT CWD — Pilar 6)
-	fwapps.SetDefault(appsMgr)                                                            // target install/uninstall package-level (gerbang seragam + HTTP)
+	// Apps: laci DATA (installed user) + overlay CONTENT (bawaan shippable). Resolver
+	// tunggal lewat paket sidecar (roadmap_sidecar Fase 0/1). Legacy-default:
+	// sidecar.AppsDataDir() == ~/.flowork/apps pas FLOWORK_SIDECAR kosong → zero perubahan.
+	appsMgr := fwapps.NewManager(sidecar.AppsDataDir()).WithContent(sidecar.AppsContentDir())
+	fwapps.SetDefault(appsMgr) // target install/uninstall package-level (gerbang seragam + HTTP)
 	if err := appsMgr.Load(); err != nil {
 		log.Printf("apps load: %v", err)
 	}

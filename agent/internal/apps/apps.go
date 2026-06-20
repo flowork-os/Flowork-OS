@@ -65,32 +65,56 @@ func (a *App) op(name string) (Op, bool) {
 
 // Manager — registri app + core yang jalan + tool yang terdaftar. Aman concurrent.
 type Manager struct {
-	mu      sync.Mutex
-	spawnMu sync.Mutex // serialize spawn core (anti double-spawn race, lihat ensureProc)
-	dir     string
-	apps    map[string]*App
-	procs   map[string]*proc
-	regs    map[string][]string
-	version map[string]int64 // state_version per app (untuk sinkron GUI)
+	mu         sync.Mutex
+	spawnMu    sync.Mutex // serialize spawn core (anti double-spawn race, lihat ensureProc)
+	dir        string     // laci DATA: app installed user (writable, install/uninstall ke sini)
+	contentDir string     // laci CONTENT: app bawaan shippable (read-only); "" = ga ada (roadmap_sidecar Fase 1)
+	apps       map[string]*App
+	procs      map[string]*proc
+	regs       map[string][]string
+	version    map[string]int64 // state_version per app (untuk sinkron GUI)
 }
 
 func NewManager(appsDir string) *Manager {
 	return &Manager{dir: appsDir, apps: map[string]*App{}, procs: map[string]*proc{}, regs: map[string][]string{}, version: map[string]int64{}}
 }
 
+// WithContent — set laci CONTENT (app bawaan) buat overlay. Additif, aman: kalau ""
+// atau ga eksis, perilaku persis NewManager lama (cuma baca DATA). Owner 2026-06-20.
+func (m *Manager) WithContent(contentDir string) *Manager {
+	m.contentDir = contentDir
+	return m
+}
+
 var appIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,40}$`)
 
-// Load — scan folder apps/, baca manifest kind:app, daftarkan operasi sebagai tool agent.
+// Load — scan app dari laci CONTENT (bawaan) lalu DATA (installed). Overlay: DATA
+// MENANG (id sama → versi installed override bawaan). Daftarkan operasi sebagai tool
+// agent. Sumber kebenaran daftar app = folder (bukan json) → install muncul, uninstall
+// ilang. (roadmap_sidecar Fase 1)
 func (m *Manager) Load() error {
-	entries, err := os.ReadDir(m.dir)
+	m.loadDir(m.contentDir) // bawaan dulu
+	m.loadDir(m.dir)        // installed belakangan → menang
+	return nil
+}
+
+// loadDir — scan satu laci. Aman dipanggil dgn "" / dir ga eksis (no-op). Override by
+// id: m.apps[id] = app terakhir. Runtime (InvokeOp) lookup map ini, jadi walau tool dari
+// laci sebelumnya udah ke-register (konflik nama → skip), eksekusi tetep pakai app yg
+// menang di map. Zero-risk overlay.
+func (m *Manager) loadDir(dir string) {
+	if dir == "" {
+		return
+	}
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil // belum ada folder apps → tak apa
+		return // laci ga ada → skip
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
 			continue
 		}
-		raw, rerr := os.ReadFile(filepath.Join(m.dir, e.Name(), "manifest.json"))
+		raw, rerr := os.ReadFile(filepath.Join(dir, e.Name(), "manifest.json"))
 		if rerr != nil {
 			continue
 		}
@@ -98,13 +122,12 @@ func (m *Manager) Load() error {
 		if json.Unmarshal(raw, &man) != nil || man.Kind != "app" || !appIDRe.MatchString(man.ID) {
 			continue
 		}
-		app := &App{Manifest: man, Dir: filepath.Join(m.dir, e.Name())}
+		app := &App{Manifest: man, Dir: filepath.Join(dir, e.Name())}
 		m.mu.Lock()
 		m.apps[man.ID] = app
 		m.mu.Unlock()
 		m.registerTools(app)
 	}
-	return nil
 }
 
 // List — semua app terpasang.
