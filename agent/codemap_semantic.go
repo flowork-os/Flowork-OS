@@ -17,7 +17,7 @@ import (
 // codemapSemanticSummarizer — implementasi agentmgr.SemanticSummarizer pakai routerChat.
 func codemapSemanticSummarizer() agentmgr.SemanticSummarizer {
 	return func(ctx context.Context, path, content, model string) (summary, domain, role, usedModel string, err error) {
-		usedModel = coderModel(model) // resolve: arg → FLOWORK_CODER_MODEL → FLOWORK_LLM_MODEL → default
+		usedModel = coderModel(model) // resolve: arg → GUI Default Model (floworkdb) → Opus default (env dibuang 2026-06-20)
 		sys := "You are a codebase cartographer. Given ONE source file, reply ONLY a compact JSON object: " +
 			`{"summary":"one sentence: what this file does","domain":"functional area (e.g. auth, triggers, brain, ui, codemap, finance, router, orchestrator)","role":"architecture role (e.g. http-handler, engine, data-store, config, parser, wasm-agent, test)"}. ` +
 			"No markdown, no code fences, no prose — JSON only."
