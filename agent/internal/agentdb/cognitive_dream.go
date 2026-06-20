@@ -4,6 +4,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-19
 // Reason: CGM 2-tier digestion orchestration (no-delete, idempotent) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
+// Update 2026-06-21 (owner autonomy-grant "buka saja, lock lagi"): resolveNodeID + hook CO-REFERENCE
+//   (resolveCanonicalIdentity di file baru cognitive_coref.go) SEBELUM ResolveByEmbedding — fix
+//   fragmentasi identitas owner (bug ke-temu D21 benchmark). Additive, re-locked + build/vet/test green.
 //
 // cognitive_dream.go — Cognitive Digestion orchestration, 2-TIER (roadmap §4.6, D16).
 //
@@ -138,6 +141,18 @@ func (s *Store) DigestText(ctx context.Context, text string, dep DigestDeps) (Di
 // Return (id, quantizedEmbedding-or-nil).
 func (s *Store) resolveNodeID(ctx context.Context, dep DigestDeps, scope, label, typ string) (string, []byte) {
 	var q []byte
+	// CO-REFERENCE (anti-fragmentasi identitas, §4.4 follow-on / fix bug D21):
+	// alias identitas EKSPLISIT (mis. "User"/"saya"/"aku" → owner) di-resolve DULUAN secara
+	// deterministik — embedding GAK nangkep co-reference (nama beda, entitas sama). Lihat
+	// cognitive_coref.go. Cuma berlaku type person + alias terdaftar + canonical masih active.
+	if id, ok := s.resolveCanonicalIdentity(scope, label, typ); ok {
+		if dep.Embed != nil {
+			if vec, err := dep.Embed(ctx, label); err == nil {
+				q = Quantize(vec)
+			}
+		}
+		return id, q
+	}
 	if dep.Embed != nil {
 		if vec, err := dep.Embed(ctx, label); err == nil {
 			q = Quantize(vec)
