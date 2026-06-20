@@ -39,19 +39,49 @@ CARA KERJA:
 6. JADWAL: kalau user mau tim jalan OTOMATIS berkala (mis. "tiap pagi jam 7 kirim ke telegram"), pakai tool schedule_team (butuh tim yg UDAH ada). Usulkan dulu jadwalnya (jam + perintah + tujuan hasil: telegram/chat), baru panggil tool pas user setuju. Cron 5-field: '0 7 * * *' = tiap hari 07:00, '0 * * * *' = tiap jam, '0 9 * * 1-5' = hari kerja 09:00.
 7. APP (program UI): kalau user mau APLIKASI yg muncul + jalan di menu App (mis. "jam digital", "kalkulator", "timer", "converter") → pakai tool build_app (bikin program HTML mandiri). CATATAN: kalau yg diminta itu AI-yang-jawab/mikir (pantun, terjemah, ramalan) → itu build_team, BUKAN build_app. Usulkan konsep dulu, panggil pas user setuju.
 8. TRIGGER event: kalau user mau tim/agent jalan pas ada EVENT (bukan jadwal waktu) — webhook (dipicu HTTP dari luar) atau file-watch (file baru di folder) — pakai tool create_trigger. Buat jadwal WAKTU tetap pakai schedule_team.
+9. DI LUAR SCOPE (cek harga/berita/data real-time/tanya-jawab umum): lo TUKANG RANCANG, BUKAN penjawab/pencari-data. DILARANG KERAS nuduh user "spam/ngulang/copy-paste" dan DILARANG nyangkut/ngulang topik lama. Bilang jujur + tawarin solusi: "Itu di luar AI Studio (gw tukang rancang tim/app). Buat tanya-jawab / cek data langsung, chat **Mr.Flow** di tab Chat. ATAU — kalau lo mau, gw BIKININ TIM otomatis yg ngerjain itu (mis. tim 'Cek Harga Saham' yg narik data + rangkum)." JANGAN flail, JANGAN minta maaf berulang.
 
-Jujur, gak ngarang, fokus. Jawab apa adanya.`
+Jujur, gak ngarang, fokus. Tiap balasan = jawab pesan TERAKHIR user (jangan ngulang reply lama). Jawab apa adanya.`
 
 // architectChat — run ONE assistant turn over the full conversation. history is the
 // session's complete message list (oldest-first); model "" → default (coder/Opus). The
 // loop lets the model call build_team, see the result, then reply in text.
+// archAnchorNoise — reply ASSISTANT bingung/denial yg kalau LAMA bikin architect
+// ngechо pola "lo spam / ga bisa / lanjutin framework" sendiri (history-anchoring).
+// TinyGo ga relevan (host-side, standard Go). Substring match, tight.
+func archAnchorNoise(s string) bool {
+	low := strings.ToLower(s)
+	for _, p := range []string{
+		"lo spam", "lo lagi spam", "copy-paste konteks", "pengulangan konteks",
+		"konteks yg sama berulang", "konteks yang sama berulang", "berulang-ulang",
+		"belum dapet izin", "gw ga tau", "ga ada datanya", "lanjutin sisa", "kepotong di ba",
+	} {
+		if strings.Contains(low, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, history []floworkdb.ChatMessage, model string) (string, error) {
 	model = coderModel(model)
 	messages := []map[string]any{{"role": "system", "content": architectSystemPrompt}}
-	for _, m := range history {
+	// ANTI-ANCHOR (owner 2026-06-20): cap history + skip reply ASSISTANT bingung/denial
+	// LAMA (di luar archKeepRecent terbaru) biar LLM ga ngechо pola "lo spam / ga bisa /
+	// lanjutin framework lama" sendiri. Sama prinsip fetchHistory di WASM mr-flow.
+	const archMaxHistory, archKeepRecent = 16, 4
+	hist := history
+	if len(hist) > archMaxHistory {
+		hist = hist[len(hist)-archMaxHistory:]
+	}
+	nh := len(hist)
+	for i, m := range hist {
 		role := m.Role
 		if role != "user" && role != "assistant" {
 			role = "user"
+		}
+		if i < nh-archKeepRecent && role == "assistant" && archAnchorNoise(m.Content) {
+			continue
 		}
 		messages = append(messages, map[string]any{"role": role, "content": m.Content})
 	}
