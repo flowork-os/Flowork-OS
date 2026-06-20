@@ -66,7 +66,12 @@ fi
 # 3) build rootfs/binaries/squashfs, then assemble the USB image.
 echo "==> build-flowork-os.sh"
 "$SELF_DIR/build-flowork-os.sh"
-echo "==> make-usb-image.sh (${USB_SIZE:-$SIZE})"
+
+# 3b) build portable WITH sidecar for distributable release (before USB build disables it)
+echo "==> make-portable.sh WITH sidecar (for release)"
+FLOWORK_PORTABLE_SIDECAR=1 bash "$SELF_DIR/../portable/make-portable.sh" "$OUT/flowork-portable" >/dev/null
+
+echo "==> make-usb-image.sh (${USB_SIZE:-$SIZE}) — will build minimal portable without sidecar"
 "$SELF_DIR/make-usb-image.sh" "$OUT" "$TAG" "${MODEL:-qwen2.5:0.5b}" "${USB_SIZE:-$SIZE}"
 
 # 4) name the artifact by mode so public/dev images never get mixed up.

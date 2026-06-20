@@ -616,6 +616,7 @@ func main() {
 	// harness (selfevolve.go), GA disentuh. Cuma mindahin otak.
 	seedSelfEvolutionGroup(groupsAPI)
 	seedCodemapEnricher() // agent enrich codemap (model GUI, ga hardcode — owner 2026-06-20)
+	seedAIStudio()        // agent ai-studio: otak AI Studio (bikin agent/app/tim), model GUI — owner 2026-06-20
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
 	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas
@@ -758,7 +759,7 @@ func main() {
 	mux.HandleFunc("/api/plugins/export", pluginExportHandler(fdb))
 	mux.HandleFunc("/api/plugins/verify", pluginVerifyHandler()) // VERIFIER dry-run gate (loopback)
 	// CODER (AI Utama 2.2): generate agent baru → verify → Approval Queue (owner-gated).
-	mux.HandleFunc("/api/coder/generate", coderGenerateHandler())
+	mux.HandleFunc("/api/coder/generate", coderGenerateHandler(host))
 	mux.HandleFunc("/api/coder/pending", coderPendingHandler())
 	mux.HandleFunc("/api/coder/approve", coderApproveHandler(host, fdb, groupsAPI)) // P3: auto-group (agent WAJIB group)
 	mux.HandleFunc("/api/coder/reject", coderRejectHandler())

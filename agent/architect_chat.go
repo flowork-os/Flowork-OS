@@ -140,7 +140,14 @@ func archLooksLikeBuildPromise(s string) bool {
 }
 
 func architectChat(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, history []floworkdb.ChatMessage, model string) (string, error) {
-	model = coderModel(model)
+	// AI Studio chat brain pakai MODEL agent ai-studio dari Settings (owner 2026-06-21: "model sudah
+	// ada di agent" — dropdown model di chat dibuang). Override eksplisit (jika ada) dihormati; kalau
+	// kosong → model per-agent ai-studio (router_model GUI), bukan default global flowork-brain.
+	if strings.TrimSpace(model) == "" {
+		model = aiStudioModel()
+	} else {
+		model = coderModel(model)
+	}
 	messages := []map[string]any{{"role": "system", "content": architectPersona(ctx)}}
 	// ANTI-ANCHOR (owner 2026-06-20): cap history + skip reply ASSISTANT bingung/denial
 	// LAMA (di luar archKeepRecent terbaru) biar LLM ga ngechо pola "lo spam / ga bisa /

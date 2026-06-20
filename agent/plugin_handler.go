@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/agentmgr"
 	fwapps "flowork-gui/internal/apps"
 	"flowork-gui/internal/connections"
 	"flowork-gui/internal/floworkdb"
@@ -301,6 +302,16 @@ func installPluginPack(host *kernelhost.Host, store *floworkdb.Store, raw []byte
 		if e := os.Rename(filepath.Join(staging, aid), finalDir); e != nil {
 			return bad(http.StatusInternalServerError, map[string]any{"error": "install agent " + aid + ": " + e.Error()})
 		}
+	}
+
+	// DNA INTRINSIK (2026-06-20): tiap agent baru hasil AI Studio lahir warga
+	// penuh — konstitusi sacred (incl anti-janji-palsu/recall-first) + schema
+	// cognitive graph + antibody immune — LANGSUNG, ga nunggu restart. Pipa ke
+	// instinct/graph/otak-kolektif ikut via coreExposedTools (referensi shared).
+	// Idempotent + best-effort: gagal transient (lock saat hot-load) → boot loop
+	// nyusul, ga nge-fatal install.
+	for aid := range installed {
+		agentmgr.ProvisionAgentDNA(aid)
 	}
 
 	// 4) daftarin kategori + crew

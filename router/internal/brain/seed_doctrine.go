@@ -45,6 +45,31 @@ func SeedDoctrine() (int, int, error) {
 	if err != nil {
 		return 0, 0, fmt.Errorf("seed doctrine: open: %w", err)
 	}
+	// Initialize Cognitive Knowledge Graph schema tables (DreamGraph)
+	_, _ = db.Exec(`
+		CREATE TABLE IF NOT EXISTS cognitive_nodes (
+			id TEXT PRIMARY KEY,
+			label TEXT NOT NULL,
+			type TEXT NOT NULL,
+			properties TEXT DEFAULT '{}',
+			source TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_accessed DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE TABLE IF NOT EXISTS cognitive_edges (
+			from_id TEXT NOT NULL,
+			to_id TEXT NOT NULL,
+			relation_type TEXT NOT NULL,
+			strength REAL DEFAULT 1.0,
+			properties TEXT DEFAULT '{}',
+			PRIMARY KEY (from_id, to_id, relation_type),
+			FOREIGN KEY (from_id) REFERENCES cognitive_nodes(id) ON DELETE CASCADE,
+			FOREIGN KEY (to_id) REFERENCES cognitive_nodes(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_cognitive_nodes_type ON cognitive_nodes(type);
+		CREATE INDEX IF NOT EXISTS idx_cognitive_edges_from ON cognitive_edges(from_id);
+		CREATE INDEX IF NOT EXISTS idx_cognitive_edges_to ON cognitive_edges(to_id);
+	`)
 	var n int
 	_ = db.QueryRow(`SELECT COUNT(*) FROM drawers WHERE deleted_at IS NULL`).Scan(&n)
 	if n > 0 {

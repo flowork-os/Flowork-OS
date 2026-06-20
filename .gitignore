@@ -44,12 +44,16 @@
 *.pem
 !**/update-pub.pem
 flowork.local.env
+*.env_bak
 GITHUB_ACCOUNT.MD
 KERNEL_FREEZE*
 data.key
 update.key
 *.bundle
 *.fwagent/workspace/
+# Runtime data dirs leaked into repo root (owner DB/secrets live in $HOME, NOT repo)
+/.flowork/
+/.agents/
 
 # Editor / OS cruft
 .DS_Store

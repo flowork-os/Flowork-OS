@@ -95,8 +95,6 @@ type tokenErr struct{ msg string }
 
 func (e tokenErr) Error() string { return e.msg }
 
-var errExpiredClaude = tokenErr{msg: "claude oauth token expired — re-login in Claude Code"}
-
 func errNoAutoToken(p string) error {
 	return tokenErr{msg: "no auto-token loader for " + p + " in this build; pass ?token=<value>"}
 }

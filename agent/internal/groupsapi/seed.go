@@ -5,8 +5,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-12
 // Reason: Portable GROUP roster mirror. ReconcileGroupSeeds (SeedFromJSON) syncs a
-//   group's roster between its loket store and a secret-free group.json both ways;
-//   never creates a store for a non-group module. Audited + build/test green.
+//
+//	group's roster between its loket store and a secret-free group.json both ways;
+//	never creates a store for a non-group module. Audited + build/test green.
 //
 // seed.go — portable GROUP roster mirror (group.json).
 //

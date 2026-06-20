@@ -1,6 +1,10 @@
 // === LOCKED FILE (soft) === Status: STABLE (owner-approved 2026-06-15). ChatGPT-style
 // chat component (sessions, full-context, typing animation) used by AI Studio. Tested.
 // DO NOT MODIFY without owner approval.
+// 2026-06-21 (owner-approved): BUANG menu model (dropdown .cu-model). Alasan owner: "model sudah
+//   ada di agent" — model dipilih PER-AGENT (ai-studio buat architect, model group buat group) lewat
+//   Settings agent, bukan dropdown global di chat. barValues kirim model:'' → backend pakai model
+//   per-target. RE-LOCKED.
 //
 // chatui.js — SHARED ChatGPT-style chat component, reused by the Group, Schedule and
 // Trigger tabs. Self-contained: own CSS (cu-* classes, no collision), own i18n
@@ -34,7 +38,6 @@ const CSS = `
 .cu-sel { background:rgba(2,6,18,0.55); border:1px solid rgba(148,163,184,0.2); border-radius:9px; color:#e2e8f0; padding:9px 12px; font:inherit; font-size:0.9rem; }
 .cu-sel:focus { outline:none; border-color:#a78bfa; }
 .cu-target { flex:1; min-width:180px; }
-.cu-model { width:200px; }
 .cu-log { flex:1; overflow-y:auto; padding:18px; display:flex; flex-direction:column; gap:14px; }
 .cu-empty { color:#64748b; font-size:0.86rem; padding:10px 0; }
 .cu-input-row { display:flex; gap:10px; padding:12px 14px; border-top:1px solid rgba(148,163,184,0.16); }
@@ -116,12 +119,6 @@ export function renderChatUI(host) {
       <section class="cu-main">
         <div class="cu-bar">
           <select class="cu-sel cu-target"></select>
-          <select class="cu-sel cu-model">
-            <option value="">${esc(L.model_default)}</option>
-            <option value="claude-opus-4-8">${esc(L.model_opus)}</option>
-            <option value="claude-haiku-4-5">${esc(L.model_haiku)}</option>
-            <option value="flowork-brain">${esc(L.model_local)}</option>
-          </select>
         </div>
         <div class="cu-log"><div class="cu-empty cu-intro">${esc(L.pick)}</div></div>
         <div class="cu-input-row">
@@ -134,9 +131,10 @@ export function renderChatUI(host) {
   const $ = (sel) => host.querySelector(sel);
   const barValues = () => {
     const target = $('.cu-target').value;
-    const model = $('.cu-model').value.trim();
-    if (target.startsWith('group:')) return { mode: 'group', target_id: target.slice(6), model };
-    return { mode: 'architect', target_id: '', model };
+    // model dropdown DIHAPUS (owner 2026-06-21: "model sudah ada di agent") → model:'' = backend
+    // pakai model PER-TARGET (ai-studio buat architect, model group buat group), bukan pilihan global.
+    if (target.startsWith('group:')) return { mode: 'group', target_id: target.slice(6), model: '' };
+    return { mode: 'architect', target_id: '', model: '' };
   };
   const bubble = (cls, html) => {
     const log = $('.cu-log'); const intro = log.querySelector('.cu-intro'); if (intro) intro.remove();
@@ -183,7 +181,6 @@ export function renderChatUI(host) {
     S.sessionId = id;
     const sess = S.sessions.find((s) => s.id === id);
     $('.cu-target').value = sess && sess.mode === 'group' ? 'group:' + sess.target_id : 'architect';
-    $('.cu-model').value = (sess && sess.model) || '';
     const log = $('.cu-log'); log.innerHTML = `<div class="cu-empty">${esc(L.loading)}</div>`;
     try {
       const d = await fetchJSON(`/api/chat/sessions/messages?id=${encodeURIComponent(id)}`);
@@ -233,7 +230,6 @@ export function renderChatUI(host) {
 
   $('.cu-new').addEventListener('click', newChat);
   $('.cu-target').addEventListener('change', saveMeta);
-  $('.cu-model').addEventListener('change', saveMeta);
   $('.cu-send').addEventListener('click', send);
   $('.cu-input').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
   loadGroups();

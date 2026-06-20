@@ -251,6 +251,7 @@ func coderAssemblePack(spec AgentSpec) ([]byte, error) {
 		if e := json.Unmarshal(tmpl, &m); e != nil {
 			return nil, e
 		}
+		stripManifestComments(m) // buang key "_comment*" — loader FROZEN strict (tolak field tak dikenal)
 		m["id"] = id
 		m["display_name"] = display
 		return json.MarshalIndent(m, "", "  ")
@@ -288,11 +289,19 @@ func coderAssemblePack(spec AgentSpec) ([]byte, error) {
 	})
 }
 
-// coderGenerate — pipeline penuh: design (Opus) → assemble → VERIFY → stage pending.
-func coderGenerate(ctx context.Context, task, model string) (map[string]any, error) {
-	spec, err := coderDesignSpec(ctx, task, model)
-	if err != nil {
-		return nil, err
+// coderGenerate — pipeline penuh: design → assemble → VERIFY → stage pending.
+// Owner 2026-06-20: design SPEC pindah ke AGENT ai-studio (model GUI per-agent, BUKAN hardcode).
+// Coba agent dulu; agent ga ke-load / output invalid → FALLBACK coderDesignSpec lama (forced-tool
+// routerChat). Engine assemble/verify/stage TETAP (agent bodoh, engine pinter).
+func coderGenerate(ctx context.Context, host *kernelhost.Host, task, model string) (map[string]any, error) {
+	spec, designModel, ok := aiStudioDesignAgent(ctx, host, task)
+	if !ok {
+		var err error
+		spec, err = coderDesignSpec(ctx, task, model)
+		if err != nil {
+			return nil, err
+		}
+		designModel = coderModel(model) + " (fallback)"
 	}
 	if msg := spec.validate(); msg != "" {
 		return nil, fmt.Errorf("spec invalid: %s", msg)
@@ -315,9 +324,9 @@ func coderGenerate(ctx context.Context, task, model string) (map[string]any, err
 	if e := os.WriteFile(packPath, pack, 0o644); e != nil {
 		return nil, fmt.Errorf("write pack: %w", e)
 	}
-	meta := map[string]any{"id": spec.CategoryID, "task": task, "model": model, "spec": spec, "verify": verdict}
+	meta := map[string]any{"id": spec.CategoryID, "task": task, "model": model, "design_model": designModel, "spec": spec, "verify": verdict}
 	out := map[string]any{
-		"ok": true, "pending_id": spec.CategoryID, "spec": spec, "verify": verdict,
+		"ok": true, "pending_id": spec.CategoryID, "spec": spec, "verify": verdict, "design_model": designModel,
 		"next": "owner review di Approval Queue → approve (install) / reject.",
 	}
 	if jerr == nil {
@@ -333,7 +342,7 @@ func coderGenerate(ctx context.Context, task, model string) (map[string]any, err
 
 // ── HTTP handlers ────────────────────────────────────────────────────────────
 
-func coderGenerateHandler() http.HandlerFunc {
+func coderGenerateHandler(host *kernelhost.Host) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			tfWriteJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "POST only"})
@@ -353,7 +362,7 @@ func coderGenerateHandler() http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 200*time.Second)
 		defer cancel()
-		res, err := coderGenerate(ctx, body.Task, coderModel(body.Model))
+		res, err := coderGenerate(ctx, host, body.Task, coderModel(body.Model))
 		if err != nil {
 			tfWriteJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
 			return

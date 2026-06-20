@@ -101,9 +101,17 @@ func designAppUI(ctx context.Context, prompt, model string) (appID, name, icon, 
 // AI-that-answers (pantun, translate), use build_team instead. Loopback owner-trust →
 // install with approveExec (GUI-only app, runtime="", no OS process).
 func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, prompt, model string) (map[string]any, error) {
-	appID, name, icon, desc, html, err := designAppUI(ctx, prompt, coderModel(model))
-	if err != nil {
-		return nil, fmt.Errorf("design app: %w", err)
+	// Owner 2026-06-20: design APP UI pindah ke AGENT ai-studio (model GUI). Coba agent dulu; agent
+	// ga ke-load / HTML-in-JSON invalid → FALLBACK designAppUI lama (forced-tool, escape reliable).
+	appID, name, icon, desc, html, ok := aiStudioDesignAppUI(ctx, host, prompt)
+	designModel := aiStudioModel() + " (ai-studio)"
+	if !ok {
+		var err error
+		appID, name, icon, desc, html, err = designAppUI(ctx, prompt, coderModel(model))
+		if err != nil {
+			return nil, fmt.Errorf("design app: %w", err)
+		}
+		designModel = coderModel(model) + " (fallback)"
 	}
 	if !appUIIDRe.MatchString(appID) {
 		return nil, fmt.Errorf("app_id invalid (^[a-z0-9][a-z0-9-]{1,40}$): %q", appID)
@@ -142,7 +150,7 @@ func architectBuildApp(ctx context.Context, host *kernelhost.Host, store *flowor
 	_ = host
 	_ = store
 	return map[string]any{
-		"ok": true, "app_id": appID, "name": name,
+		"ok": true, "app_id": appID, "name": name, "design_model": designModel,
 		"note": "App '" + name + "' (" + appID + ") LIVE di menu App — buka tab App buat jalanin.",
 	}, nil
 }
@@ -304,6 +312,19 @@ func nonEmpty(v, def string) string {
 	return def
 }
 
+// stripManifestComments — buang key dokumentasi ber-prefix "_" (mis. "_comment_caps") dari manifest
+// yang di-clone dari template. Loader kernel FROZEN (internal/kernel/loader/manifest.go) decode STRICT
+// → field tak dikenal = "unknown field" → agent GAGAL hot-load. Template boleh self-dokumentasi pakai
+// "_comment", tapi manifest runtime hasil clone WAJIB bersih. Root-fix (bukan tambal): cloner ga pernah
+// emit field yg loader tolak. Owner 2026-06-20 (E2E tim peramal: member ga live gara2 "_comment_caps").
+func stripManifestComments(m map[string]any) {
+	for k := range m {
+		if strings.HasPrefix(k, "_") {
+			delete(m, k)
+		}
+	}
+}
+
 // swapManifest — clone a template agent manifest, swap id + display_name. Caps stay
 // the template's (proven). Shared by the team assembler for every crew member.
 func swapManifest(tmpl []byte, id, display string) ([]byte, error) {
@@ -311,6 +332,7 @@ func swapManifest(tmpl []byte, id, display string) ([]byte, error) {
 	if e := json.Unmarshal(tmpl, &m); e != nil {
 		return nil, e
 	}
+	stripManifestComments(m) // loader FROZEN strict — buang "_comment*" biar clone ga ditolak hot-load
 	m["id"] = id
 	m["display_name"] = display
 	return json.MarshalIndent(m, "", "  ")
@@ -447,11 +469,24 @@ func architectBuildFromPlan(ctx context.Context, host *kernelhost.Host, store *f
 // Used by POST /api/architect/build. The conversational chat brain instead designs
 // through dialogue and calls architectBuildFromPlan directly.
 func architectBuild(ctx context.Context, host *kernelhost.Host, store *floworkdb.Store, groups *groupsapi.Handler, prompt, model string) (map[string]any, error) {
-	plan, err := architectDesignTeam(ctx, prompt, model)
-	if err != nil {
-		return nil, fmt.Errorf("design team: %w", err)
+	// Owner 2026-06-20: design TIM pindah ke AGENT ai-studio (model GUI). Coba agent dulu; agent ga
+	// ke-load / plan invalid → FALLBACK architectDesignTeam lama (forced-tool routerChat). Assembly TETAP.
+	plan, ok := aiStudioDesignTeam(ctx, host, prompt)
+	designModel := aiStudioModel() + " (ai-studio)"
+	if !ok {
+		var err error
+		plan, err = architectDesignTeam(ctx, prompt, model)
+		if err != nil {
+			return nil, fmt.Errorf("design team: %w", err)
+		}
+		designModel = coderModel(model) + " (fallback)"
 	}
-	return architectBuildFromPlan(ctx, host, store, groups, plan)
+	res, err := architectBuildFromPlan(ctx, host, store, groups, plan)
+	if err != nil {
+		return nil, err
+	}
+	res["design_model"] = designModel
+	return res, nil
 }
 
 // architectBuildHandler — POST /api/architect/build {prompt|task, model?}.

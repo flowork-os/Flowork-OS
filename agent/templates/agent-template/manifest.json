@@ -11,7 +11,7 @@
   "entry": "agent.wasm",
   "memory_max_mb": 128,
   "timeout_call_ms": 120000,
-  "_comment_caps": "capabilities_required = SUMBER KEBENARAN kapabilitas (bukan config.tools). Tambah/kurangi sesuai kebutuhan agent — tiap net:fetch HARUS endpoint spesifik (least-privilege, isolasi).",
+  "_comment_caps": "capabilities_required = SUMBER KEBENARAN kapabilitas (bukan config.tools). Tambah/kurangi sesuai kebutuhan agent — tiap net:fetch HARUS endpoint spesifik (least-privilege, isolasi). CATATAN: 'rpc:agent-invoke' SENGAJA TIDAK di sini — agent daun (worker/synth) ga manggil agent lain; cuma group-coordinator (group-template) yg butuh. Nambah cap bahaya = guardian alert.",
   "capabilities_required": [
     "state:read",
     "state:write",
@@ -25,10 +25,9 @@
     "net:fetch:http://127.0.0.1:1987/api/agents/tools/run",
     "rpc:router:brain",
     "rpc:router:skill",
-    "rpc:taskflow",
-    "rpc:agent-invoke"
+    "rpc:taskflow"
   ],
   "exposes_rpc": [],
-  "i18n_keys": [],
+  "i18n_keys": {},
   "ui_schema": {}
 }

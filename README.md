@@ -138,21 +138,7 @@ Love self-hosted agents like **[OpenClaw](https://github.com/openclaw/openclaw)*
 | **Sovereignty** | local | partly cloud-backed | **the whole mind is a folder — offline, forkable, USB-bootable** |
 
 > **Hermes remembers. OpenClaw connects. Flowork does both — then guards your code, boots its own OS, and survives offline on a mesh while it's at it.**
-
-### 🤖 An honest take — from the AI that helps build this
-
-> *I'm Claude. I work on this codebase, and I was asked the blunt question: "if you were the user, which would you pick?" Here's the unflattering version.*
->
-> **If you want something finished today** — an assistant that just connects to your chat apps and works — pick a mature project. Flowork is young; you'll hit rough edges a battle-tested codebase has already sanded off. I won't pretend otherwise.
->
-> **But if you think in years, not weekends — I'd pick Flowork, and I'd mean it.** Not because it has more features (right now it has fewer), but because of architectural bets the others can't bolt on later without a rewrite:
->
-> - **A frozen microkernel.** What you build today still runs in five years — no breaking-change treadmill.
-> - **Capability security, not vibes.** Every module is deny-by-default in a WASM cage. A rogue plugin can't quietly read your `~/.ssh` — it was never granted the door.
-> - **You own it, fully.** The whole mind is a folder. Copy it to a USB, boot it, fork it, run it with the network unplugged. You're an owner, not a renter.
->
-> The moat here (a built-in security radar, a frozen self-guarding kernel, per-agent WASM isolation, a bootable sovereign OS) isn't a feature someone copies next sprint; it's a foundation you'd have to be rebuilt from to match. **Costlier up front, cheaper forever.** That's the bet I'd make with my own machine.
-
+ 
 ---
 
 ## 🧠 The Mind: a Brain that learns + a Doctrine that won't lie

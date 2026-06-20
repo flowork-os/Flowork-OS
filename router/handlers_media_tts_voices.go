@@ -27,7 +27,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -473,6 +472,3 @@ func firstStrTTS(xs ...string) string {
 	}
 	return ""
 }
-
-// Sentinel returned by handler when registry lookup fails completely.
-var errNoConnection = errors.New("no active provider connection")

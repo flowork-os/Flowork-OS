@@ -6,6 +6,12 @@
 // Reason: Fase 0 — endpoint OpenAI function-schema (core ~13 + manual subs,
 //   cap 25, BUKAN 106 = anti over-prompt). E2E verified (Mr.Flow file_write+read).
 //
+// MODIFIED 2026-06-20 (owner-approved, re-locked; header-lock, BUKAN hash-frozen):
+//   coreExposedTools +graph_recall +instinct_recall +brain_search_shared = PIPA
+//   genom. Tiap agent (termasuk hasil AI Studio) lahir nyolok ke instinct + graph
+//   + otak-kolektif (referensi SHARED brain, bukan copy). 12→15 core (cap 50, aman).
+//   Alasan: directive owner "agent baru kewarisan roadmap (instinct/graph/tools)".
+//
 // tool_specs.go — Fase 0 (tool-calling loop): endpoint yang balikin tools yang
 // di-EXPOSE ke LLM dalam format OpenAI function-schema. Host yang bangun schema
 // (punya registry + subscription); WASM agent tinggal fetch + forward ke LLM.
@@ -35,6 +41,14 @@ var coreExposedTools = []string{
 	"file_read", "file_write", "file_list", "grep", "glob",
 	"webfetch", "brain_search", "memory_get", "memory_set",
 	"telegram_send", "tool_search", "now",
+	// PIPA roadmap (2026-06-20): tiap agent (termasuk hasil AI Studio) lahir
+	// nyolok ke instinct + graph + otak-kolektif. graph_recall (state:read,
+	// universal aman) = recall dari cognitive graph sendiri (twin/relasi);
+	// instinct_recall + brain_search_shared (rpc:router:brain) = insting
+	// coding/security + pengetahuan kolektif (859K) di SHARED brain. Di-REFERENSI
+	// (bukan di-copy) → update shared sekali, semua agent lihat. Cap-denied =
+	// graceful (tool balikin error, LLM lanjut).
+	"graph_recall", "instinct_recall", "brain_search_shared",
 }
 
 // maxExposedTools caps how many tool schemas an agent offers its LLM at once. A

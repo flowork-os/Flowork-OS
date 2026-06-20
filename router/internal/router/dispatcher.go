@@ -37,7 +37,7 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-const httpTimeout = 120 * time.Second
+const httpTimeout = 300 * time.Second
 
 var httpClient = &http.Client{Timeout: httpTimeout}
 

@@ -24,14 +24,14 @@ for t in sgdisk losetup mkfs.vfat mkfs.ext4 grub-install; do command -v "$t" >/d
 SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 
 # Portable launchers for p1 — build them if not already present.
-# Portable launchers for p1. ALWAYS (re)build fresh unless an explicit FLOWORK_PORTABLE_DIR was
-# passed — reusing a stale out/flowork-portable cache once shipped a USB with old launchers
-# (missing the .desktop files). Cheap (~30s) vs the whole image build.
+# Portable launchers for p1. Build a SEPARATE minimal version for USB FAT partition (no sidecar).
+# The main flowork-portable WITH sidecar is built earlier by make-distributable.sh for release.
+# USB image uses a temp minimal version to keep the FAT partition small (~130M vs 14GB+).
 PORTABLE="${FLOWORK_PORTABLE_DIR:-}"
 if [ -z "$PORTABLE" ]; then
-	PORTABLE="$OUT/flowork-portable"
-	echo "[usb] (re)building portable launchers fresh (Win/Linux/macOS · GUI/Background/Stop/Update + .desktop)…"
-	bash "$SELF_DIR/../portable/make-portable.sh" "$PORTABLE" >/dev/null
+	PORTABLE="$OUT/.usb-portable-temp"
+	echo "[usb] (re)building minimal portable launchers for USB FAT (Win/Linux/macOS · GUI/Background/Stop/Update + .desktop, NO sidecar)…"
+	FLOWORK_PORTABLE_SIDECAR=0 bash "$SELF_DIR/../portable/make-portable.sh" "$PORTABLE" >/dev/null
 fi
 
 # Size the FLOWORK FAT partition to fit the portable bundle. A Full/dev build now carries a
@@ -162,5 +162,7 @@ $SUDO grub-install --target=x86_64-efi --efi-directory="$ESP" --boot-directory="
 	|| echo "[usb] WARN: UEFI grub-install failed"
 
 sync
+# Clean up temp USB-only portable (main flowork-portable WITH sidecar is kept for release)
+[ -d "$OUT/.usb-portable-temp" ] && rm -rf "$OUT/.usb-portable-temp"
 echo "[usb] DONE -> $IMG"
 echo "[usb] flash:  sudo dd if=$IMG of=/dev/sdX bs=4M status=progress conv=fsync   (Secure Boot off)"

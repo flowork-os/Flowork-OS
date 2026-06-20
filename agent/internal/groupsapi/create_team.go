@@ -3,9 +3,10 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Locked at: 2026-06-15 (owner-approved autonomous sprint)
 // Reason: CreateGroup — programmatic group deploy+roster for the Architect. Companion to
-//   the soft-LOCKED groupsapi.go (left untouched). VERIFIED: created group "peramal" with
-//   4 members + synthesizer; group.json + loket group=1 written; SyncToOrchestrator ran;
-//   coordinator hot-loaded; chattable immediately. Mirrors CreateHandler+ConfigHandler.
+//
+//	the soft-LOCKED groupsapi.go (left untouched). VERIFIED: created group "peramal" with
+//	4 members + synthesizer; group.json + loket group=1 written; SyncToOrchestrator ran;
+//	coordinator hot-loaded; chattable immediately. Mirrors CreateHandler+ConfigHandler.
 //
 // create_team.go — PROGRAMMATIC group creation for the Flowork Architect.
 //

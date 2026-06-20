@@ -27,31 +27,18 @@ const (
 var (
 	tunnelWatchdogStarted bool
 	tunnelWatchdogMu      sync.Mutex
-	tunnelWatchdogCancel  context.CancelFunc
 )
 
 // startTunnelWatchdog launches the background probe loop. Idempotent — second
-// call is a no-op. Use stopTunnelWatchdog() on shutdown.
+// call is a no-op. The loop runs for the lifetime of the process.
 func startTunnelWatchdog() {
 	tunnelWatchdogMu.Lock()
 	defer tunnelWatchdogMu.Unlock()
 	if tunnelWatchdogStarted {
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	tunnelWatchdogCancel = cancel
 	tunnelWatchdogStarted = true
-	go tunnelWatchdogLoop(ctx)
-}
-
-// stopTunnelWatchdog ends the background loop. Safe to call when not started.
-func stopTunnelWatchdog() {
-	tunnelWatchdogMu.Lock()
-	defer tunnelWatchdogMu.Unlock()
-	if tunnelWatchdogCancel != nil {
-		tunnelWatchdogCancel()
-	}
-	tunnelWatchdogStarted = false
+	go tunnelWatchdogLoop(context.Background())
 }
 
 func tunnelWatchdogLoop(ctx context.Context) {

@@ -383,9 +383,14 @@
 
     <!-- BRAIN -->
     <section id="tab-brain" class="tab-content hidden">
-      <div class="mb-5">
-        <h2 class="text-xl font-bold">🧬 <span data-i18n="brain.h.section">Brain</span></h2>
-        <p class="text-sm text-slate-400 mt-0.5" data-i18n="brain.desc.section">Server-side knowledge brain.</p>
+      <div class="mb-5 flex justify-between items-center flex-wrap gap-3">
+        <div>
+          <h2 class="text-xl font-bold">🧬 <span data-i18n="brain.h.section">Brain</span></h2>
+          <p class="text-sm text-slate-400 mt-0.5" data-i18n="brain.desc.section">Server-side knowledge brain.</p>
+        </div>
+        <div>
+          <button type="button" class="btn-primary" style="padding:8px 16px;font-size:0.85rem; background: linear-gradient(135deg, #a855f7, #6366f1); border-radius: 6px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);" onclick="triggerDreamCycle()">💫 Run Dream Mode (Cognitive Digestion)</button>
+        </div>
       </div>
 
       <!-- sub-tab nav -->
@@ -398,6 +403,8 @@
         <button type="button" class="btn-secondary brain-subtab" data-sub="personas" onclick="brainSub('personas')"><span class="ic">🪪</span> <span data-i18n="brain.sub.personas">Personas</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="config" onclick="brainSub('config')"><span class="ic">⚙️</span> <span data-i18n="brain.sub.config">Config</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="registry" onclick="brainSub('registry')"><span class="ic">🌐</span> <span data-i18n="brain.sub.registry">Registry</span></button>
+        <button type="button" class="btn-secondary brain-subtab" data-sub="instincts" onclick="brainSub('instincts')"><span class="ic">🧠</span> <span>Instincts</span></button>
+        <button type="button" class="btn-secondary brain-subtab" data-sub="graph" onclick="brainSub('graph')"><span class="ic">🕸️</span> <span>Knowledge Graph</span></button>
       </div>
 
       <!-- OVERVIEW -->
@@ -537,6 +544,76 @@ done &lt; my_knowledge.jsonl</pre>
             <button type="button" class="btn-primary" style="padding:4px 12px;font-size:0.78rem" onclick="openPersonaAdd()" data-i18n-tip="tipb.brain.addPersona">+ <span data-i18n="brain.per.addBtn">Add persona</span></button>
           </div>
           <div id="brainPersonas" class="text-sm text-slate-400" data-i18n="brain.status.loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- INSTINCTS -->
+      <div class="brain-sub hidden" data-sub="instincts">
+        <div class="glass p-5 mb-4">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 class="font-semibold text-purple-300">FLowork Instincts</h3>
+            <button type="button" class="btn-primary" style="padding:4px 12px;font-size:0.78rem" onclick="openInstinctAdd()">+ Add Instinct</button>
+          </div>
+          <div class="flex items-center gap-2 mb-3">
+            <input type="text" id="brainInstinctQuery" class="flex-1 px-3 py-1.5 rounded-md text-sm bg-black/20 text-white" placeholder="Search instincts (e.g. compile, Sharpe)..." oninput="debounceLoadBrainInstincts()"/>
+            <button type="button" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="loadBrainInstincts()">Search</button>
+          </div>
+          <div id="brainInstincts" class="text-sm text-slate-400">Loading…</div>
+          <div class="flex items-center justify-between mt-4">
+            <button type="button" id="btnInstinctPrev" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="paginateInstincts(-1)" disabled>Prev</button>
+            <span id="instinctPager" class="text-xs text-slate-500 font-mono">Page 1</span>
+            <button type="button" id="btnInstinctNext" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="paginateInstincts(1)">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- KNOWLEDGE GRAPH -->
+      <div class="brain-sub hidden" data-sub="graph">
+        <div class="glass p-5 mb-4">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 class="font-semibold text-purple-300">FLowork Knowledge Graph (DreamGraph)</h3>
+            <div id="brainGraphSummary" class="text-xs text-purple-400 font-mono bg-purple-900/30 px-3 py-1 rounded-md border border-purple-800/40">Nodes: 0 · Edges: 0</div>
+          </div>
+          
+          <!-- Flex layout for Canvas and Sidebar -->
+          <div class="flex gap-4 mb-4 flex-col lg:flex-row">
+            <!-- Canvas Container (Left) -->
+            <div class="relative flex-1 rounded-lg overflow-hidden border border-purple-900/30 bg-black/40" style="height: 600px;">
+              <canvas id="graphCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+              <div class="absolute bottom-2 left-2 text-3xs text-purple-400/60 font-mono bg-black/60 px-2 py-1 rounded select-none">
+                Drag nodes to interact · Scroll to pan/zoom
+              </div>
+              <div class="absolute top-2 right-2 flex gap-1">
+                <button type="button" class="btn-secondary" style="padding:2px 8px;font-size:0.7rem;background:rgba(0,0,0,0.6)" onclick="resetGraphView()">Reset View</button>
+              </div>
+            </div>
+
+            <!-- Sidebar Panel (Right) -->
+            <div class="w-full lg:w-80 rounded-lg border border-purple-900/30 bg-black/40 p-4 flex flex-col justify-between" style="height: 600px;">
+              <div class="overflow-y-auto flex-1 space-y-4" id="graphDetailPanel">
+                <div class="text-slate-400 text-xs text-center py-10">
+                  <span class="block text-2xl mb-2">👈</span>
+                  Click a node or edge in the map to view details and edit it.
+                </div>
+              </div>
+              
+              <!-- Manual Add Buttons -->
+              <div class="pt-3 border-t border-purple-900/30 flex gap-2">
+                <button type="button" class="btn-primary flex-1 text-center py-1 text-2xs" onclick="openGraphNodeAdd()">+ Add Node</button>
+                <button type="button" class="btn-secondary flex-1 text-center py-1 text-2xs" onclick="openGraphEdgeAdd()">+ Add Edge</button>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 mb-3">
+            <input type="text" id="brainGraphQuery" class="flex-1 px-3 py-1.5 rounded-md text-sm bg-black/20 text-white" placeholder="Search graph nodes/edges (e.g. Aola, NeonStrike)..." oninput="debounceLoadBrainGraph()"/>
+            <button type="button" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="loadBrainGraph()">Search</button>
+          </div>
+          <div id="brainGraph" class="text-sm text-slate-400">Loading…</div>
+          <div class="flex items-center justify-between mt-4">
+            <button type="button" id="btnGraphPrev" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="paginateGraph(-1)" disabled>Prev</button>
+            <span id="graphPager" class="text-xs text-slate-500 font-mono">Page 1</span>
+            <button type="button" id="btnGraphNext" class="btn-secondary" style="padding:4px 12px;font-size:0.78rem" onclick="paginateGraph(1)">Next</button>
+          </div>
         </div>
       </div>
 
@@ -2588,6 +2665,8 @@ done &lt; my_knowledge.jsonl</pre>
       if (name === 'typed') loadBrainTyped();
       if (name === 'personas') loadBrainPersonas();
       if (name === 'registry') loadRegistry();
+      if (name === 'instincts') loadBrainInstincts();
+      if (name === 'graph') loadBrainGraph();
     }
     // Per-drawer + per-persona caches so edit/delete handlers can read full
     // content without re-fetching (typed_view + personas return everything).
@@ -2704,6 +2783,1078 @@ done &lt; my_knowledge.jsonl</pre>
         loadBrainTyped();
       } catch (e) { uiToast(t('brain.msg.deleteErr') + ': ' + e, 'error'); }
     }
+
+    // ── Instincts CRUD ───────────────────────────────────────────────────
+    let instinctPage = 0;
+    const instinctLimit = 50;
+    const _instinctCache = new Map();
+
+    async function loadBrainInstincts() {
+      const el = document.getElementById('brainInstincts');
+      if (!el) return;
+      el.textContent = 'Loading…';
+      const q = document.getElementById('brainInstinctQuery').value.trim();
+      
+      try {
+        let ds = [];
+        if (q) {
+          // Search mode
+          const r = await (await fetch('/api/brain/search-drawers?query=' + encodeURIComponent(q) + '&k=100')).json();
+          const hits = r.hits || [];
+          ds = hits.filter(h => h.room && h.room.indexOf('instinct') >= 0).map(h => ({
+            id: h.drawer_id || h.id,
+            drawer_id: h.drawer_id || h.id,
+            wing: h.wing,
+            room: h.room,
+            content: h.content,
+            importance: h.score
+          }));
+          document.getElementById('btnInstinctPrev').disabled = true;
+          document.getElementById('btnInstinctNext').disabled = true;
+          document.getElementById('instinctPager').textContent = 'Search results: ' + ds.length;
+        } else {
+          // List mode
+          const offset = instinctPage * instinctLimit;
+          const r = await (await fetch('/api/brain/wing?wing=training_data&room_like=%25instinct&limit=' + instinctLimit + '&offset=' + offset)).json();
+          ds = r.drawers || [];
+          
+          document.getElementById('btnInstinctPrev').disabled = instinctPage === 0;
+          document.getElementById('btnInstinctNext').disabled = ds.length < instinctLimit;
+          document.getElementById('instinctPager').textContent = 'Page ' + (instinctPage + 1);
+        }
+
+        _instinctCache.clear();
+        ds.forEach(s => _instinctCache.set(s.drawer_id || s.DrawerID || s.id, s));
+
+        if (!ds.length) {
+          el.textContent = q ? 'No matching instincts found.' : 'No instincts found.';
+          return;
+        }
+
+        el.innerHTML = ds.map(s => {
+          const id = s.drawer_id || s.DrawerID || s.id || '';
+          return '<div class="mb-2 p-2 rounded bg-black/20">'
+            + '<div class="flex items-center justify-between mb-0.5">'
+            + '<div class="text-xs text-purple-300">' + _escHtml(s.wing||'') + (s.room ? '/' + _escHtml(s.room) : '') + ' <span class="text-slate-500 font-mono">· ' + _escHtml(id) + '</span></div>'
+            + '<div class="flex gap-1">'
+            + '<button class="btn-secondary" style="padding:2px 8px;font-size:0.7rem" onclick="openInstinctEdit(\'' + _escHtml(id) + '\')">edit</button>'
+            + '<button class="btn-danger" style="padding:2px 8px;font-size:0.7rem" onclick="confirmInstinctDelete(\'' + _escHtml(id) + '\')">del</button>'
+            + '</div></div>'
+            + '<div class="text-xs text-slate-400 whitespace-pre-wrap">' + _escHtml(s.content||'') + '</div></div>';
+        }).join('');
+      } catch (e) {
+        el.textContent = 'Error loading instincts: ' + e;
+      }
+    }
+
+    function paginateInstincts(dir) {
+      instinctPage += dir;
+      if (instinctPage < 0) instinctPage = 0;
+      loadBrainInstincts();
+    }
+
+    let instinctDebounce;
+    function debounceLoadBrainInstincts() {
+      clearTimeout(instinctDebounce);
+      instinctDebounce = setTimeout(loadBrainInstincts, 300);
+    }
+
+    async function openInstinctAdd() {
+      const r = await uiModal({
+        title: 'Add FLowork Instinct',
+        fields: [
+          { name: 'content', label: 'Instinct Content', value: '', type: 'textarea' }
+        ],
+        actions: [
+          { label: 'Add', kind: 'primary', value: true },
+          { label: 'Cancel', kind: 'secondary', value: false }
+        ]
+      });
+      if (!r.action) return;
+      const f = r.fields;
+      if (!(f.content || '').trim()) { uiToast('Content required', 'warn'); return; }
+      try {
+        const resp = await fetch('/api/brain/drawer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: f.content, wing: 'training_data', room: 'flowork_instinct', memType: 'project' })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Instinct added successfully', 'success');
+        loadBrainInstincts();
+      } catch (e) { uiToast('Error adding instinct: ' + e, 'error'); }
+    }
+
+    async function openInstinctEdit(id) {
+      const cur = _instinctCache.get(id) || {};
+      const r = await uiModal({
+        title: 'Edit Instinct · ' + id,
+        fields: [
+          { name: 'content', label: 'Instinct Content', value: cur.content || '', type: 'textarea' }
+        ],
+        actions: [
+          { label: 'Save', kind: 'primary', value: true },
+          { label: 'Cancel', kind: 'secondary', value: false }
+        ]
+      });
+      if (!r.action) return;
+      const f = r.fields;
+      if (!(f.content || '').trim()) { uiToast('Content required', 'warn'); return; }
+      try {
+        const resp = await fetch('/api/brain/drawer', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, content: f.content, wing: 'training_data', room: 'flowork_instinct', memType: 'project' })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Instinct updated successfully', 'success');
+        loadBrainInstincts();
+      } catch (e) { uiToast('Error updating instinct: ' + e, 'error'); }
+    }
+
+    async function confirmInstinctDelete(id) {
+      const ok = await uiConfirm({ title: 'Delete Instinct', body: 'Are you sure you want to delete this instinct?\n\n· ' + id, dangerous: true });
+      if (!ok) return;
+      try {
+        const resp = await fetch('/api/brain/drawer?id=' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Instinct deleted successfully', 'success');
+        loadBrainInstincts();
+      } catch (e) { uiToast('Error deleting instinct: ' + e, 'error'); }
+    }
+
+    // ── Knowledge Graph CRUD ──────────────────────────────────────────────
+    let graphPage = 0;
+    const graphLimit = 25;
+    const _graphCache = new Map();
+
+    // Visual Force-Directed Graph Variables
+    let graphNodes = [];
+    let graphEdges = [];
+    let canvas = null;
+    let ctx = null;
+    let isDragging = false;
+    let draggedNode = null;
+    let transform = { x: 0, y: 0, zoom: 1 };
+    let hoverNode = null;
+    let animationId = null;
+
+    function startGraphSimulation() {
+      canvas = document.getElementById('graphCanvas');
+      if (!canvas) return;
+      ctx = canvas.getContext('2d');
+
+      const resize = () => {
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      };
+      resize();
+      window.addEventListener('resize', resize);
+
+      let isPanning = false;
+      let panStart = { x: 0, y: 0 };
+
+      const toWorld = (sx, sy) => {
+        return {
+          x: (sx - transform.x) / transform.zoom,
+          y: (sy - transform.y) / transform.zoom
+        };
+      };
+
+      const findNode = (mx, my) => {
+        const worldPos = toWorld(mx, my);
+        for (const node of graphNodes) {
+          const dx = node.x - worldPos.x;
+          const dy = node.y - worldPos.y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < node.r + 8) return node;
+        }
+        return null;
+      };
+
+      const findEdge = (mx, my) => {
+        const worldPos = toWorld(mx, my);
+        const px = worldPos.x;
+        const py = worldPos.y;
+        
+        for (const edge of graphEdges) {
+          const u = graphNodes.find(n => n.id === edge.source);
+          const v = graphNodes.find(n => n.id === edge.target);
+          if (!u || !v) continue;
+          
+          const dx = v.x - u.x;
+          const dy = v.y - u.y;
+          const lenSq = dx*dx + dy*dy;
+          if (lenSq === 0) continue;
+          
+          let t = ((px - u.x) * dx + (py - u.y) * dy) / lenSq;
+          t = Math.max(0, Math.min(1, t));
+          
+          const projX = u.x + t * dx;
+          const projY = u.y + t * dy;
+          
+          const dist = Math.sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
+          if (dist < 8) return edge;
+        }
+        return null;
+      };
+
+      canvas.addEventListener('mousedown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        const node = findNode(mx, my);
+        if (node) {
+          isDragging = true;
+          draggedNode = node;
+          node.fx = node.x;
+          node.fy = node.y;
+          showGraphNodeDetails(node);
+        } else {
+          const edge = findEdge(mx, my);
+          if (edge) {
+            showGraphEdgeDetails(edge);
+          } else {
+            isPanning = true;
+            panStart.x = e.clientX - transform.x;
+            panStart.y = e.clientY - transform.y;
+            showGraphDefaultSidebar();
+          }
+        }
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        if (isDragging && draggedNode) {
+          const worldPos = toWorld(mx, my);
+          draggedNode.fx = worldPos.x;
+          draggedNode.fy = worldPos.y;
+          draggedNode.x = worldPos.x;
+          draggedNode.y = worldPos.y;
+        } else if (isPanning) {
+          transform.x = e.clientX - panStart.x;
+          transform.y = e.clientY - panStart.y;
+        } else {
+          hoverNode = findNode(mx, my);
+        }
+      });
+
+      const stopDrag = () => {
+        if (draggedNode) {
+          draggedNode.fx = null;
+          draggedNode.fy = null;
+        }
+        isDragging = false;
+        draggedNode = null;
+        isPanning = false;
+      };
+
+      canvas.addEventListener('mouseup', stopDrag);
+      canvas.addEventListener('mouseleave', stopDrag);
+
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        const worldPos = toWorld(mx, my);
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+        const newZoom = Math.min(Math.max(transform.zoom * zoomFactor, 0.15), 4);
+
+        transform.x = mx - worldPos.x * newZoom;
+        transform.y = my - worldPos.y * newZoom;
+        transform.zoom = newZoom;
+      });
+
+      if (animationId) cancelAnimationFrame(animationId);
+      const tick = () => {
+        updatePhysics();
+        drawGraph();
+        animationId = requestAnimationFrame(tick);
+      };
+      tick();
+    }
+
+    function resetGraphView() {
+      if (!canvas) return;
+      transform.x = canvas.width / 2;
+      transform.y = canvas.height / 2;
+      transform.zoom = 1.0;
+    }
+
+    function updatePhysics() {
+      const kRepulsion = 1200;
+      const kSpring = 0.04;
+      const restLength = 110;
+      const gravity = 0.02;
+      const damping = 0.82;
+
+      for (const node of graphNodes) {
+        node.vx = node.vx || 0;
+        node.vy = node.vy || 0;
+      }
+
+      // 1. Node Repulsion
+      for (let i = 0; i < graphNodes.length; i++) {
+        const u = graphNodes[i];
+        for (let j = i + 1; j < graphNodes.length; j++) {
+          const v = graphNodes[j];
+          const dx = u.x - v.x;
+          const dy = u.y - v.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          if (dist < 320) {
+            const force = kRepulsion / (dist * dist);
+            const fx = (dx / dist) * force;
+            const fy = (dy / dist) * force;
+            u.vx += fx;
+            u.vy += fy;
+            v.vx -= fx;
+            v.vy -= fy;
+          }
+        }
+      }
+
+      // 2. Spring Attraction along Edges
+      for (const edge of graphEdges) {
+        const u = graphNodes.find(n => n.id === edge.source);
+        const v = graphNodes.find(n => n.id === edge.target);
+        if (!u || !v) continue;
+
+        const dx = u.x - v.x;
+        const dy = u.y - v.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const force = (dist - restLength) * kSpring * (edge.strength || 1.0);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+
+        u.vx -= fx;
+        u.vy -= fy;
+        v.vx += fx;
+        v.vy += fy;
+      }
+
+      // 3. Gravity to center & Update Positions
+      for (const node of graphNodes) {
+        if (node.fx !== undefined && node.fx !== null) {
+          node.x = node.fx;
+          node.y = node.fy;
+          node.vx = 0;
+          node.vy = 0;
+          continue;
+        }
+
+        node.vx += (0 - node.x) * gravity;
+        node.vy += (0 - node.y) * gravity;
+
+        node.x += node.vx;
+        node.y += node.vy;
+
+        node.vx *= damping;
+        node.vy *= damping;
+      }
+    }
+
+    function drawGraph() {
+      if (!ctx || !canvas) return;
+
+      const qInput = document.getElementById('brainGraphQuery');
+      const q = qInput ? qInput.value.trim().toLowerCase() : '';
+
+      ctx.fillStyle = '#050508';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.translate(transform.x, transform.y);
+      ctx.scale(transform.zoom, transform.zoom);
+
+      // Grid background
+      const gridSize = 40;
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.03)';
+      ctx.lineWidth = 1 / transform.zoom;
+      ctx.beginPath();
+      for (let x = -800; x <= 800; x += gridSize) {
+        ctx.moveTo(x, -800);
+        ctx.lineTo(x, 800);
+      }
+      for (let y = -800; y <= 800; y += gridSize) {
+        ctx.moveTo(-800, y);
+        ctx.lineTo(800, y);
+      }
+      ctx.stroke();
+
+      // Draw relationship lines (edges)
+      for (const edge of graphEdges) {
+        const u = graphNodes.find(n => n.id === edge.source);
+        const v = graphNodes.find(n => n.id === edge.target);
+        if (!u || !v) continue;
+
+        ctx.save();
+        if (q) {
+          const uMatch = u.label.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.type.toLowerCase().includes(q);
+          const vMatch = v.label.toLowerCase().includes(q) || v.id.toLowerCase().includes(q) || v.type.toLowerCase().includes(q);
+          if (!uMatch && !vMatch) {
+            ctx.globalAlpha = 0.15;
+          }
+        }
+
+        ctx.strokeStyle = 'rgba(139, 92, 246, 0.35)'; // Purple edge glow
+        ctx.lineWidth = (2 * (edge.strength || 1.0)) / transform.zoom;
+        ctx.beginPath();
+        ctx.moveTo(u.x, u.y);
+        ctx.lineTo(v.x, v.y);
+        ctx.stroke();
+
+        // Edge label (relation)
+        const mx = (u.x + v.x) / 2;
+        const my = (u.y + v.y) / 2;
+        ctx.save();
+        ctx.translate(mx, my);
+        const angle = Math.atan2(v.y - u.y, v.x - u.x);
+        if (angle > Math.PI/2 || angle < -Math.PI/2) {
+          ctx.rotate(angle + Math.PI);
+        } else {
+          ctx.rotate(angle);
+        }
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.7)';
+        ctx.font = '8px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(edge.relationType, 0, -2);
+        ctx.restore();
+        ctx.restore();
+      }
+
+      // Draw node spheres
+      for (const node of graphNodes) {
+        ctx.save();
+        ctx.translate(node.x, node.y);
+
+        let color = '#10b981'; // concept (emerald green)
+        let typeIcon = '🕸️';
+        const typeLower = node.type.toLowerCase();
+        if (['who', 'where', 'when'].includes(typeLower)) {
+          color = '#fbbf24'; // who/where/when (amber yellow)
+          typeIcon = typeLower === 'who' ? '👤' : (typeLower === 'where' ? '📍' : '🕒');
+        } else if (['how', 'why', 'skill'].includes(typeLower)) {
+          color = '#f97316'; // how/why/skill (orange)
+          typeIcon = typeLower === 'how' ? '⚙️' : (typeLower === 'why' ? '💡' : '🛠️');
+        }
+
+        if (q) {
+          const match = node.label.toLowerCase().includes(q) || node.id.toLowerCase().includes(q) || node.type.toLowerCase().includes(q);
+          if (!match) {
+            ctx.globalAlpha = 0.2;
+          }
+        }
+
+        const isHovered = hoverNode && hoverNode.id === node.id;
+        const glowRad = node.r + (isHovered ? 14 : 7);
+
+        // Gradient aura glow
+        const grad = ctx.createRadialGradient(0, 0, node.r * 0.1, 0, 0, glowRad);
+        grad.addColorStop(0, color);
+        grad.addColorStop(0.3, color + '77');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, glowRad, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Node center
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(0, 0, node.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Icon text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 8px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(typeIcon, 0, 0);
+
+        // Label below
+        ctx.fillStyle = isHovered ? '#ffffff' : '#cbd5e1';
+        ctx.font = isHovered ? 'bold 10px Arial' : '9px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(node.label, 0, node.r + 4);
+
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    async function loadBrainGraph() {
+      const el = document.getElementById('brainGraph');
+      if (!el) return;
+      el.textContent = 'Loading…';
+      const q = document.getElementById('brainGraphQuery').value.trim();
+
+      // 1. Load Stats
+      try {
+        const statsResp = await fetch('/api/brain/wing?wing=cognitive_graph_stats');
+        if (statsResp.ok) {
+          const stats = await statsResp.json();
+          document.getElementById('brainGraphSummary').textContent = `Nodes: ${stats.nodes || 0} · Edges: ${stats.edges || 0}`;
+        }
+      } catch (e) {
+        console.error('Error loading graph stats:', e);
+      }
+
+      // 2. Load Graph Items
+      try {
+        let ds = [];
+        if (q) {
+          // Search mode
+          const r = await (await fetch('/api/brain/search-drawers?query=' + encodeURIComponent(q) + '&k=100')).json();
+          const hits = r.hits || [];
+          ds = hits.filter(h => h.room === 'cognitive_graph').map(h => ({
+            id: h.drawer_id || h.id,
+            drawer_id: h.drawer_id || h.id,
+            wing: h.wing,
+            room: h.room,
+            content: h.content,
+            importance: h.score
+          }));
+          document.getElementById('btnGraphPrev').disabled = true;
+          document.getElementById('btnGraphNext').disabled = true;
+          document.getElementById('graphPager').textContent = 'Search results: ' + ds.length;
+        } else {
+          // List mode
+          const offset = graphPage * graphLimit;
+          const r = await (await fetch('/api/brain/wing?wing=training_data&room_like=cognitive_graph&limit=' + graphLimit + '&offset=' + offset)).json();
+          ds = r.drawers || [];
+          
+          document.getElementById('btnGraphPrev').disabled = graphPage === 0;
+          document.getElementById('btnGraphNext').disabled = ds.length < graphLimit;
+          document.getElementById('graphPager').textContent = 'Page ' + (graphPage + 1);
+        }
+
+        _graphCache.clear();
+        ds.forEach(s => _graphCache.set(s.drawer_id || s.DrawerID || s.id, s));
+
+        // Load ALL nodes and edges for visual canvas simulation from cognitive_graph_all
+        try {
+          const allResp = await fetch('/api/brain/wing?wing=cognitive_graph_all');
+          if (allResp.ok) {
+            const allData = await allResp.json();
+            const newNodes = [];
+            const newEdges = [];
+
+            // Calculate degrees for node sizes
+            const degrees = {};
+            (allData.edges || []).forEach(e => {
+              degrees[e.source] = (degrees[e.source] || 0) + 1;
+              degrees[e.target] = (degrees[e.target] || 0) + 1;
+            });
+
+            (allData.nodes || []).forEach(n => {
+              const old = graphNodes.find(o => o.id === n.id);
+              const x = old ? old.x : (Math.random() - 0.5) * 350;
+              const y = old ? old.y : (Math.random() - 0.5) * 350;
+              const deg = degrees[n.id] || 0;
+              const r = 10 + Math.min(deg * 2.5, 20); // dynamic node size based on degree
+              newNodes.push({
+                id: n.id,
+                label: n.label,
+                type: n.type,
+                properties: n.properties,
+                x, y, vx: 0, vy: 0, r
+              });
+            });
+
+            (allData.edges || []).forEach(e => {
+              newEdges.push({
+                source: e.source,
+                target: e.target,
+                relationType: e.relation_type,
+                strength: parseFloat(e.strength || '1.0')
+              });
+            });
+
+            graphNodes = newNodes;
+            graphEdges = newEdges;
+
+            if (!canvas) {
+              startGraphSimulation();
+              resetGraphView();
+            }
+          }
+        } catch (e) {
+          console.error('Error loading full graph map:', e);
+        }
+
+        if (!ds.length) {
+          el.textContent = q ? 'No matching graph elements found.' : 'No graph elements found.';
+          return;
+        }
+
+        el.innerHTML = ds.map(s => {
+          const id = s.drawer_id || s.DrawerID || s.id || '';
+          const parsed = parseGraphDrawer(s.content || '');
+          
+          let cardBody = '';
+          let cardClass = 'p-3 rounded-lg bg-black/20 border border-slate-800/60 mb-2 hover:border-slate-700/60 transition';
+          let headerTitle = '';
+          
+          if (parsed && parsed.isNode) {
+            cardClass = 'p-3 rounded-lg bg-purple-950/10 border border-purple-900/30 mb-2 hover:border-purple-700/40 transition';
+            headerTitle = `🟢 Node · <span class="text-purple-300 font-semibold">${_escHtml(parsed.label)}</span>`;
+            
+            let badgeClass = 'bg-purple-900/40 text-purple-300 border border-purple-800/30';
+            let icon = '🕸️';
+            const typeLower = parsed.type.toLowerCase();
+            if (['who', 'where', 'when'].includes(typeLower)) {
+              badgeClass = 'bg-blue-900/40 text-blue-300 border border-blue-800/30';
+              icon = typeLower === 'who' ? '👤' : (typeLower === 'where' ? '📍' : '🕒');
+            } else if (['how', 'why', 'skill'].includes(typeLower)) {
+              badgeClass = 'bg-amber-900/40 text-amber-300 border border-amber-800/30';
+              icon = typeLower === 'how' ? '⚙️' : (typeLower === 'why' ? '💡' : '🛠️');
+            }
+            
+            cardBody = `
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-xs px-2 py-0.5 rounded font-mono ${badgeClass}">${icon} ${parsed.type}</span>
+                <span class="text-2xs text-slate-500 font-mono">id: ${parsed.id}</span>
+              </div>
+              <div class="text-xs text-slate-400 bg-black/30 p-1.5 rounded font-mono overflow-x-auto">Properties: ${_escHtml(parsed.properties)}</div>
+            `;
+          } else if (parsed && parsed.isEdge) {
+            cardClass = 'p-3 rounded-lg bg-emerald-950/10 border border-emerald-900/30 mb-2 hover:border-emerald-700/40 transition';
+            headerTitle = `⛓️ Relation · <span class="text-emerald-300 font-semibold">${_escHtml(parsed.relationType)}</span>`;
+            
+            const pct = Math.round(parseFloat(parsed.strength || '1.0') * 100);
+            cardBody = `
+              <div class="flex items-center gap-2 flex-wrap text-xs mb-2">
+                <span class="text-purple-300 font-semibold">[${_escHtml(parsed.fromLabel)}]</span>
+                <span class="text-2xs px-1 py-0.2 rounded bg-purple-900/30 text-purple-400 border border-purple-800/20">${_escHtml(parsed.fromType)}</span>
+                <span class="text-emerald-400 font-mono">--${_escHtml(parsed.relationType)}--></span>
+                <span class="text-purple-300 font-semibold">[${_escHtml(parsed.toLabel)}]</span>
+                <span class="text-2xs px-1 py-0.2 rounded bg-purple-900/30 text-purple-400 border border-purple-800/20">${_escHtml(parsed.toType)}</span>
+              </div>
+              <div class="flex items-center gap-2 text-2xs text-slate-500 font-mono">
+                <span>Strength: ${(parseFloat(parsed.strength || '1.0')).toFixed(2)}</span>
+                <div class="w-24 bg-slate-800 h-1 rounded overflow-hidden">
+                  <div class="bg-emerald-500 h-full" style="width: ${pct}%"></div>
+                </div>
+              </div>
+            `;
+          } else {
+            headerTitle = `📦 Graph Drawer`;
+            cardBody = `<div class="text-xs text-slate-400 whitespace-pre-wrap">${_escHtml(s.content||'')}</div>`;
+          }
+          
+          return `<div class="${cardClass}">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-xs text-purple-300">${headerTitle}</div>
+              <div class="flex gap-1">
+                <button class="btn-danger" style="padding:2px 8px;font-size:0.7rem" onclick="confirmGraphDelete('${_escHtml(id)}')">del</button>
+              </div>
+            </div>
+            ${cardBody}
+          </div>`;
+        }).join('');
+      } catch (e) {
+        el.textContent = 'Error loading graph: ' + e;
+      }
+    }
+
+    function parseGraphDrawer(content) {
+      if (content.startsWith("Concept Node:")) {
+        const m = content.match(/^Concept\s+Node:\s+\[(.*?)\]\s+\(type:\s*(.*?),\s*id:\s*(.*?)\)\.\s*Properties:\s*(.*)$/i);
+        if (m) {
+          return {
+            isNode: true,
+            label: m[1],
+            type: m[2],
+            id: m[3],
+            properties: m[4]
+          };
+        }
+      } else if (content.startsWith("Relationship:")) {
+        const m = content.match(/^Relationship:\s+\[(.*?)\]\s+\((.*?)\)\s+--(.*?)-->\s+\[(.*?)\]\s+\((.*?)\)\.\s*Link\s+strength:\s*(.*)$/i);
+        if (m) {
+          return {
+            isEdge: true,
+            fromLabel: m[1],
+            fromType: m[2],
+            relationType: m[3],
+            toLabel: m[4],
+            toType: m[5],
+            strength: m[6]
+          };
+        }
+      }
+      return null;
+    }
+
+    function paginateGraph(dir) {
+      graphPage += dir;
+      if (graphPage < 0) graphPage = 0;
+      loadBrainGraph();
+    }
+
+    let graphDebounce;
+    function debounceLoadBrainGraph() {
+      clearTimeout(graphDebounce);
+      graphDebounce = setTimeout(loadBrainGraph, 300);
+    }
+
+    async function confirmGraphDelete(id) {
+      const ok = await uiConfirm({ title: 'Delete Graph Element', body: 'Are you sure you want to delete this knowledge graph element?\n\n· ' + id, dangerous: true });
+      if (!ok) return;
+      try {
+        const cached = _graphCache.get(id);
+        if (cached) {
+          const parsed = parseGraphDrawer(cached.content || '');
+          if (parsed) {
+            if (parsed.isNode) {
+              const resp = await fetch('/api/brain/wing?wing=cognitive_graph_node&id=' + encodeURIComponent(parsed.id), { method: 'DELETE' });
+              if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+              uiToast('Graph node deleted successfully', 'success');
+              loadBrainGraph();
+              showGraphDefaultSidebar();
+              return;
+            } else if (parsed.isEdge) {
+              let sourceNode = graphNodes.find(n => n.label === parsed.fromLabel);
+              let targetNode = graphNodes.find(n => n.label === parsed.toLabel);
+              const fromId = sourceNode ? sourceNode.id : parsed.fromLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const toId = targetNode ? targetNode.id : parsed.toLabel.toLowerCase().replace(/[^a-z0-9]/g, '_');
+              const resp = await fetch(`/api/brain/wing?wing=cognitive_graph_edge&from_id=${encodeURIComponent(fromId)}&to_id=${encodeURIComponent(toId)}&relation_type=${encodeURIComponent(parsed.relationType)}`, { method: 'DELETE' });
+              if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+              uiToast('Graph edge deleted successfully', 'success');
+              loadBrainGraph();
+              showGraphDefaultSidebar();
+              return;
+            }
+          }
+        }
+        const resp = await fetch('/api/brain/drawer?id=' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Graph element deleted successfully', 'success');
+        loadBrainGraph();
+        showGraphDefaultSidebar();
+      } catch (e) { uiToast('Error deleting graph element: ' + e, 'error'); }
+    }
+
+    function showGraphDefaultSidebar() {
+      const panel = document.getElementById('graphDetailPanel');
+      if (!panel) return;
+      panel.innerHTML = `
+        <div class="text-slate-400 text-xs text-center py-10">
+          <span class="block text-2xl mb-2">👈</span>
+          Click a node or edge in the map to view details and edit it.
+        </div>
+      `;
+    }
+
+    function showGraphNodeDetails(node) {
+      const panel = document.getElementById('graphDetailPanel');
+      if (!panel) return;
+      
+      const connected = graphEdges.filter(e => e.source === node.id || e.target === node.id);
+      let connectedHtml = '';
+      if (connected.length > 0) {
+        connectedHtml = `
+          <div class="mt-4 pt-3 border-t border-purple-900/30">
+            <span class="text-slate-400 block text-2xs mb-2 font-semibold">Connected Relationships (${connected.length})</span>
+            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              ${connected.map(e => {
+                const isSrc = e.source === node.id;
+                const otherId = isSrc ? e.target : e.source;
+                const otherNode = graphNodes.find(n => n.id === otherId);
+                const otherLabel = otherNode ? otherNode.label : otherId;
+                const arrow = isSrc ? `--[${e.relationType}]-->` : `<--[${e.relationType}]--`;
+                return `
+                  <div class="bg-black/20 p-1.5 rounded border border-purple-900/10 flex items-center justify-between text-3xs">
+                    <span class="text-slate-300 font-mono break-all">${arrow} <strong class="text-purple-300 font-semibold">${_escHtml(otherLabel)}</strong></span>
+                    <button class="btn-danger text-4xs" style="font-size:0.65rem;padding:1px 4px" onclick="deleteGraphEdge('${_escHtml(e.source)}', '${_escHtml(e.target)}', '${_escHtml(e.relationType)}')">del</button>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      panel.innerHTML = `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="font-semibold text-purple-300 text-sm">🟢 Node Details</h4>
+            <div class="flex gap-1">
+              <button class="btn-primary text-3xs px-2 py-0.5" onclick="editGraphNode('${_escHtml(node.id)}')">Edit</button>
+              <button class="btn-danger text-3xs px-2 py-0.5" onclick="deleteGraphNode('${_escHtml(node.id)}')">Delete</button>
+            </div>
+          </div>
+          <div class="space-y-2 text-xs">
+            <div>
+              <span class="text-slate-400 block text-2xs">ID</span>
+              <span class="font-mono text-white select-all bg-black/30 px-1.5 py-0.5 rounded break-all inline-block">${_escHtml(node.id)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Label</span>
+              <span class="text-white font-semibold text-sm">${_escHtml(node.label)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Type</span>
+              <span class="text-purple-300 font-mono bg-purple-900/30 px-2 py-0.5 rounded border border-purple-800/30 inline-block">${_escHtml(node.type)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Properties (JSON)</span>
+              <pre class="bg-black/30 text-slate-300 p-2 rounded font-mono text-3xs overflow-x-auto whitespace-pre-wrap">${_escHtml(node.properties || '{}')}</pre>
+            </div>
+          </div>
+          ${connectedHtml}
+        </div>
+      `;
+    }
+
+    function showGraphEdgeDetails(edge) {
+      const panel = document.getElementById('graphDetailPanel');
+      if (!panel) return;
+      const u = graphNodes.find(n => n.id === edge.source);
+      const v = graphNodes.find(n => n.id === edge.target);
+      const uLabel = u ? u.label : edge.source;
+      const vLabel = v ? v.label : edge.target;
+      
+      panel.innerHTML = `
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="font-semibold text-emerald-300 text-sm">⛓️ Edge Details</h4>
+            <button class="btn-danger text-3xs px-2 py-0.5" onclick="deleteGraphEdge('${_escHtml(edge.source)}', '${_escHtml(edge.target)}', '${_escHtml(edge.relationType)}')">Delete</button>
+          </div>
+          <div class="space-y-2 text-xs">
+            <div>
+              <span class="text-slate-400 block text-2xs">Source Node</span>
+              <span class="text-white font-semibold">${_escHtml(uLabel)}</span>
+              <span class="text-slate-500 font-mono text-3xs block">id: ${edge.source}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Relationship Type</span>
+              <span class="text-emerald-400 font-mono font-bold bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-900/30 inline-block">${_escHtml(edge.relationType)}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Target Node</span>
+              <span class="text-white font-semibold">${_escHtml(vLabel)}</span>
+              <span class="text-slate-500 font-mono text-3xs block">id: ${edge.target}</span>
+            </div>
+            <div>
+              <span class="text-slate-400 block text-2xs">Strength</span>
+              <div class="flex items-center gap-2 font-mono text-slate-300 text-xs">
+                <span>${edge.strength.toFixed(2)}</span>
+                <div class="flex-1 bg-slate-800 h-1.5 rounded overflow-hidden">
+                  <div class="bg-emerald-500 h-full" style="width: ${Math.round(edge.strength * 100)}%"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    async function editGraphNode(id) {
+      const node = graphNodes.find(n => n.id === id);
+      if (!node) { uiToast('Node not found in local cache', 'error'); return; }
+      
+      const r = await uiModal({
+        title: 'Edit Graph Node',
+        body: 'Node ID: ' + node.id,
+        fields: [
+          { name: 'label', label: 'Label (e.g. NeonStrike)', value: node.label },
+          { name: 'type', label: 'Type (e.g. concept, who, where, when, how, why, skill)', value: node.type },
+          { name: 'properties', label: 'Properties (JSON format)', value: node.properties || '{}', type: 'textarea' },
+        ],
+        actions: [
+          { label: 'Save Changes', kind: 'primary', value: true },
+          { label: 'Cancel', kind: 'secondary', value: false },
+        ],
+      });
+      if (!r.action) return;
+      const f = r.fields;
+      if (!(f.label || '').trim() || !(f.type || '').trim()) { uiToast('Label and Type are required', 'warn'); return; }
+      
+      let props = (f.properties || '{}').trim();
+      try {
+        JSON.parse(props);
+      } catch (e) {
+        uiToast('Properties must be valid JSON: ' + e.message, 'error');
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: node.id, label: f.label.trim(), type: f.type.trim(), properties: props })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Node updated successfully', 'success');
+        await loadBrainGraph();
+        
+        const updatedNode = graphNodes.find(n => n.id === id);
+        if (updatedNode) {
+          showGraphNodeDetails(updatedNode);
+        } else {
+          showGraphDefaultSidebar();
+        }
+      } catch (e) {
+        uiToast('Error updating node: ' + e, 'error');
+      }
+    }
+
+    async function deleteGraphNode(id) {
+      const ok = await uiConfirm({
+        title: 'Delete Node',
+        body: 'Are you sure you want to delete this node? This will also delete any connected edges.\n\nNode: ' + id,
+        dangerous: true
+      });
+      if (!ok) return;
+      try {
+        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_node&id=' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Node deleted successfully', 'success');
+        await loadBrainGraph();
+        showGraphDefaultSidebar();
+      } catch (e) {
+        uiToast('Error deleting node: ' + e, 'error');
+      }
+    }
+
+    async function deleteGraphEdge(fromId, toId, relationType) {
+      const ok = await uiConfirm({
+        title: 'Delete Edge',
+        body: `Are you sure you want to delete this relationship?\n\n[${fromId}] --${relationType}--> [${toId}]`,
+        dangerous: true
+      });
+      if (!ok) return;
+      try {
+        const resp = await fetch(`/api/brain/wing?wing=cognitive_graph_edge&from_id=${encodeURIComponent(fromId)}&to_id=${encodeURIComponent(toId)}&relation_type=${encodeURIComponent(relationType)}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Relationship deleted successfully', 'success');
+        await loadBrainGraph();
+        showGraphDefaultSidebar();
+      } catch (e) {
+        uiToast('Error deleting relationship: ' + e, 'error');
+      }
+    }
+
+    async function openGraphNodeAdd() {
+      const r = await uiModal({
+        title: 'Add Graph Node',
+        fields: [
+          { name: 'id', label: 'Node ID (unique slug, e.g. flowork_secrets)', value: '' },
+          { name: 'label', label: 'Label (display name, e.g. FLowork Secrets)', value: '' },
+          { name: 'type', label: 'Type (e.g. concept, who, where, when, how, why, skill)', value: 'concept' },
+          { name: 'properties', label: 'Properties (JSON format)', value: '{}', type: 'textarea' },
+        ],
+        actions: [
+          { label: 'Add Node', kind: 'primary', value: true },
+          { label: 'Cancel', kind: 'secondary', value: false },
+        ],
+      });
+      if (!r.action) return;
+      const f = r.fields;
+      if (!(f.id || '').trim() || !(f.label || '').trim() || !(f.type || '').trim()) {
+        uiToast('ID, Label, and Type are required', 'warn');
+        return;
+      }
+      
+      let props = (f.properties || '{}').trim();
+      try {
+        JSON.parse(props);
+      } catch (e) {
+        uiToast('Properties must be valid JSON: ' + e.message, 'error');
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: f.id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
+            label: f.label.trim(),
+            type: f.type.trim(),
+            properties: props
+          })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Node created successfully', 'success');
+        await loadBrainGraph();
+      } catch (e) {
+        uiToast('Error adding node: ' + e, 'error');
+      }
+    }
+
+    async function openGraphEdgeAdd() {
+      const r = await uiModal({
+        title: 'Add Relationship (Edge)',
+        body: 'Provide the Source and Target Node IDs, the relationship type, and strength.',
+        fields: [
+          { name: 'from_id', label: 'Source Node ID (e.g. flowork_secrets)', value: '' },
+          { name: 'to_id', label: 'Target Node ID (e.g. user_goal)', value: '' },
+          { name: 'relation_type', label: 'Relation (e.g. contains, knows, uses)', value: 'knows' },
+          { name: 'strength', label: 'Strength (0.0 to 1.0)', value: '1.0', type: 'number' },
+        ],
+        actions: [
+          { label: 'Add Edge', kind: 'primary', value: true },
+          { label: 'Cancel', kind: 'secondary', value: false },
+        ],
+      });
+      if (!r.action) return;
+      const f = r.fields;
+      if (!(f.from_id || '').trim() || !(f.to_id || '').trim() || !(f.relation_type || '').trim()) {
+        uiToast('Source Node ID, Target Node ID, and Relation Type are required', 'warn');
+        return;
+      }
+      
+      const strength = parseFloat(f.strength || '1.0');
+      if (isNaN(strength) || strength <= 0) {
+        uiToast('Strength must be a positive number', 'warn');
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_edge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from_id: f.from_id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
+            to_id: f.to_id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
+            relation_type: f.relation_type.trim(),
+            strength: strength
+          })
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        uiToast('Relationship added successfully', 'success');
+        await loadBrainGraph();
+      } catch (e) {
+        uiToast('Error adding relationship: ' + e, 'error');
+      }
+    }
+
+    async function triggerDreamCycle() {
+      uiToast('Running Cognitive Dream Cycle...', 'info');
+      try {
+        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_dream');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
+        const res = await resp.json();
+        uiToast(`Dream Cycle complete! Digested ${res.digested} active memories.`, 'success');
+        loadBrainGraph();
+      } catch (e) {
+        uiToast('Error running Dream Cycle: ' + e, 'error');
+      }
+    }
+
     // ── Persona CRUD ─────────────────────────────────────────────────────
     async function openPersonaAdd() {
       const r = await uiModal({

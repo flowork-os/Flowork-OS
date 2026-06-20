@@ -5,10 +5,11 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-12
 // Reason: Reset-to-default. If a group (or a member) is deleted by accident,
-//   ResetHandler copies its bundled DEFINITION back from the repo (repo/agents) into
-//   the runtime, restores its roster from group.json, and re-syncs — the agent
-//   reappears with its factory setup. Never touches an agent that already exists, and
-//   never copies workspace/state.db (no secrets, no clobbering live data).
+//
+//	ResetHandler copies its bundled DEFINITION back from the repo (repo/agents) into
+//	the runtime, restores its roster from group.json, and re-syncs — the agent
+//	reappears with its factory setup. Never touches an agent that already exists, and
+//	never copies workspace/state.db (no secrets, no clobbering live data).
 //
 // reset.go — restore bundled (factory) groups/agents.
 package groupsapi

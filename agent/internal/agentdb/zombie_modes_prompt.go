@@ -9,6 +9,14 @@
 //   → tambah file baru.
 //
 // zombie_modes_prompt.go — Sections 29 + 32 + 35 phase 1 minimal schemas.
+//
+// MODIFIED 2026-06-20 (owner-approved, re-locked): fix bug SQL ListSelfPromptSlots
+//   — antipattern `WHERE version IN (SELECT MAX(version) GROUP BY slot)` salah
+//   match versi-rendah slot lain yang angka-versinya nyamain max slot lain
+//   (mis. 00_constitution v1 ke-ambil gara2 01_twin max=1) → render bisa milih
+//   versi LAMA, misi/aturan sacred hilang dari prompt. Diganti korelasi per-slot
+//   `WHERE version = (SELECT MAX(version) WHERE slot = sp.slot)`. Test:
+//   selfprompt_render_test.go (PASS w/fix, FAIL w/o).
 
 package agentdb
 
@@ -212,8 +220,8 @@ func (s *Store) ListSelfPromptSlots() ([]SelfPrompt, error) {
 	}
 	rows, err := s.db.Query(
 		`SELECT id, slot, version, body, updated_at, notes
-		 FROM self_prompt
-		 WHERE version IN (SELECT MAX(version) FROM self_prompt GROUP BY slot)
+		 FROM self_prompt AS sp
+		 WHERE version = (SELECT MAX(version) FROM self_prompt WHERE slot = sp.slot)
 		 ORDER BY slot`)
 	if err != nil {
 		return nil, err

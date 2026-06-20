@@ -5,8 +5,9 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-06-12
 // Reason: Group ON/OFF — a single switch that disables/enables a group's
-//   coordinator AND every member at once, so when a group is OFF no agent inside it
-//   can ever receive a command (the coordinator can't fan out; members are unloaded).
+//
+//	coordinator AND every member at once, so when a group is OFF no agent inside it
+//	can ever receive a command (the coordinator can't fan out; members are unloaded).
 //
 // toggle.go — group-level on/off (cascade to members).
 package groupsapi
