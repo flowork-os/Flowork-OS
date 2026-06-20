@@ -80,8 +80,31 @@ func seedSelfEvolutionGroup(groups *groupsapi.Handler) {
 			//  - LOOP/WAIT/AWAKE: ScheduleWakeup (cap state:write udah di manifest → auto-continue
 			//    jalan; subscribe biar LLM juga bisa milih wait sendiri).
 			//  - SKILL: skill_search (akses skill registry sesuai kebutuhan).
-			for _, t := range []string{"brain_search_shared", "instinct_recall", "graph_recall", "ScheduleWakeup", "skill_search"} {
+			tools := []string{"brain_search_shared", "instinct_recall", "graph_recall", "ScheduleWakeup", "skill_search"}
+			if m.ID == "evo-coder" {
+				// CODER butuh toolset PENUH (owner 2026-06-20 "centang semua, yang jeli"): paham
+				// codebase (codemap_*), baca konteks (file/grep/glob), riset (web_search), insting
+				// keamanan (instinct_recall), memori, cari tool/skill, tulis skill sendiri.
+				tools = append(tools,
+					"codemap_search", "codemap_search_advanced", "codemap_stats", "codemap_count",
+					"file_read", "file_list", "grep", "glob", "brain_search",
+					"tool_search", "web_search", "memory_get", "memory_set", "skill_author")
+			}
+			for _, t := range tools {
 				_ = st.SubscribeTool(t, "seed:self-evolution", "{}")
+			}
+			// SKILL coder (owner: "skillnya mana?") — insting kerja additive+aman, di-inject on-demand.
+			if m.ID == "evo-coder" {
+				_ = st.AddSkill("evo-secure-go",
+					"nulis kode go evolusi",
+					"Sebelum nulis kode: (1) recall instinct_recall (coding+security, korpus hacker+Fable) → sadar celah. "+
+						"(2) codemap_search buat ngerti struktur + gaya kode sekitar. (3) ADDITIVE ONLY — file BARU, no edit/delete/LOCKED, "+
+						"blast-radius minimal, anti-over-engineering. (4) Validasi: kompilasi pasti, no fungsi bentrok global, error di-handle. "+
+						"(5) Sejalan misi/roh Flowork. Output kode mentah valid.", 0)
+				_ = st.AddSkill("evo-research",
+					"riset sebelum coding",
+					"Kalau butuh pola/API yang lo ga yakin: web_search + brain_search_shared dulu (grounding, anti-halu), "+
+						"baru nulis. Jangan ngarang API/signature.", 1)
 			}
 			// MISI/ROH FLOWORK ke DNA (always-inject) — owner 2026-06-20: council WAJIB tahu
 			// tujuan/roh biar evolusi sejalan, bukan asal maju. Selalu di-inject (ga cuma recall).
