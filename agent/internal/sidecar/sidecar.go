@@ -53,13 +53,6 @@ func DataDir(parts ...string) string {
 	return filepath.Join(append([]string{r, "data"}, parts...)...)
 }
 
-func home() string {
-	if h, err := os.UserHomeDir(); err == nil {
-		return h
-	}
-	return "/tmp"
-}
-
 // exeDir — folder binary (buat content bawaan yg dikirim di sebelah exe).
 func exeDir() string {
 	if exe, err := os.Executable(); err == nil {
@@ -74,7 +67,8 @@ func exeDir() string {
 // (zero behavior change). Call-site lama dipindah ke sini bertahap per fase.
 
 // AgentsDir — folder <id>.fwagent (state.db, workspace, loket per agent). 🔴 data.
-// Legacy: $FLOWORK_AGENTS_DIR → ~/.flowork/agents (sama persis loader.AgentsDir).
+// Legacy = loader.AgentsDir() PERSIS: $FLOWORK_AGENTS_DIR → ~/.flowork/agents →
+// /tmp/flowork-agents (last resort biar headless smoke test punya target writable).
 func AgentsDir() string {
 	if d := DataDir("agents"); d != "" {
 		return d
@@ -82,11 +76,15 @@ func AgentsDir() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_AGENTS_DIR")); v != "" {
 		return v
 	}
-	return filepath.Join(home(), ".flowork", "agents")
+	if h, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(h, ".flowork", "agents")
+	}
+	return "/tmp/flowork-agents"
 }
 
 // FloworkDB — path flowork.db (owner-level: auth, settings, wallet). 🔴 data.
-// Legacy: $FLOWORK_DATA_DIR/flowork.db → ~/.flowork/flowork.db.
+// Legacy = floworkdb.Path() PERSIS: $FLOWORK_DATA_DIR/flowork.db → ~/.flowork/
+// flowork.db → /tmp/flowork/flowork.db.
 func FloworkDB() string {
 	if d := DataDir(); d != "" {
 		return filepath.Join(d, "flowork.db")
@@ -94,19 +92,19 @@ func FloworkDB() string {
 	if v := strings.TrimSpace(os.Getenv("FLOWORK_DATA_DIR")); v != "" {
 		return filepath.Join(v, "flowork.db")
 	}
-	return filepath.Join(home(), ".flowork", "flowork.db")
+	if h, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(h, ".flowork", "flowork.db")
+	}
+	return filepath.Join("/tmp", "flowork", "flowork.db")
 }
 
 // AppsDataDir — app INSTALLED user (overlay yg menang). 🔴 data.
-// Legacy: ~/.flowork/apps (sama persis appsMgr sekarang = Dir(AgentsDir)/apps).
+// Legacy = Dir(AgentsDir())/apps PERSIS (appsMgr lama).
 func AppsDataDir() string {
 	if d := DataDir("apps"); d != "" {
 		return d
 	}
-	if v := strings.TrimSpace(os.Getenv("FLOWORK_AGENTS_DIR")); v != "" {
-		return filepath.Join(filepath.Dir(v), "apps")
-	}
-	return filepath.Join(home(), ".flowork", "apps")
+	return filepath.Join(filepath.Dir(AgentsDir()), "apps")
 }
 
 // AppsContentDir — app BAWAAN (shippable, read-only). 🟢 content. "" kalau ga ada.

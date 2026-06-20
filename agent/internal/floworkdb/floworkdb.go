@@ -4,9 +4,10 @@
 // Repo: https://github.com/flowork-os/Flowork-OS
 // Locked at: 2026-05-31
 // Reason: SQLite store GLOBAL (owner-level). Audit pass — WAL +
-//   busy_timeout + foreign_keys, SQL parameterized (? placeholder), table
-//   name interpolasi cuma literal "kv"/"secrets" (bukan user input),
-//   mu.Lock per method, rows.Close defer. E2E verified (auth/keys/wallet).
+//
+//	busy_timeout + foreign_keys, SQL parameterized (? placeholder), table
+//	name interpolasi cuma literal "kv"/"secrets" (bukan user input),
+//	mu.Lock per method, rows.Close defer. E2E verified (auth/keys/wallet).
 //
 // Package floworkdb — SQLite store GLOBAL untuk data owner-level Flowork.
 //
@@ -31,8 +32,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
+
+	"flowork-gui/internal/sidecar"
 
 	_ "modernc.org/sqlite"
 )
@@ -41,13 +43,11 @@ import (
 // Priority: FLOWORK_DATA_DIR env > ~/.flowork/flowork.db > /tmp/flowork/flowork.db
 // (last resort biar headless smoke test tetap punya target writable).
 func Path() string {
-	if v := strings.TrimSpace(os.Getenv("FLOWORK_DATA_DIR")); v != "" {
-		return filepath.Join(v, "flowork.db")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".flowork", "flowork.db")
-	}
-	return filepath.Join("/tmp", "flowork", "flowork.db")
+	// roadmap_sidecar Fase 0/2: dipindah ke paket sidecar (sumber path tunggal).
+	// Legacy-default (FLOWORK_SIDECAR kosong) = chain lama PERSIS ($FLOWORK_DATA_DIR/
+	// flowork.db → ~/.flowork/flowork.db → /tmp/flowork/flowork.db). Sidecar aktif →
+	// <root>/data/flowork.db.
+	return sidecar.FloworkDB()
 }
 
 // Store — handle SQLite global.

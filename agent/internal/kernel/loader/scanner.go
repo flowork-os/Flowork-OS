@@ -23,10 +23,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"flowork-gui/internal/sidecar"
 )
 
 // State — coarse plugin status flag used by the bootstrap loop.
-//
 type State string
 
 const (
@@ -50,13 +51,10 @@ type Discovery struct {
 // Priority: FLOWORK_AGENTS_DIR env > ~/.flowork/agents > /tmp/flowork-agents
 // (last resort so headless smoke tests still have a writable target).
 func AgentsDir() string {
-	if v := strings.TrimSpace(os.Getenv("FLOWORK_AGENTS_DIR")); v != "" {
-		return v
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".flowork", "agents")
-	}
-	return "/tmp/flowork-agents"
+	// roadmap_sidecar Fase 0/2: dipindah ke paket sidecar (sumber path tunggal).
+	// Legacy-default (FLOWORK_SIDECAR kosong) = chain lama PERSIS ($FLOWORK_AGENTS_DIR
+	// → ~/.flowork/agents → /tmp/flowork-agents). Sidecar aktif → <root>/data/agents.
+	return sidecar.AgentsDir()
 }
 
 // EnsureDir — create agents dir if missing. 0o700 because manifests can
