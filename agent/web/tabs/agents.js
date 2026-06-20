@@ -702,6 +702,10 @@ async function openSettingModal(root, a) {
         <summary style="cursor:pointer;color:#94a3b8;font-size:13px">🔗 ${esc(t('menu.tab.agents.mcp_h') || 'MCP servers — uncheck to hide from this agent')}</summary>
         <div id="cf-mcp-list" data-agent-id="${escAttr(a.id)}" style="margin-top:8px;font-size:13px;color:#cbd5e1"></div>
       </details>
+
+      <h4 class="sub">🧩 ${esc(t('menu.tab.agents.apps_h') || 'Aplikasi yang boleh dipakai')}</h4>
+      <p class="ag-msg-modal" style="color:#94a3b8;font-size:.74rem;margin-bottom:6px">${esc(t('menu.tab.agents.apps_sub') || 'Centang = agent boleh pakai app ini (langsung berlaku, tanpa restart). Daftar ikut app terinstall — app baru muncul otomatis, app dihapus ilang otomatis.')}</p>
+      <div id="cf-apps-list" data-agent-id="${escAttr(a.id)}" style="font-size:13px;color:#cbd5e1">…</div>
     </section>
 
     <section class="ag-section">
@@ -824,6 +828,9 @@ async function openSettingModal(root, a) {
     let mLoaded = false;
     md.addEventListener('toggle', () => { if (md.open && !mLoaded) { mLoaded = true; renderMCPChecklist(mcpHost, a.id); } });
   }
+  // Izin-app per-agent (GUI=truth): render langsung (penting + kelihatan), bukan lazy.
+  const appsHost = host.querySelector('#cf-apps-list');
+  if (appsHost) renderAppGrants(appsHost, a.id);
   // Section 7 phase 2: Browse Router Catalog — open modal yang fetch dari
   // /api/agents/router-skills/list, user pilih, Use → push ke skills[].
   host.querySelector('#cf-skills-browse-router').onclick = () => {
@@ -1058,4 +1065,37 @@ async function renderMCPChecklist(host, agentID) {
     catch (e) { alert('save failed: ' + e); }
   };
   host.querySelectorAll('input[data-mcp-id]').forEach((i) => i.addEventListener('change', save));
+}
+
+// renderAppGrants — izin-app per-agent (GUI=truth, owner 2026-06-20). List
+// digerakin app TERINSTALL (/api/agents/apps → apps.Manager, BUKAN json): app
+// baru muncul otomatis, app dihapus ilang otomatis. Centang = POST allow:true →
+// cap app:<id> di-grant LIVE → agent langsung bisa. Uncentang = allow:false →
+// dicabut. Tiap toggle langsung simpan (no save-button) — kebenaran instan.
+async function renderAppGrants(host, agentID) {
+  host.innerHTML = '<span style="opacity:.6">loading…</span>';
+  let data;
+  try { data = await fetchJSON(`/api/agents/apps?id=${encodeURIComponent(agentID)}`); }
+  catch (e) { host.innerHTML = `<span style="color:#f87171">${esc(String(e))}</span>`; return; }
+  const apps = (data && data.apps) || [];
+  if (!apps.length) {
+    host.innerHTML = '<span style="opacity:.6">Belum ada app terinstall. Pasang app dulu di tab Apps → otomatis muncul di sini.</span>';
+    return;
+  }
+  host.innerHTML = apps.map((ap) =>
+    `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer">
+      <input type="checkbox" data-app-id="${escAttr(ap.id)}" ${ap.permitted ? 'checked' : ''}>
+      <span>${esc(ap.name || ap.id)} <span style="opacity:.5">(${esc(ap.id)})</span></span>
+    </label>`).join('') +
+    '<div style="margin-top:6px;font-size:11px;opacity:.5">Uncentang = capability app:&lt;id&gt; dicabut, agent ga bisa pakai app itu.</div>';
+  host.querySelectorAll('input[data-app-id]').forEach((i) => i.addEventListener('change', async () => {
+    const appID = i.getAttribute('data-app-id');
+    i.disabled = true;
+    try {
+      await fetchJSON(`/api/agents/apps?id=${encodeURIComponent(agentID)}`, {
+        method: 'POST', body: JSON.stringify({ app_id: appID, allow: i.checked }),
+      });
+    } catch (e) { alert('toggle gagal: ' + e); i.checked = !i.checked; }
+    finally { i.disabled = false; }
+  }));
 }

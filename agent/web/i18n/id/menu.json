@@ -228,5 +228,13 @@
       "desc": "Panduan & tutorial Flowork.",
       "soon": "📖 Dokumentasi lagi disiapin — kontennya segera nyusul."
     }
+  },
+  "menu": {
+    "tab": {
+      "agents": {
+        "apps_h": "Allowed apps",
+        "apps_sub": "Checked = this agent may use the app (applies live, no restart). The list follows installed apps — new apps appear automatically, removed apps disappear."
+      }
+    }
   }
 }

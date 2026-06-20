@@ -92,6 +92,7 @@ import (
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
+	"flowork-gui/internal/loket"
 	"flowork-gui/internal/marketdata"
 	"flowork-gui/internal/mcphub"
 	"flowork-gui/internal/scanapi"
@@ -100,7 +101,6 @@ import (
 	"flowork-gui/internal/slashcmd"
 	slashbuiltins "flowork-gui/internal/slashcmd/builtins"
 	slashcustom "flowork-gui/internal/slashcmd/custom"
-	"flowork-gui/internal/loket"
 	"flowork-gui/internal/tools"
 	"flowork-gui/internal/tools/builtins"
 	"flowork-gui/internal/triggers"
@@ -488,11 +488,22 @@ func main() {
 	// APPS platform (ROADMAP 4): program dipakai MANUSIA (GUI) & AGENT (tool) di state yang SAMA,
 	// core LINTAS BAHASA (runtime:process). Load apps/<id>/ → daftarkan operasi sbg tool agent.
 	appsMgr := fwapps.NewManager(filepath.Join(filepath.Dir(loader.AgentsDir()), "apps")) // ~/.flowork/apps (data home, NOT CWD — Pilar 6)
-	fwapps.SetDefault(appsMgr) // target install/uninstall package-level (gerbang seragam + HTTP)
+	fwapps.SetDefault(appsMgr)                                                            // target install/uninstall package-level (gerbang seragam + HTTP)
 	if err := appsMgr.Load(); err != nil {
 		log.Printf("apps load: %v", err)
 	}
 	defer appsMgr.Shutdown()
+
+	// "GUI = KEBENARAN" (owner 2026-06-20): SETELAH SEMUA tool keregister (builtin
+	// init() + tool-pack reregister + app appsMgr.Load di atas) — baru auto-grant
+	// capability dari tool yg dicentang di GUI. Telat dikit ga apa: broker.Approve
+	// nambah cap ke set yg dipakai tiap tool-call (bukan snapshot saat boot). Kalau
+	// jalan kepagian (sebelum app/tool-pack register), tools.Lookup balik false →
+	// app:flowalpha/mcp:* ga ke-grant (bug yg bikin app_flowalpha tetep ditolak).
+	for _, agentID := range host.AgentIDs() {
+		grantSubscribedToolCaps(host, agentID)
+		seedAndApplyAppCaps(host, agentID) // izin-app per-agent (app_grants) → cap app:<id>
+	}
 
 	// SCHEDULER LOOPING: tiap menit cek jadwal task → fire Category Task otomatis +
 	// notify Telegram (mis. tiap jam 9 pagi: analisa saham A → keputusan ke chat).
@@ -513,7 +524,7 @@ func main() {
 					if n := RunDueSchedules(host, fdb); n > 0 {
 						log.Printf("task-scheduler: %d jadwal di-fire", n)
 					}
-					trigEngine.Tick(ctx) // ROADMAP 3: proses aturan trigger poll (time/file-watch/…)
+					trigEngine.Tick(ctx)                      // ROADMAP 3: proses aturan trigger poll (time/file-watch/…)
 					if n := RunDueWakeups(ctx, host); n > 0 { // ScheduleWakeup: fire one-shot wakeup yang due
 						log.Printf("wakeup: %d di-fire", n)
 					}
@@ -764,9 +775,10 @@ func main() {
 	// APPS (ROADMAP 4): launcher + invoke operasi (1 pintu utk human GUI & agent tool) + state + aset GUI.
 	mux.HandleFunc("/api/apps", appsListHandler(appsMgr))
 	mux.HandleFunc("/api/apps/op", appsOpHandler(appsMgr))
-	mux.HandleFunc("/api/apps/install", appsInstallHandler())     // upload .fwpack → hot-reload
-	mux.HandleFunc("/api/apps/uninstall", appsUninstallHandler()) // stop + unregister + rm
-	mux.HandleFunc("/api/apps/stop", appsStopHandler(appsMgr))    // stop core when its GUI tab closes
+	mux.HandleFunc("/api/apps/install", appsInstallHandler())           // upload .fwpack → hot-reload
+	mux.HandleFunc("/api/apps/uninstall", appsUninstallHandler())       // stop + unregister + rm
+	mux.HandleFunc("/api/apps/stop", appsStopHandler(appsMgr))          // stop core when its GUI tab closes
+	mux.HandleFunc("/api/agents/apps", appGrantsHandler(appsMgr, host)) // izin-app per-agent (GUI=truth): list app terinstall + toggle cap app:<id>
 	mux.HandleFunc("/api/apps/state", appsStateHandler(appsMgr))
 	mux.HandleFunc("/api/apps/", appsUIHandler(appsMgr)) // /api/apps/<id>/ui/* (iframe sandbox)
 	// GUARDIAN (FASE 1): status + arm/disarm. Owner-session gated (lewat authMgr.Middleware).
@@ -948,6 +960,109 @@ func ownerAutoVerify(w http.ResponseWriter, _ *http.Request) {
 	httpx.WriteJSON(w, map[string]any{"verified": true})
 }
 
+// grantSubscribedToolCaps — "GUI = KEBENARAN" (owner 2026-06-20): tool yg di-CENTANG
+// di GUI settings (config.tools = subscribed) → capability-nya AUTO-GRANT ke agent,
+// biar "centang tool = beneran bisa pakai", bukan pajangan. Subscribe ≠ capability by
+// default (gate isolasi) — pass ini yg nyambungin.
+// AMAN: PRIVILEGED-ONLY (FLOWORK_PRIVILEGED_AGENTS). Agent untrusted tetep manifest-
+// only → checkbox nyasar ga ngasih cap bahaya (exec:power/shell/net:fetch:*). Agent
+// owner (mr-flow) = privileged → semua tool yg dicentang dapet cap-nya.
+func grantSubscribedToolCaps(host *kernelhost.Host, agentID string) {
+	if host == nil || host.Broker == nil {
+		return
+	}
+	priv := false
+	for _, id := range strings.Split(os.Getenv("FLOWORK_PRIVILEGED_AGENTS"), ",") {
+		if strings.TrimSpace(id) == agentID {
+			priv = true
+			break
+		}
+	}
+	if !priv {
+		return // untrusted: manifest-only (anti security-hole)
+	}
+	store, err := host.OpenAgentStore(agentID)
+	if err != nil {
+		return
+	}
+	// GUI checkbox nulis ke tabel tool_subscriptions (BUKAN config blob) — itu
+	// sumber kebenaran "tool yg dicentang".
+	subs, lerr := store.ListSubscriptions()
+	store.Close()
+	if lerr != nil || len(subs) == 0 {
+		return
+	}
+	set := map[string]bool{}
+	for _, c := range host.Broker.Approved(agentID) {
+		set[c] = true
+	}
+	added := 0
+	for _, ts := range subs {
+		name := ts.ToolName
+		if name == "" {
+			continue
+		}
+		if t, ok := tools.Lookup(name); ok {
+			// app:<id> caps di-SKIP di sini — itu digate fitur izin-app per-agent
+			// (app_grants / applyAppCaps), biar "Allowed Apps" di GUI = satu-satunya
+			// gerbang app (centang app = bisa, uncentang = ga bisa). Subscribe tool
+			// app ga otomatis kasih akses app — owner pilih eksplisit di list app.
+			if c := t.Capability(); c != "" && !strings.HasPrefix(c, "app:") && !set[c] {
+				set[c] = true
+				added++
+			}
+		}
+	}
+	if added == 0 {
+		return
+	}
+	caps := make([]string, 0, len(set))
+	for c := range set {
+		caps = append(caps, c)
+	}
+	host.Broker.Approve(agentID, caps)
+	log.Printf("[caps] %s: +%d capability auto-grant dari %d tool ke-subscribe (GUI=truth, privileged)", agentID, added, len(subs))
+}
+
+// seedAndApplyAppCaps — sinkron cap app:<id> agent dari tabel app_grants (fitur
+// "Allowed Apps" di GUI). MIGRASI one-time: app_grants kosong + belum pernah
+// di-seed → isi dari app-tool yg udah di-subscribe (biar setup lama ga regres +
+// langsung ke-centang di GUI). Abis itu app_grants authoritative — owner
+// centang/uncentang di GUI = kebenaran. Dipanggil pas boot (setelah app & tool
+// keregister) supaya tools.Lookup nemu app-tool buat derivasi seed.
+func seedAndApplyAppCaps(host *kernelhost.Host, agentID string) {
+	if host == nil {
+		return
+	}
+	store, err := host.OpenAgentStore(agentID)
+	if err != nil {
+		return
+	}
+	defer store.Close()
+	if !store.AppGrantsSeeded() {
+		seedAppGrantsFromSubscriptions(store)
+		_ = store.MarkAppGrantsSeeded()
+	}
+	applyAppCaps(host, agentID, store)
+}
+
+// seedAppGrantsFromSubscriptions — derivasi app yg "udah dipakai": tiap tool yg
+// di-subscribe dengan capability app:<id> → GrantApp(<id>). One-time (dipagar
+// AppGrantsSeeded di pemanggil) biar uncentang-semua ga ke-reset balik.
+func seedAppGrantsFromSubscriptions(store *agentdb.Store) {
+	subs, err := store.ListSubscriptions()
+	if err != nil {
+		return
+	}
+	for _, ts := range subs {
+		if t, ok := tools.Lookup(ts.ToolName); ok {
+			if c := t.Capability(); strings.HasPrefix(c, "app:") {
+				_ = store.GrantApp(strings.TrimPrefix(c, "app:"))
+			}
+		}
+	}
+}
+
 // reconcileDeadCrews — DB-driven self-heal: hapus task_category yg SEMUA member
 // agent-nya udah ga ada (dir ga eksis) → cascade task_agents + trigger_rules
 // (lewat DeleteCategory). "Hapus agent → crew auto-ilang", lepas dari jalur delete.
@@ -983,9 +1098,10 @@ func reconcileDeadCrews(fdb *floworkdb.Store, agentsDir string) {
 
 // seedSocialDefaults makes a FRESH clone match the owner's setup. It loads the
 // committed seed/social.seed.json and:
-//   (a) installs the 2-trending-1-promo social schedule — ONLY when trigger_rules is
-//       empty, so it never clobbers a machine that already has its own schedule;
-//   (b) sets each social group's non-secret flowork_tele_link kv when it's absent.
+//
+//	(a) installs the 2-trending-1-promo social schedule — ONLY when trigger_rules is
+//	    empty, so it never clobbers a machine that already has its own schedule;
+//	(b) sets each social group's non-secret flowork_tele_link kv when it's absent.
 //
 // Secrets are NOT here: tokens (X cookies, Dev.to key, bot tokens) stay in Settings →
 // API Keys (flowork.db, never pushed). So `git clone` → same setup, user only fills tokens.
