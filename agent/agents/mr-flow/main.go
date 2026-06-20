@@ -125,8 +125,14 @@ const (
 // On-demand fetch via tool call lebih baik daripada always-inject.
 const (
 	maxActiveSkills      = 3    // max skill auto-inject ke persona (sisanya via skill_search)
-	maxToolIters         = 12   // max iterasi tool-loop per turn (serialized 1 tool/iter → butuh lebih)
-	maxGhostNudges       = 2    // ghost-guard: max paksa-lanjut per turn pas model narasi-niat tanpa tool (anti-ghosting, bounded)
+	// LOOP TIME-BOUND, BUKAN CAP-ANGKA (owner 2026-06-20: "loop jangan dibatasi —
+	// Flowork didesain buat berevolusi"). In-turn loop jalan TERUS selama masih ada
+	// budget WAKTU turn; abis budget → break bersih + model di-arahin ScheduleWakeup
+	// buat LANJUT lintas-turn (tidur→bangun→sambung) = unbounded sepanjang waktu.
+	// maxToolIters = safety-backstop GEDE (anti runaway no-progress), bukan batas kerja.
+	maxToolIters         = 100    // backstop iterasi (anti pure-infinite no-time-advance); batas NYATA = loopBudgetMs
+	loopBudgetMs  uint64 = 250000 // budget waktu in-turn (~250s); turn-timeout 290s = backstop keras, 40s margin balik bersih
+	maxGhostNudges       = 6      // ghost-guard: max paksa-lanjut pas NARASI-tanpa-tool (anti-ghosting). Bukan batas kerja (tool-call ga ngitung) — cukup tinggi biar loop sah jalan, tetep bounded anti narasi-loop
 	maxMsgContentChars   = 6000 // cap per-message content sebelum kirim ke LLM
 	keepToolResultsFull  = 4    // hasil tool terbaru yang TIDAK di-prune (sisanya diringkas)
 	maxSkillCharsPerItem = 300  // truncate instruction skill kalau terlalu panjang
@@ -641,7 +647,20 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// via /api/agents/tools/run → feed hasil → ulang sampai LLM jawab teks.
 	toolSpecs := fetchToolSpecs()
 	ghostNudges := 0 // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
+	loopStartMs := hostTimeNowMs()
+	budgetNudged := false // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
 	for iter := 0; iter < maxToolIters; iter++ {
+		// TIME-BOUND (bukan cap-angka): selama masih ada budget waktu turn, loop jalan
+		// TERUS (kerja autonomus panjang). Pas budget abis: SEKALI kasih peringatan biar
+		// model wrap-up hasil ATAU ScheduleWakeup buat lanjut lintas-turn; lewatin lagi → break.
+		if hostTimeNowMs()-loopStartMs > loopBudgetMs {
+			if !budgetNudged {
+				budgetNudged = true
+				msgs = append(msgs, map[string]any{"role": "user", "content": loopBudgetMsg})
+			} else {
+				break // udah dikasih kesempatan wrap-up, tetep lewat → balik bersih sebelum turn-timeout
+			}
+		}
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
 			reqMap["tools"] = toolSpecs
@@ -763,6 +782,13 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 
 // ghostNudgeMsg — koreksi deterministik pas model NARASI niat-aksi tanpa manggil
 // tool (ghosting). Dikirim sbg pesan user biar model BERTINDAK, bukan janji kosong.
+// loopBudgetMsg — pas budget WAKTU turn hampir abis (loop udah jalan lama). Bukan
+// "berhenti", tapi "lanjut dengan bener lintas-turn": kalau tugas belum kelar, panggil
+// ScheduleWakeup biar kebangun & sambung; kalau bisa, kasih hasil-sejauh-ini sekarang.
+// Ini yang bikin loop UNBOUNDED sepanjang waktu (owner: "jangan dibatasi") TANPA
+// ke-kill turn-timeout (290s) tanpa jawaban.
+const loopBudgetMsg = "⏳ Budget waktu turn ini hampir abis, tapi kerjaan boleh lanjut TANPA batas LINTAS-TURN. PILIH SEKARANG: (a) kalau tugas belum kelar & masih panjang → panggil ScheduleWakeup(delaySeconds, reason, prompt berisi progress + langkah lanjutan) biar lo KEBANGUN otomatis & nyambung dari sini (JANGAN ngarang udah kelar); ATAU (b) kalau udah cukup / bisa diringkas → kasih hasil-sejauh-ini ke owner sekarang. JANGAN diam tanpa salah satu."
+
 const ghostNudgeMsg = "⚠️ Lo barusan bilang mau ngelakuin sesuatu (cek/list/scan/cari/tunggu) TAPI GA manggil tool apa-apa. Itu artinya owner nunggu jawaban yang ga bakal datang (ghosting) — DILARANG. LAKUIN SEKARANG di balasan ini: panggil tool yang lo maksud (mis. file_list, glob, grep, file_read). KALAU emang harus nunggu sesuatu yang belum siap / kerja lama, panggil ScheduleWakeup(delaySeconds, reason, prompt) biar lo kebangun otomatis & lanjut sendiri. JANGAN jawab teks doang lagi."
 
 // ghostPhrases — sinyal NIAT-AKSI khas ghosting (model bilang mau ngapain TAPI ga
@@ -776,6 +802,14 @@ var ghostPhrases = []string{
 	"gw kerjain dulu", "gw proses dulu", "lagi gw cek", "lagi gw proses",
 	"hasilnya nyusul", "nyusul ya", "stay tuned",
 	"nanti gw kabarin", "nanti gw lapor", "gw kabarin nanti",
+	// POLA KELANJUTAN/LOOP (owner 2026-06-20: "looping ngak work" — model narasi
+	// "lanjut ke huruf b" lalu BERHENTI, ga chain tool berikutnya). Tight, biar loop
+	// kepaksa jalan terus (panggil tool berikutnya), bukan narasi-stop.
+	"lanjut ke huruf", "mulai ke huruf", "lanjut ke karakter", "lanjut ke prefix",
+	"lanjut ke pencarian", "pencarian berikutnya", "alfabet berikutnya", "scan berikutnya",
+	"lanjut ke alfabet", "lanjut scan", "lanjutin scan", "mulai scanning", "mulai scan",
+	"proses looping dimulai", "proses scanning dimulai", "iterasi berikutnya", "lanjut ke iterasi",
+	"berikutnya...", "berikutnya…", "lanjut ke tahap berikutnya",
 }
 
 // looksLikeGhostPromise — true kalau teks (tanpa tool-call) nyinyalin niat-aksi
