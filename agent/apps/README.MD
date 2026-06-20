@@ -93,3 +93,22 @@ fitur **"Allowed Apps"** di GUI agent (tab Agents → Setting → section Tools 
 6. Persistensi (kalau perlu) tanggung jawab app sendiri (file/db di folder app).
 
 > Intinya: **app dibikin buat agent DAN user**. Kalau cuma salah satu, belum lengkap.
+
+---
+
+## 6. AI Studio bikin app/tim OTOMATIS ikut standar ini (2026-06-21)
+
+Standar di atas dulu cuma buat app BAWAAN (manual). Sekarang **AI Studio (pabrik) ikut paksa standar
+ini** pas owner minta lewat chat:
+
+- **`build_app`** → `designAppUI` generate `operations[]` + `core_py` (backend Python protokol stdio
+  di atas) + UI. `architectBuildApp` **TOLAK app tanpa ≥1 operasi** (paksa konektor). Jadi app hasil
+  AI Studio otomatis dwi-guna (user + agent), bukan user-only. (Lihat `architect.go`.)
+- **`build_team`** → tiap spesialis yg butuh DATA NYATA dapet `tools[]` (AI Studio pilih dari daftar
+  operasi app tersedia, mis. `app_flowalpha_get_price`). Engine `subscribeMemberTools` (post-install):
+  `SubscribeTool` **+ `GrantApp(app:<id>)`** per member — karena **subscribe ≠ capability** (lihat §4):
+  tanpa grant, tool ke-expose pun ga bisa dieksekusi. Hasil: tim analisa narik data live (mis. harga
+  saham RIIL), BUKAN ngarang (anti-halusinasi, konstitusi `anti-halu`).
+
+> Auditor: app/tim hasil AI Studio WAJIB lolos standar yg sama (operations>0, core.py, grant). Cek
+> `app_grants` member tim + `tools/specs` (field `function.name`) buat mastiin tool data ke-expose.
