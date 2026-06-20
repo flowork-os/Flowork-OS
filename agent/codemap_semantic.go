@@ -9,15 +9,58 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/kernel/loader"
+	"flowork-gui/internal/kernelhost"
 )
 
-// codemapSemanticSummarizer — implementasi agentmgr.SemanticSummarizer pakai routerChat.
-func codemapSemanticSummarizer() agentmgr.SemanticSummarizer {
+// enricherModel — model GUI per-agent codemap-enricher (kv router_model). Buat label/laporan.
+// Path .fwagent bener (pola sama evoCoderModel). Fallback coderModel kalau belum di-set.
+func enricherModel() string {
+	dir := filepath.Join(loader.AgentsDir(), enricherID+".fwagent")
+	if st, e := agentdb.Open(agentdb.Resolve(enricherID, dir)); e == nil {
+		defer st.Close()
+		if m := st.GetRouterModel(); m != "" {
+			return m
+		}
+	}
+	return coderModel("")
+}
+
+func parseEnrich(raw string) (summary, domain, role string, ok bool) {
+	var p struct {
+		Summary string `json:"summary"`
+		Domain  string `json:"domain"`
+		Role    string `json:"role"`
+	}
+	if json.Unmarshal([]byte(jsonSlice(raw)), &p) != nil {
+		return "", "", "", false
+	}
+	return strings.TrimSpace(p.Summary), strings.TrimSpace(p.Domain), strings.TrimSpace(p.Role),
+		p.Summary != "" || p.Domain != "" || p.Role != ""
+}
+
+// LOCKED (soft, owner-approved 2026-06-20): enrich via agent codemap-enricher (model GUI). Jangan ubah tanpa izin.
+// codemapSemanticSummarizer — implementasi agentmgr.SemanticSummarizer. Owner 2026-06-20: enrich
+// jalan lewat AGENT codemap-enricher (model dari GUI, BUKAN hardcode = cacat arsitektur). Host
+// KIRIM isi file → agent (persona cartographer di DB) balas JSON → parse. Fallback routerChat
+// kalau agent ga ada / output ga valid (robust, ga mecahin enrich).
+func codemapSemanticSummarizer(host *kernelhost.Host) agentmgr.SemanticSummarizer {
 	return func(ctx context.Context, path, content, model string) (summary, domain, role, usedModel string, err error) {
-		usedModel = coderModel(model) // resolve: arg → GUI Default Model (floworkdb) → Opus default (env dibuang 2026-06-20)
+		// 1) AGENT codemap-enricher (otak di agent, model GUI). System-prompt = persona DB-nya.
+		if host != nil {
+			if raw, e := host.InvokeAgentMessage(ctx, enricherID, "FILE: "+path+"\n\n"+content, "codemap-enrich"); e == nil {
+				if s, d, r, ok := parseEnrich(extractReply(raw)); ok {
+					return s, d, r, enricherModel() + " (codemap-enricher)", nil
+				}
+			}
+		}
+		// 2) Fallback: routerChat hardcoded (kalau agent belum ke-load / output invalid).
+		usedModel = coderModel(model)
 		sys := "You are a codebase cartographer. Given ONE source file, reply ONLY a compact JSON object: " +
 			`{"summary":"one sentence: what this file does","domain":"functional area (e.g. auth, triggers, brain, ui, codemap, finance, router, orchestrator)","role":"architecture role (e.g. http-handler, engine, data-store, config, parser, wasm-agent, test)"}. ` +
 			"No markdown, no code fences, no prose — JSON only."
@@ -29,15 +72,11 @@ func codemapSemanticSummarizer() agentmgr.SemanticSummarizer {
 		if e != nil {
 			return "", "", "", usedModel, e
 		}
-		var parsed struct {
-			Summary string `json:"summary"`
-			Domain  string `json:"domain"`
-			Role    string `json:"role"`
-		}
-		if jerr := json.Unmarshal([]byte(jsonSlice(res.Content)), &parsed); jerr != nil {
+		s, d, r, ok := parseEnrich(res.Content)
+		if !ok {
 			return "", "", "", usedModel, fmt.Errorf("bad json from model: %s", trimStr(res.Content, 80))
 		}
-		return strings.TrimSpace(parsed.Summary), strings.TrimSpace(parsed.Domain), strings.TrimSpace(parsed.Role), usedModel, nil
+		return s, d, r, usedModel + " (fallback)", nil
 	}
 }
 

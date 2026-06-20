@@ -615,6 +615,7 @@ func main() {
 	// → mr-flow bisa jalanin. Idempoten. GATE KEAMANAN (mode/karma/ModelStrong) TETAP di
 	// harness (selfevolve.go), GA disentuh. Cuma mindahin otak.
 	seedSelfEvolutionGroup(groupsAPI)
+	seedCodemapEnricher() // agent enrich codemap (model GUI, ga hardcode — owner 2026-06-20)
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
 	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas
@@ -928,7 +929,7 @@ func main() {
 	mux.HandleFunc("/api/codemap/roots", agentmgr.CodemapRootsCompatHandler)
 	mux.HandleFunc("/api/codemap/docs", agentmgr.CodemapDocsCompatHandler)
 	// R6 self-map semantik: lapisan MAKNA di atas self-map deterministik (LLM di-inject).
-	mux.HandleFunc("/api/codemap/enrich", agentmgr.CodemapEnrichHandler(codemapSemanticSummarizer()))
+	mux.HandleFunc("/api/codemap/enrich", agentmgr.CodemapEnrichHandler(codemapSemanticSummarizer(host)))
 	mux.HandleFunc("/api/codemap/semantic", agentmgr.CodemapSemanticHandler)
 	// R7 self-evolution fase-1: refleksi-diri (baca self-map → usul perbaikan → backlog + karma).
 	mux.HandleFunc("/api/evolve/reflect", agentmgr.EvolveReflectHandler(evolveProposer()))
