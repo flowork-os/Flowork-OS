@@ -1,0 +1,118 @@
+# STANDAR AGENT FLOWORK — Kontrak Tiap Warga
+
+> Detail dicontek dari `/home/mrflow/Documents/roadmap_agent.md` (§1-6) + hasil sesi
+> 2026-06-20. Ini standar WAJIB tiap agent (mr-flow = template referensi). Tiap entitas
+> mikir (agent crew, AI Studio, Evolution) ikut kontrak SAMA.
+
+Agent = **OTAK LOKAL**: punya `workspace/state.db` sendiri (terisolasi total). Config &
+skill **di DATABASE, BUKAN file .md** (prinsip visi owner: ".md = file sampah"). Loader
+scan dir `*.fwagent` di `~/.flowork/agents/` (data-home).
+
+---
+
+## 1. DUA-LAPIS OTAK (gimana nyambung)
+```
+ROUTER (:2402) — OTAK BERSAMA (shared)          ← Knowledge 859K · Instinct · KG-collective ·
+   ▲                                              Constitution-umum · Persona-library · Skill Registry
+   │ capability rpc:router:brain (HTTP)
+   │ PIPA tool: brain_search_shared, instinct_recall, graph_recall
+AGENT (:1987) — OTAK LOKAL (state.db)           ← persona DB · brain lokal (drawers/recall) ·
+                                                  cognitive graph lokal · interactions/karma/dll
+```
+**Pembagian:** UMUM (instinct/knowledge/KG-collective) → router. PERSONAL (twin owner:
+sejarah/keluarga) → agent LOKAL (HARAM ke router/mesh).
+
+---
+
+## 2. 8 SYARAT WAJIB TIAP AGENT (§5 roadmap)
+Tiap agent baru WAJIB lahir dengan ini. Sebagian **otomatis dari HOST** (ga perlu di-kode
+di wasm) — ditandai 🤖; sebagian di **manifest/persona** — ditandai 📝.
+
+1. 📝 **Config DB-based** — persona di `config.prompt` + `self_prompt`(versioned) +
+   `constitution`(sacred). HARAM baca `.md`. (Pola mr-flow `agents/mr-flow/main.go`.)
+2. 🤖 **Konstitusi sacred** — auto-seed via `ProvisionAgentDNA` (idempotent, boot+install).
+   8 rule: 5w1h-gate, identity-guard, anti-halu, 00-mission-sacred, 01-core-behaviors,
+   sync-honest, recall-first, **autonomy-mode**. Auto-nyebar ke SEMUA agent.
+3. 🤖 **Pipa OTAK BERSAMA (genome)** — `coreExposedTools` auto-kasih `brain_search_shared`
+   + `instinct_recall` + `graph_recall` → tiap agent nyolok Knowledge/Instinct/KG router.
+4. 🤖 **Cognitive Graph LOKAL** — `cognitive_nodes/edges` di state.db sendiri (schema
+   ke-ensure ProvisionAgentDNA), diisi via dream/digest, dibaca via `graph_recall`.
+   Memori relasional per-agent (owner-facing→twin; lain→konsep domain).
+5. 📝 **Identitas penting masuk BRAIN/recall**, bukan cuma persona — 26B percaya
+   recall(brain) > persona (§4.4). Fakta owner WAJIB ke drawer/recall.
+6. 📝 **Capability `rpc:router:brain`** di manifest.
+7. 🤖 **Schedule per-agent** — cron→task (agentdb `schedules` + engine auto-tick/menit).
+   Fungsional, KEEP (beda dari global schedule).
+8. 📝🤖 **Autonomus: loop + sleep + anti-ghosting** — ScheduleWakeup (tidur→bangun via
+   RunDueWakeups) + ghost-guard (harness, anti janji-tanpa-aksi) + aturan autonomy-mode.
+
+---
+
+## 3. KONEK KE APP (izin-app, GUI=truth)
+App = platform dipakai-bersama user+agent (`~/.flowork/apps/<id>/`). Agent pakai app
+lewat **tool** `app_<id>_<op>` (hyphen→`_`), di-gate **capability `app:<id>`**.
+- **Izin per-agent** disimpen di tabel `app_grants` (state.db) — di-toggle di GUI agent
+  (Setting → Tools → "Aplikasi yang boleh dipakai"). Centang → cap di-grant LIVE.
+- App WAJIB punya ≥1 operasi `"tool": true` (konektor agent) biar bisa dipakai agent;
+  kalau 0 = user-only. (Detail: `agent/apps/README.MD`.)
+- Backend: `app_grants_handler.go` + `internal/agentdb/app_grants.go`.
+
+## 4. KONEK KE BRAIN (shared + lokal)
+- **Shared (router):** `brain_search_shared` (Knowledge 859K by-makna), `instinct_recall`
+  (insting coding/security), `graph_recall` (KG). Butuh cap `rpc:router:brain`. Auto via genome.
+- **Lokal (agent):** `brain_search` (drawer lokal), `memory_get/set` (USER.md/MEMORY.md),
+  recall twin. Privat, HARAM ke router.
+
+## 5. KONEK KE KONSTITUSI/DNA
+`ProvisionAgentDNA(agentID)` (host, boot+install) seed: konstitusi sacred + genome pipe +
+cognitive-graph schema + edu-errors + antibody immune. Agent baru = warga penuh tanpa nunggu
+restart. Constitution decision (owner, A): agent-sacred canonical di-inject; router-65
+TIDAK dipaksa-inject (lapis shared, di-query).
+
+## 6. ROUTING (3-jalur, sejak 2026-06-20)
+Dulu: `mr-flow→group→agent` (selalu via group). SEKARANG mr-flow (& orchestrator) bisa:
+1. **Jawab sendiri** — pake tool (web_search/brain/app).
+2. **DIRECT ke 1 agent** — `agent_command(agent_id, text)` (cap `rpc:agent-invoke`).
+3. **GROUP/crew** — `task_run(category, subject)` (cek `task_list` live dulu).
+Anti-halu: jangan ngarang agent_id/run_id; kalau ga ada target → jawab sendiri.
+
+---
+
+## 7. MANIFEST MINIMAL (skeleton)
+```json
+{
+  "id": "<agent-id>", "kind": "agent", "display_name": "<Nama>",
+  "version": "1.0.0", "abi_version": 1, "entry": "agent.wasm",
+  "memory_max_mb": 64, "timeout_call_ms": 300000,
+  "capabilities_required": [
+    "state:read", "state:write", "time:read",
+    "rpc:router:brain",                       // otak bersama (brain/instinct/KG)
+    "net:fetch:http://127.0.0.1:2402/v1/chat/completions",  // LLM router
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/run", // jalanin tool
+    "net:fetch:http://127.0.0.1:1987/api/agents/tools/specs"
+    // + "rpc:agent-invoke" kalau orchestrator (direct-agent)
+    // + "app:<id>" lewat app_grants (GUI), JANGAN hardcode app worker
+  ],
+  "exposes_rpc": [{ "name": "handle_message",
+    "input_schema": {"type":"object","properties":{"text":{"type":"string"}}} }]
+}
+```
+Caps app (`app:*`) JANGAN ditaruh manifest — itu di-grant lewat **app_grants/GUI** (GUI=truth).
+Caps tool subscribed (net:fetch:*/exec:*) buat agent privileged auto-grant dari subscription
+(`grantSubscribedToolCaps`, main.go).
+
+## 8. KONTRAK WASM (agent code)
+Agent = "bodoh, engine pinter" — behavior dari persona DB + DNA, bukan wasm. Wasm minimal:
+- `selfID()` baca `FLOWORK_AGENT_ID` (= manifest.id) → wasm SAMA jalan buat agent apa pun.
+- RPC `handle_message`: fetch persona(config.prompt) + self_prompt + tools/specs + history
+  → tool-loop callLLM (panggil tool sampe jawab) → reply. Ghost-guard di loop.
+- Build: **standard wasip1** (`GOWORK=off GOOS=wasip1 GOARCH=wasm go build`), BUKAN tinygo.
+
+## 9. BUILD + DEPLOY
+Repo ga simpan `agent.wasm` (gitignore). Build → deploy ke `~/.flowork/agents/<id>.fwagent/
+agent.wasm` (yang ke-load loader) → restart. Lihat `agents/mr-flow/readme.md` (anti-ketuker
+source vs deployed).
+
+---
+**Referensi:** template baru = `templates/agent-template/`. Standar penuh + alasan tiap
+poin = `roadmap_agent.md`. Otak/memori (CGM, instinct, dream) = `roadmap_opus8.md`.
