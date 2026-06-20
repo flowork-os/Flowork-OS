@@ -573,6 +573,11 @@ func main() {
 	// invite as the owner (tokens stay in Settings, never pushed). No-op on a machine
 	// that already has a schedule / config.
 	seedSocialDefaults(fdb, loader.AgentsDir())
+	// SELF-EVOLUTION → GROUP + 5 AGENT (owner 2026-06-20 "pindahin otaknya"): bikin dewan
+	// adversarial (pembela/penantang/3 hakim) jadi 5 agent persona-DB + grup self-evolution
+	// → mr-flow bisa jalanin. Idempoten. GATE KEAMANAN (mode/karma/ModelStrong) TETAP di
+	// harness (selfevolve.go), GA disentuh. Cuma mindahin otak.
+	seedSelfEvolutionGroup(groupsAPI)
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
 	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas
