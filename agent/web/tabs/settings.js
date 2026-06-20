@@ -132,6 +132,7 @@ const SEGMENTS = [
   { key: 'finance', label: () => t('menu.tab.settings.seg_finance'), render: renderFinance },
   { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
   { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
+  { key: 'evolve', label: () => '🧬 Auto-Push', render: renderEvolvePush },
 ];
 
 // The YouTube OAuth flow polls /api/settings/youtube every 2s while the owner
@@ -358,6 +359,73 @@ async function renderRouterDefault(panel) {
         body: JSON.stringify({ model, router_url }),
       });
       msg.className = 'set-msg ok'; msg.textContent = tk('router_saved');
+    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  });
+}
+
+// LOCKED (soft, owner-approved 2026-06-20): GUI auto-push token. Token write-only, ga ke-commit.
+// renderEvolvePush — Settings GLOBAL buat AUTO-PUSH evolusi (owner 2026-06-20: "api github
+// untuk push saat selesai evolute taruh di seting global"). Token GitHub disimpan lokal di
+// flowork.db (~/.flowork, GA ke-commit), write-only (server ga pernah balikin token — cuma
+// has_token bool). Auto-push cuma jalan kalau: enabled + token ada + mode=auto + lolos SEMUA
+// gate (karma+model+re-probe). Manual core-apply tetep STAGE (ga ke-push).
+async function renderEvolvePush(panel) {
+  panel.innerHTML = `
+    <div class="set-card">
+      <h3>🧬 Evolusi — Auto-Push GitHub</h3>
+      <div class="sub">Pas organisme evolusi auto-commit core (mode AUTO + lolos semua gate), hasilnya
+        di-push ke GitHub biar Flowork tetep abadi walau owner ga ada. Token disimpan lokal
+        (ga ke-commit), ga pernah ditampilin balik. Manual core-apply tetep STAGE (ga ke-push).</div>
+      <label class="set-row" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="epEnabled" style="width:auto"> <span>Aktifkan auto-push</span>
+      </label>
+      <div class="set-row">
+        <input type="password" id="epToken" placeholder="GitHub token (ghp_… / fine-grained)" autocomplete="new-password">
+      </div>
+      <div class="set-hint" id="epTokenHint"></div>
+      <div class="set-row">
+        <input type="text" id="epRemote" placeholder="remote (default: origin)">
+      </div>
+      <div class="set-row">
+        <input type="text" id="epBranch" placeholder="branch (kosong = branch aktif repo)">
+      </div>
+      <div class="set-hint">⚠️ Push pakai HTTPS http.extraHeader (token ga ke-tulis ke git config). Disaranin
+        token fine-grained scope minimal (contents:write) ke repo Flowork aja, jangan token full-akses.</div>
+      <div class="set-row"><button class="set-btn-primary" id="epSave">${esc(t('common.btn.save'))}</button></div>
+      <div class="set-msg" id="epMsg"></div>
+    </div>
+  `;
+  const msg = panel.querySelector('#epMsg');
+  const tokenHint = panel.querySelector('#epTokenHint');
+  try {
+    const d = await fetchJSON('/api/evolve/push-config');
+    panel.querySelector('#epEnabled').checked = !!d.enabled;
+    panel.querySelector('#epRemote').value = d.remote || '';
+    panel.querySelector('#epBranch').value = d.branch || '';
+    tokenHint.textContent = d.has_token
+      ? '✅ Token tersimpan. Kosongin field = biarin token lama; isi baru = ganti.'
+      : '⚠️ Belum ada token — auto-push ga bakal jalan sampai diisi.';
+  } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
+  panel.querySelector('#epSave').addEventListener('click', async () => {
+    const enabled = panel.querySelector('#epEnabled').checked;
+    const token = panel.querySelector('#epToken').value;          // JANGAN trim: biar owner bisa paste apa adanya
+    const remote = panel.querySelector('#epRemote').value.trim();
+    const branch = panel.querySelector('#epBranch').value.trim();
+    msg.className = 'set-msg'; msg.textContent = '';
+    // Body: token cuma dikirim kalau owner ngetik (field kosong = jangan sentuh token lama).
+    const body = { enabled, remote, branch };
+    if (token.length > 0) body.token = token;
+    try {
+      await fetchJSON('/api/evolve/push-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      panel.querySelector('#epToken').value = '';
+      msg.className = 'set-msg ok'; msg.textContent = 'Tersimpan ✓';
+      const d = await fetchJSON('/api/evolve/push-config');
+      tokenHint.textContent = d.has_token
+        ? '✅ Token tersimpan. Kosongin field = biarin token lama; isi baru = ganti.'
+        : '⚠️ Belum ada token — auto-push ga bakal jalan sampai diisi.';
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   });
 }

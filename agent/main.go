@@ -210,12 +210,9 @@ func main() {
 				}
 			}
 		}
-		// Settings → Default Router & Model (Settings page, generic KV not secrets).
-		// The global fallback for agents that don't pin their own model/router. Set
-		// BEFORE Boot so every agent's env carries FLOWORK_LLM_MODEL from the start.
-		if m, _ := fdbEarly.GetKV("llm_default_model"); strings.TrimSpace(m) != "" {
-			_ = os.Setenv("FLOWORK_LLM_MODEL", strings.TrimSpace(m))
-		}
+		// Settings → Default Router (generic KV not secrets). Model TIDAK lagi di-mirror
+		// ke env (owner 2026-06-20: "kebenaran di GUI bukan env") — coderModel/loket/cgm baca
+		// floworkdb.DefaultModelShared() langsung. Router URL masih perlu env (routerclient pakai).
 		if u, _ := fdbEarly.GetKV("router_default_url"); strings.TrimSpace(u) != "" {
 			_ = os.Setenv("ROUTER_DEFAULT_URL", strings.TrimSpace(u))
 		}

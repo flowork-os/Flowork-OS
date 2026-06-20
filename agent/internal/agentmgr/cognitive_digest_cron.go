@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"flowork-gui/internal/agentdb"
+	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/httpx"
 	"flowork-gui/internal/routerclient"
 )
@@ -49,9 +50,10 @@ func cgmRouterClient() *routerclient.Client {
 	return routerclient.New(strings.TrimSpace(os.Getenv("ROUTER_DEFAULT_URL")))
 }
 
-// cgmModel — model reasoning buat extraction (env, fallback "" = DefaultChatModel).
+// cgmModel — model reasoning buat extraction. Settings → Default Model (GUI kv, baca
+// LANGSUNG — owner 2026-06-20: hapus env). "" = DefaultChatModel.
 func cgmModel() string {
-	return strings.TrimSpace(os.Getenv("FLOWORK_LLM_MODEL"))
+	return floworkdb.DefaultModelShared()
 }
 
 // buildDigestDeps rakit DigestDeps dengan closure LLM+Embed asli ke router.

@@ -73,21 +73,20 @@ func zipPack(files map[string][]byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// coderModelDefault — Opus buat kerja mikir berat (roadmap 2.2). Override via
-// env FLOWORK_CODER_MODEL.
+// coderModelDefault — Opus buat kerja mikir berat (roadmap 2.2). Last-resort doang.
 const coderModelDefault = "claude-opus-4-8"
 
+// coderModel — resolve model buat kerja codegen. SUMBER KEBENARAN = GUI (owner 2026-06-20:
+// "kebenaran sekarang ada di GUI bukan di env, hapus env biar ngak bingung"). Urutan:
+//  1. req eksplisit (arg) — caller override (mis. per-task).
+//  2. Settings → Default Model (kv llm_default_model) DIBACA LANGSUNG dari floworkdb —
+//     bukan via env FLOWORK_LLM_MODEL/FLOWORK_CODER_MODEL (env dibuang, sumber ganda = bingung).
+//  3. coderModelDefault (Opus) — last-resort kalau GUI belum set apa-apa.
 func coderModel(req string) string {
 	if m := strings.TrimSpace(req); m != "" {
 		return m
 	}
-	if m := strings.TrimSpace(os.Getenv("FLOWORK_CODER_MODEL")); m != "" {
-		return m
-	}
-	// Honor Settings → Default Model (kv llm_default_model → FLOWORK_LLM_MODEL set at
-	// boot). So AI Studio / coder follow the owner's chosen default (single source of
-	// truth) instead of forcing Opus. coderModelDefault is only the last-resort fallback.
-	if m := strings.TrimSpace(os.Getenv("FLOWORK_LLM_MODEL")); m != "" {
+	if m := floworkdb.DefaultModelShared(); m != "" {
 		return m
 	}
 	return coderModelDefault

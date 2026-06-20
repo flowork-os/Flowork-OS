@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"flowork-gui/internal/sidecar"
@@ -223,4 +224,18 @@ func Shared() (*Store, error) {
 		sharedDB, sharedErr = Open(Path())
 	}
 	return sharedDB, sharedErr
+}
+
+// LOCKED (soft, owner-approved 2026-06-20): sumber kebenaran TUNGGAL model default global.
+// DefaultModelShared — Settings → Default Model (GUI kv llm_default_model). "" kalau belum diset.
+// SUMBER KEBENARAN TUNGGAL model default global (owner 2026-06-20: "kebenaran di GUI bukan env").
+// Gantiin env FLOWORK_LLM_MODEL — semua caller (coderModel/loket_wire/cgmModel) baca SINI, GUI live,
+// ga ada cache env yang bisa basi / bikin bingung.
+func DefaultModelShared() string {
+	s, err := Shared()
+	if err != nil || s == nil {
+		return ""
+	}
+	m, _ := s.GetKV("llm_default_model")
+	return strings.TrimSpace(m)
 }

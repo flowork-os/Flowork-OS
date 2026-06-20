@@ -795,7 +795,8 @@ func buildAgentEnv(d loader.Discovery, store *agentdb.Store, workspaceMount, sha
 		"FLOWORK_TG_BOT_TOKEN",
 		"FLOWORK_TG_ALLOWED_CHATS",
 		"FLOWORK_ROUTER_URL",
-		"FLOWORK_LLM_MODEL",
+		// FLOWORK_LLM_MODEL dibuang (owner 2026-06-20: kebenaran di GUI bukan env). Model
+		// per-agent ada di FLOWORK_AGENT_CONFIG.router.model; default global via floworkdb.
 		// Publishing credentials set in Settings → API Keys (os.Setenv'd before agents boot),
 		// forwarded so a per-platform promo group reads its own key via os.Getenv. Curated
 		// allowlist — only these Settings keys reach agents, not every global key.

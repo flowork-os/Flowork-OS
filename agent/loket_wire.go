@@ -35,6 +35,7 @@ import (
 
 	"flowork-gui/internal/agentdb"
 	"flowork-gui/internal/agentmgr"
+	"flowork-gui/internal/floworkdb"
 	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/kernelhost"
 	"flowork-gui/internal/loket"
@@ -177,9 +178,9 @@ func llmCompleteProvider(ctx context.Context, _ string, args json.RawMessage) (j
 		return nil, fmt.Errorf("llm.complete: messages required")
 	}
 	if a.Model == "" {
-		// Caller didn't pin a model → fall back to the Settings → Default Model
-		// (FLOWORK_LLM_MODEL), then to a SMALL model — the ant ethos.
-		a.Model = strings.TrimSpace(os.Getenv("FLOWORK_LLM_MODEL"))
+		// Caller didn't pin a model → fall back to Settings → Default Model (GUI kv,
+		// baca LANGSUNG — owner 2026-06-20: hapus env), then SMALL model — the ant ethos.
+		a.Model = floworkdb.DefaultModelShared()
 		if a.Model == "" {
 			a.Model = "claude-haiku-4-5"
 		}

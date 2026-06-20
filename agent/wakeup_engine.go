@@ -51,12 +51,19 @@ func RunDueWakeups(ctx context.Context, host *kernelhost.Host) int {
 			rows.Close()
 		}
 		for _, w := range due {
-			// Mark fired FIRST: the invoke below can take up to 90s while the ticker
-			// fires every 60s — marking first makes overlap impossible (no double-ping).
+			// Mark fired FIRST: invoke bisa lama; mark dulu = anti double-ping. Ticker
+			// di-serialize (Go ticker drop tick saat handler busy) → ga ada RunDueWakeups
+			// overlap walau invoke panjang.
 			if _, e := db.Exec("UPDATE wakeups SET fired=1 WHERE id=?", w.id); e != nil {
 				continue
 			}
-			ictx, cancel := context.WithTimeout(ctx, 90*time.Second)
+			// LOCKED (soft, owner-approved 2026-06-20 anti-stuck): JANGAN turunin di bawah loopBudgetMs.
+			// 300s = SAMA dengan turn normal (InvokeAgentMessage). FIX KRITIS (owner 2026-06-20):
+			// dulu 90s < loopBudgetMs(200s) → tugas panjang yg di-RESUME via wakeup ke-cut SEBELUM
+			// loop sempat checkpoint + jadwalin lanjutan → rantai auto-continue PUTUS = evolusi stuck
+			// di tengah. Samain budget biar agent bisa nyelesain chunk + jadwalin wakeup berikutnya
+			// (nyawa flowork: loop evolusi WAJIB nyambung lintas-wakeup, ga boleh mati di tengah).
+			ictx, cancel := context.WithTimeout(ctx, 300*time.Second)
 			reply, ierr := host.InvokeAgentMessage(ictx, id, w.prompt, "wakeup")
 			cancel()
 			if ierr != nil {

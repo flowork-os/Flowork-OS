@@ -265,13 +265,9 @@ func (a *API) RouterDefaultHandler(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteJSON(w, map[string]any{"error": err.Error()})
 			return
 		}
-		// Live-inject so running agents/providers use it without a restart. An
-		// empty value clears the override -> falls back to the built-in default.
-		if model != "" {
-			_ = os.Setenv("FLOWORK_LLM_MODEL", model)
-		} else {
-			_ = os.Unsetenv("FLOWORK_LLM_MODEL")
-		}
+		// Model: GA di-mirror ke env lagi (owner 2026-06-20: "kebenaran di GUI bukan env").
+		// Tersimpan di kv llm_default_model, dibaca live via floworkdb.DefaultModelShared().
+		// Router URL masih di-inject ke env (routerclient pakai ROUTER_DEFAULT_URL).
 		if url != "" {
 			_ = os.Setenv("ROUTER_DEFAULT_URL", url)
 		} else {

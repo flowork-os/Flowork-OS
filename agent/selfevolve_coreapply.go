@@ -155,8 +155,9 @@ func evolveCoreApplier(host *kernelhost.Host) agentmgr.EvolveCoreApplier {
 func evolveReprobeStrong(ctx context.Context) (bool, string) {
 	c, cancel := context.WithTimeout(ctx, 120*time.Second)
 	defer cancel()
-	r := runCapabilityEval(c, coderModel(""))
-	return r.Passed, coderModel("") + ": " + r.Detail
+	m := evoCoderModel() // probe model yg evo-coder BENERAN pakai (GUI per-agent), bukan default global
+	r := runCapabilityEval(c, m)
+	return r.Passed, m + ": " + r.Detail
 }
 
 // evolveCommitFile — tulis file baru ke REPO ASLI + git add + commit ke LOCAL main (NO push).
@@ -350,8 +351,22 @@ func evolveWorktreeDiff(ctx context.Context, wtRoot, rel string) string {
 
 // evolveCodegenFile — 1 LLM call: tulis ISI file baru (idiomatik, compile) dari proposal.
 // routerChat (bukan forced-tool: kita mau raw file content) → strip fence kalau ada.
+// evoCoderModel — model PER-AGENT evo-coder dari GUI Settings (kv router_model). Ini yg BENER
+// dilaporin & di-probe: codegen jalan lewat AGENT evo-coder yg pakai model GUI-nya sendiri
+// (mis. opus), BUKAN default global. Owner 2026-06-20: kebenaran model = GUI per-agent.
+// Fallback coderModel("") (= GUI default global) kalau evo-coder belum di-set.
+func evoCoderModel() string {
+	if st, e := agentdb.Open(agentdb.Resolve("evo-coder", "")); e == nil {
+		defer st.Close()
+		if m := st.GetRouterModel(); m != "" {
+			return m
+		}
+	}
+	return coderModel("")
+}
+
 func evolveCodegenFile(ctx context.Context, host *kernelhost.Host, rel string, p agentdb.EvolveProposal) (content, model string, err error) {
-	model = coderModel("")
+	model = evoCoderModel()
 	lang := "Go"
 	if strings.HasSuffix(rel, ".js") {
 		lang = "JavaScript"

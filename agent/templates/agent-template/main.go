@@ -120,22 +120,35 @@ func main() {
 }
 
 type agentConfig struct {
-	Prompt string `json:"prompt"`
-	Model  string `json:"model"`
+	Prompt string
+	Model  string
 }
 
+// LOCKED (soft, owner-approved 2026-06-20 model-from-gui): baca router.model dari GUI.
+// JANGAN balik ke baca top-level "model" (bug lama → semua agent jatuh ke flowork-brain).
 func loadConfig() agentConfig {
 	c := agentConfig{
 		Prompt: "Lo agent spesialis Flowork. Kerjain tugas dengan jelas + jujur (anti-halu). Ganti persona ini di GUI/config.",
-		Model:  "flowork-brain",
+		Model:  "flowork-brain", // last-resort ONLY kalau GUI belum set model
 	}
 	if raw := os.Getenv("FLOWORK_AGENT_CONFIG"); raw != "" {
-		var p agentConfig
+		// GUI = SUMBER KEBENARAN (owner 2026-06-20). store.Load() taruh model di router.model
+		// (nested), BUKAN top-level "model". Bug lama: template baca "model" → selalu kosong →
+		// jatuh ke flowork-brain (lokal) walau owner set Opus di Settings. Sekarang baca router.model.
+		var p struct {
+			Prompt string `json:"prompt"`
+			Router struct {
+				Model string `json:"model"`
+			} `json:"router"`
+			Model string `json:"model"` // back-compat: hormati top-level "model" kalau ada
+		}
 		if json.Unmarshal([]byte(raw), &p) == nil {
 			if p.Prompt != "" {
 				c.Prompt = p.Prompt
 			}
-			if p.Model != "" {
+			if p.Router.Model != "" {
+				c.Model = p.Router.Model
+			} else if p.Model != "" {
 				c.Model = p.Model
 			}
 		}
