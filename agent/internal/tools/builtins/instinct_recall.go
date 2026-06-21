@@ -1,21 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-20
-// Update 2026-06-20 (owner autonomy-grant): retrieval di-ALIH ke GRAPH LOKAL.
-//   891 pola instinct udah di-project jadi cognitive_nodes type='instinct' (embedded).
-//   Pakai store.SearchNodesByEmbedding semantic by-makna. SIDESTEP knot vindex shared
-//   (V2 vec-db kosong → gak bisa rebuild incremental). Verified: SQL→parameterized,
-//   reentrancy, repo-layout. Re-locked.
-// Reason: CGM instinct_recall tool (coding/security instinct before coding).
-//
-// instinct_recall.go — Phase 3B (§4.10, D7): retrieve coding/security INSTINCT
-// sebelum agent nulis code. File BARU (register via init(), pola agent_run.go).
-//
-// Retrieval: embed query (router bge-m3) → store.SearchNodesByEmbedding(type=
-// 'instinct') atas GRAPH LOKAL → fact-sheet RINGKAS budget-capped. Beda dari
-// graph_recall (semua type + relasi) & brain_search_shared (FTS korpus umum).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 
@@ -34,7 +18,7 @@ func init() { tools.Register(&instinctRecallTool{}) }
 
 const (
 	instinctDefaultK = 6
-	instinctMaxChars = 1400 // budget-cap (anti muntah prompt, pola §4.8)
+	instinctMaxChars = 1400
 )
 
 type instinctRecallTool struct{}
@@ -78,7 +62,7 @@ func (instinctRecallTool) Run(ctx context.Context, args map[string]any) (tools.R
 			routerURL = u
 		}
 	}
-	// embed query (router bge-m3) → seed semantic ke graph instinct nodes.
+
 	ectx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	vec, eerr := routerclient.New(routerURL).EmbedText(ectx, "", query)
 	cancel()

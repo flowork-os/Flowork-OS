@@ -1,19 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B2 mistakes recall. Verified: add 2x→hit_count, SearchMistakes
-//   recall by context + hit_count order. Extend → file baru, JANGAN modify ini.
-//
-// mistakes_recall.go — Roadmap 2 Fase B2: recall mistakes pas konteks mirip.
-//
-// mistakes.go (LOCKED) udah handle Add (dedup + hit_count) / List / Prune.
-// Yang kurang buat B2: RECALL berdasarkan konteks — "dulu lo salah X, solusinya
-// Y" pas situasi mirip muncul lagi. File ini nambah SearchMistakes (keyword
-// LIKE, urut hit_count) tanpa nyentuh file locked.
-//
-// Anti over-prompt: recall = on-demand (tool mistake_recall), BUKAN auto-inject.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -22,9 +8,6 @@ import (
 	"strings"
 )
 
-// SearchMistakes cari mistake live yang match keyword di konteks/query.
-// Match = token (≥3 char) muncul di title ATAU content (LIKE, case-insensitive).
-// Urut: hit_count DESC (yang sering keulang = paling penting di-warn) lalu recent.
 func (s *Store) SearchMistakes(query string, limit int) ([]Mistake, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -36,7 +19,6 @@ func (s *Store) SearchMistakes(query string, limit int) ([]Mistake, error) {
 		limit = 20
 	}
 
-	// Tokenize: ambil kata ≥3 char, lowercase.
 	var toks []string
 	for _, f := range strings.Fields(strings.ToLower(query)) {
 		f = strings.Trim(f, ".,:;!?()[]{}\"'`")
@@ -48,7 +30,6 @@ func (s *Store) SearchMistakes(query string, limit int) ([]Mistake, error) {
 		return []Mistake{}, nil
 	}
 
-	// WHERE (deleted live) AND (tok1 match OR tok2 match OR …).
 	var conds []string
 	var args []any
 	for _, t := range toks {

@@ -1,16 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B5 immune. Verified: antibody match -> quarantine -> excluded
-//   from brain_search, normal kept, verify releases. Extend -> file baru.
-//
-// brain_immune.go — Roadmap 2 Fase B5: tools immune system brain.
-//
-// brain_immune_scan : sapu brain lokal → quarantine drawer injection/halu/low-conf.
-// brain_verify       : rilis drawer dari quarantine setelah di-verify aman.
-// Quarantined drawer ga muncul di brain_search (SearchLocalBrain filter).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 

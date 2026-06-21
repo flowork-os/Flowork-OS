@@ -1,25 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
-// Update 2026-06-20 (owner autonomy-grant): ParseExtraction anti-junk gate — drop
-//   edge yg endpoint-nya kata-relasi (extractor 26B kadang naro to_label="is_a" →
-//   node sampah) + drop self-loop. P1 prove-loop finding. +test. Re-locked.
-// Reason: CGM constrained LLM extractor parse+validate — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
-//
-// cognitive_extract.go — Cognitive Digestion extractor (roadmap §4.3, GANTI mock Gemini).
-//
-// Ubah ringkasan percakapan → triple terstruktur (node+edge 5W1H) lewat 1 panggilan
-// LLM dengan OUTPUT TERKEKANG (skema + kosakata relasi tetap §4.2). Ini KEBALIKAN dari
-// mock Gemini yang cuma hardcode 3 topik demo.
-//
-// File ini = bagian MURNI (build prompt + parse + validate). Panggilan LLM-nya
-// di-inject dari caller (cognitive_dream.go) lewat func type — biar agentdb gak import
-// routerclient (layering bersih) + bagian parse/validate 100% testable tanpa LLM.
-//
-// Anti-halu (§4.5 jantung): relasi di luar kosakata = DIBUANG; type di luar daftar =
-// DIBUANG; confidence di-clamp; source_kind ditandai (user_said vs agent_inferred).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -30,14 +10,12 @@ import (
 	"strings"
 )
 
-// Type node yang diizinkan (selaras CogNode.Type).
 var ValidNodeTypes = map[string]bool{
 	"person": true, "concept": true, "project": true, "trait": true, "event": true,
 	"skill": true, "fact": true, "preference": true, "doctrine": true, "persona": true,
 	"memory": true, "knowledge": true,
 }
 
-// ExtractedNode — 1 node hasil ekstraksi (pakai label, BUKAN URN; resolver yg map ke id).
 type ExtractedNode struct {
 	Label       string  `json:"label"`
 	Type        string  `json:"type"`
@@ -49,7 +27,6 @@ type ExtractedNode struct {
 	Confidence  float64 `json:"confidence"`
 }
 
-// ExtractedEdge — relasi antar label (resolver map label→id nanti).
 type ExtractedEdge struct {
 	FromLabel    string  `json:"from_label"`
 	ToLabel      string  `json:"to_label"`
@@ -58,15 +35,12 @@ type ExtractedEdge struct {
 	Confidence   float64 `json:"confidence"`
 }
 
-// ExtractResult — hasil bersih + apa yang dibuang (buat metrik QC).
 type ExtractResult struct {
 	Nodes   []ExtractedNode
 	Edges   []ExtractedEdge
-	Dropped []string // alasan tiap item dibuang (relasi/type invalid, field kosong)
+	Dropped []string
 }
 
-// BuildExtractPrompt rakit prompt terkekang. Kosakata relasi + type di-inject dari
-// daftar tetap biar selalu sinkron sama validator.
 func BuildExtractPrompt(conversation string) string {
 	rels := sortedKeys(ValidRelations)
 	types := sortedKeys(ValidNodeTypes)
@@ -88,9 +62,6 @@ func BuildExtractPrompt(conversation string) string {
 	return b.String()
 }
 
-// ParseExtraction parse + VALIDATE output LLM. Tahan terhadap code-fence (```json).
-// Item invalid dibuang (dicatat di Dropped), bukan bikin gagal total — biar 1 triple
-// jelek gak ngebatalin semua yang bagus.
 func ParseExtraction(raw string) (ExtractResult, error) {
 	s := stripCodeFence(strings.TrimSpace(raw))
 	var doc struct {
@@ -132,10 +103,7 @@ func ParseExtraction(raw string) (ExtractResult, error) {
 			res.Dropped = append(res.Dropped, "edge: relation invalid '"+e.RelationType+"'")
 			continue
 		}
-		// Anti-junk (P1 finding 2026-06-20): extractor 26B kadang naro NAMA RELASI
-		// sebagai endpoint (mis. to_label="is_a") → edgeEndpointID bikin node sampah
-		// bernama relasi. Drop kalau endpoint = kata-relasi, atau self-loop. Aman:
-		// gak ada entitas sah yang labelnya persis "is_a"/"has_property"/dst.
+
 		if ValidRelations[strings.ToLower(e.FromLabel)] || ValidRelations[strings.ToLower(e.ToLabel)] {
 			res.Dropped = append(res.Dropped, "edge: endpoint adalah kata-relasi (malformed)")
 			continue
@@ -151,13 +119,11 @@ func ParseExtraction(raw string) (ExtractResult, error) {
 	return res, nil
 }
 
-// ── helpers ─────────────────────────────────────────────────────────────────
-
 func stripCodeFence(s string) string {
 	if !strings.HasPrefix(s, "```") {
 		return s
 	}
-	// buang baris pertama (```json / ```) dan fence penutup
+
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		s = s[i+1:]
 	}
@@ -185,7 +151,7 @@ func clamp01(v float64) float64 {
 		return 1
 	}
 	if v == 0 {
-		return 0.5 // default kalau LLM ga isi
+		return 0.5
 	}
 	return v
 }

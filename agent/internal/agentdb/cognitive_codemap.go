@@ -1,45 +1,20 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-20
-// Reason: CGM codemap→graph bridge (LinkCodemapToGraph) — built + unit-tested, verified
-//   live (346 nodes/599 edges mr-flow). Extend = new file (mis. semantic concept→code).
-//
-// cognitive_codemap.go — Phase 3C/D14/D15: jembatan CODEMAP → COGNITIVE GRAPH.
-//
-// File BARU (cognitive_graph.go locked — extend, jangan modify). Bikin Flowork
-// gak cuma "hapal konteks" (twin) tapi "hapal lokasi tubuh": struktur kode dirinya
-// sendiri jadi NODE di graph kesadaran, nyambung ke konsep/peristiwa.
-//
-// D14 (graph = overlay/indeks, bukan kopi): node code = gagang ringan —
-//   id = URN "<scope>/codemap/<path>", source_ref = path (pointer balik ke
-//   codemap_files), type = "code". Konten (summary/health/deps) TETAP di codemap.
-//
-// LINK STRUKTURAL (deterministik, NO-LLM → aman jalan kapan aja):
-//   - codemap_file_edges (import A→B) → cognitive_edge depends_on.
-//   - tiap file → part_of → node layer (code_layer:<layer>).
-// LINK SEMANTIK (konsep/twin → kode) = digestion + embedding-resolution, NYUSUL
-//   (butuh LLM). Itu yang bikin "di mana dream cycle gue?" → telusur graph ke file.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
 import "fmt"
 
-// codemapFileRow — baris ringan dari codemap_files buat jadi node.
 type codemapFileRow struct {
 	path, name, layer string
 	lineCount, health int
 }
 
-// LinkCodemapToGraph proyeksikan codemap (tubuh) ke cognitive graph (kesadaran).
-// scope = prefix URN agent (mis. "agent:mr-flow"). Idempoten (UpsertNode/Edge).
-// Return (nodesAdded, edgesAdded). NO-LLM, NO embedding (bisa di-backfill nanti).
 func (s *Store) LinkCodemapToGraph(scope string) (int, int, error) {
 	if scope == "" {
 		scope = "agent:local"
 	}
-	// ── baca codemap (lock singkat, lepas sebelum Upsert biar ga deadlock) ──
+
 	s.mu.Lock()
 	s.ensureCognitiveGraphSchema()
 	var files []codemapFileRow
@@ -80,9 +55,8 @@ func (s *Store) LinkCodemapToGraph(scope string) (int, int, error) {
 	nodesAdded, edgesAdded := 0, 0
 	layersSeen := map[string]bool{}
 
-	// ── node per file + edge part_of → layer ──
 	for _, f := range files {
-		label := f.path // path = identitas tubuh yg paling berguna
+		label := f.path
 		props := fmt.Sprintf(`{"line_count":%d,"health":%d,"layer":%q}`, f.lineCount, f.health, f.layer)
 		added, _ := s.UpsertNode(CogNode{
 			ID: codeID(f.path), Label: label, Type: "code",
@@ -112,7 +86,6 @@ func (s *Store) LinkCodemapToGraph(scope string) (int, int, error) {
 		}
 	}
 
-	// ── edge depends_on (import A→B) ──
 	for _, e := range fedges {
 		if e.from == "" || e.to == "" || e.from == e.to {
 			continue

@@ -1,30 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 7 Agent extension (mistakes promote helpers).
-//   API stable: SetMistakePromoted (idempotent UPDATE), Eligible list
-//   (filter tier=raw + hit_count threshold + not yet promoted, cap 200).
-//   File baru — ngga modify mistakes.go LOCKED.
-//
-// mistakes_promote.go — Section 7 roadmap extension: promote mistakes
-// lokal ke router brain antibody.
-//
-// PURPOSE:
-//   Mistakes.go LOCKED — extend via new file di same package.
-//   `SetMistakePromoted(id, routerID)`: update tier='promoted' + promoted_at
-//   + promoted_to_id setelah successful POST ke Router /api/mistakes/submit.
-//   `ListMistakesEligibleForPromote(minHitCount)`: list tier='raw' yang
-//   hit_count meets threshold, ready untuk push.
-//
-// SEMANTIC:
-//   - Sekali promoted, tier='promoted' (locked). Mistake-local stays tapi
-//     ngga di-include di future promote sweep.
-//   - Caller (kernel cron) cek `promoted_to_id == ''` selain tier untuk
-//     defense in depth (kalau tier ke-reset manual lewat raw SQL).
-//
-// Source: Flowork_Agent/roadmap.md Section 7 phase 1.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -33,10 +8,6 @@ import (
 	"time"
 )
 
-// SetMistakePromoted — mark mistake lokal sebagai promoted. Pakai setelah
-// successful submit ke Router (caller dapat router-side row id).
-//
-// Idempotent: kalau tier sudah 'promoted', return nil tanpa modify.
 func (s *Store) SetMistakePromoted(id int64, promotedToID int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -61,9 +32,6 @@ func (s *Store) SetMistakePromoted(id int64, promotedToID int64) error {
 	return nil
 }
 
-// ListMistakesEligibleForPromote — list tier='raw' dengan hit_count ≥
-// minHitCount, deleted_at IS NULL, promoted_to_id kosong. Order: hit_count
-// DESC (most-frequent first), then last_hit_at DESC. Cap default 50.
 func (s *Store) ListMistakesEligibleForPromote(minHitCount int64, limit int) ([]Mistake, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

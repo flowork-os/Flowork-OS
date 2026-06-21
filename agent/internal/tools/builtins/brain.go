@@ -1,29 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-30
-// Reason: Section 11 phase 1e (brain_search) DONE. API stable: brain_search
-//   tool via routerclient.SearchBrain. Router URL resolve dari agent kv
-//   config (mirror RunPromoteForAgent). k default 5, max 10 anti
-//   over-prompt. Phase 1f+ brain tools (brain_recall, brain_get_drawer)
-//   → tambah implementation di same file (Register di Init), JANGAN
-//   modify existing function di sini.
-//
-// brain.go — Section 11 phase 1e: brain_search tool.
-//
-// Tool: brain_search — query Router brain via routerclient.SearchBrain.
-// Return top-K hits dengan content + score + drawer_id.
-//
-// CAPABILITY: rpc:router:brain
-//
-// CONFIG:
-//   Router URL ambil dari agent kv config (`router_url`) atau default.
-//   Mirror pattern di kernelhost.RunPromoteForAgent.
-//
-// ⚠️ Anti over-prompt: k default 5, max 10 (overrideable via args).
-// JANGAN auto-inject ke chat — caller eksplisit panggil tool dan filter
-// hits relevant.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 
@@ -39,10 +15,6 @@ const (
 	defaultBrainSearchK = 5
 	maxBrainSearchK     = 10
 )
-
-// =============================================================================
-// brain_search — query Router brain
-// =============================================================================
 
 type brainSearchTool struct{}
 
@@ -70,7 +42,6 @@ func (brainSearchTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		return tools.Result{}, fmt.Errorf("query required")
 	}
 
-	// k normalize. JSON number masuk sebagai float64 di Go.
 	k := defaultBrainSearchK
 	switch v := args["k"].(type) {
 	case float64:
@@ -85,7 +56,6 @@ func (brainSearchTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 		k = maxBrainSearchK
 	}
 
-	// Resolve router URL dari agent kv (mirror RunPromoteForAgent pattern).
 	routerURL := routerclient.DefaultRouterURL
 	if cfg, lerr := store.Load(); lerr == nil {
 		if u, ok := cfg["router_url"].(string); ok && u != "" {

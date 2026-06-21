@@ -1,25 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
-// Reason: CGM schema + CRUD (node/edge/digest_log/tension) + relation vocab — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
-//
-// cognitive_graph.go — Cognitive Graph Memory (CGM) lokal per-agent (di state.db).
-//
-// Roadmap: /home/mrflow/Documents/roadmap_opus8.md (§4.1, §4.2, D14, D16).
-// Twin/personal graph hidup di LAPIS LOKAL (agent state.db) — privat, gak digossip
-// ke mesh (D2). Graph = OVERLAY/INDEKS: node = gagang ringan (id/label/embedding +
-// pointer balik via source_ref); konten asli tetap di tabel asalnya. Edge nyambungin
-// LINTAS-jenis (Constitution/Memory/Persona/Instinct/Knowledge/Twin) karena node = ALAMAT (URN).
-//
-// Plug-and-play: file baru, bikin tabelnya sendiri (pola brain_drawers.go /
-// constitution.go) — TIDAK modify agentdb.go yang LOCKED. Koneksi agentdb udah
-// foreign_keys(on) (lihat agentdb.go DSN), jadi FK cascade aktif.
-//
-// Anti-halu: node/edge punya source_kind + confidence + status (active/quarantined/
-// obsolete). Extractor & validation gate ada di file terpisah (cognitive_extract.go,
-// cognitive_resolve.go) — JANGAN campur di sini (single responsibility).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -29,54 +9,47 @@ import (
 	"time"
 )
 
-// CogNode — satu node di cognitive graph. id = URN stabil (mis.
-// "agent:mr-flow/twin/aola", "router/instinct/verify-before-trust"). 5W1H jadi
-// properti node; HOW sering jadi edge (lihat CogEdge).
 type CogNode struct {
-	ID          string  `json:"id"`           // URN: <scope>/<type>/<local_id>
-	Label       string  `json:"label"`        // WHAT: nama kanonik
-	Type        string  `json:"type"`         // person|concept|project|trait|event|skill|fact|preference|doctrine|persona|memory|knowledge
-	Why         string  `json:"why"`          // WHY
-	Who         string  `json:"who"`          // WHO (JSON array string)
-	WhereDomain string  `json:"where_domain"` // WHERE (personal|teknis|bisnis|…)
-	WhenValid   string  `json:"when_valid"`   // WHEN
-	Properties  string  `json:"properties"`   // bebas (JSON)
-	SourceKind  string  `json:"source_kind"`  // user_said|agent_inferred|verified|strong_model_unverified
-	SourceRef   string  `json:"source_ref"`   // pointer balik (mis. interaction_123) / URN sumber
-	Confidence  float64 `json:"confidence"`   // 0..1
-	Status      string  `json:"status"`       // active|quarantined|obsolete|shadow
-	Embedding   []byte  `json:"-"`            // vektor label (8-bit quantized) buat entity-resolution
-	HitCount    int     `json:"hit_count"`    // diperkuat tiap re-observasi
+	ID          string  `json:"id"`
+	Label       string  `json:"label"`
+	Type        string  `json:"type"`
+	Why         string  `json:"why"`
+	Who         string  `json:"who"`
+	WhereDomain string  `json:"where_domain"`
+	WhenValid   string  `json:"when_valid"`
+	Properties  string  `json:"properties"`
+	SourceKind  string  `json:"source_kind"`
+	SourceRef   string  `json:"source_ref"`
+	Confidence  float64 `json:"confidence"`
+	Status      string  `json:"status"`
+	Embedding   []byte  `json:"-"`
+	HitCount    int     `json:"hit_count"`
 	Version     int     `json:"version"`
 }
 
-// CogEdge — relasi berarah antar node. relation_type dari kosakata TETAP (§4.2).
 type CogEdge struct {
 	FromID       string  `json:"from_id"`
 	ToID         string  `json:"to_id"`
 	RelationType string  `json:"relation_type"`
-	Strength     float64 `json:"strength"`    // diperkuat tiap re-observasi, decay tiap dream
-	Confidence   float64 `json:"confidence"`  // 0..1
+	Strength     float64 `json:"strength"`
+	Confidence   float64 `json:"confidence"`
 	SourceKind   string  `json:"source_kind"`
 	SourceRef    string  `json:"source_ref"`
-	Status       string  `json:"status"` // active|quarantined|obsolete|shadow
+	Status       string  `json:"status"`
 }
 
-// Kosakata relasi TETAP (§4.2) — extractor cuma boleh pakai ini biar 26B gak ngarang.
-// Tambah relasi = keputusan SADAR, bukan free-form LLM.
 var ValidRelations = map[string]bool{
-	// Fakta/dunia
+
 	"is_a": true, "part_of": true, "created_by": true, "uses": true, "depends_on": true,
 	"located_in": true, "happened_at": true, "causes": true, "has_property": true, "related_to": true,
-	// Twin/owner
+
 	"prefers": true, "dislikes": true, "communicates_in_style": true, "thinks_via": true,
 	"values": true, "decides_by": true, "reacts_when": true, "goal_is": true,
-	// Struktural (link antar-gudang, §4.12)
+
 	"governed_by": true, "belongs_to": true, "about": true, "member_of": true,
 	"taught": true, "references": true, "learned": true,
 }
 
-// IsValidRelation — true kalau relation_type ada di kosakata tetap.
 func IsValidRelation(rel string) bool { return ValidRelations[strings.TrimSpace(rel)] }
 
 const (
@@ -84,8 +57,6 @@ const (
 	maxCogPropsBytes = 8 * 1024
 )
 
-// ensureCognitiveGraphSchema bikin tabel CGM (idempotent). Caller WAJIB sudah
-// pegang s.mu. FK cascade aktif (DSN foreign_keys(on)).
 func (s *Store) ensureCognitiveGraphSchema() {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS cognitive_nodes (
@@ -127,7 +98,7 @@ func (s *Store) ensureCognitiveGraphSchema() {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_cog_edges_from ON cognitive_edges(from_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_cog_edges_to   ON cognitive_edges(to_id)`,
-		// jejak digestion (anti data-loss: mark, BUKAN delete interaction mentah)
+
 		`CREATE TABLE IF NOT EXISTS cognitive_digest_log (
 			interaction_id INTEGER PRIMARY KEY,
 			digested_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -135,7 +106,7 @@ func (s *Store) ensureCognitiveGraphSchema() {
 			edges_added    INTEGER NOT NULL DEFAULT 0,
 			status         TEXT NOT NULL DEFAULT 'ok'
 		)`,
-		// kontradiksi nunggu owner putusin ("tanya besok pagi")
+
 		`CREATE TABLE IF NOT EXISTS cognitive_tension (
 			id            INTEGER PRIMARY KEY AUTOINCREMENT,
 			from_id       TEXT NOT NULL DEFAULT '',
@@ -152,9 +123,6 @@ func (s *Store) ensureCognitiveGraphSchema() {
 	}
 }
 
-// UpsertNode insert/perkuat 1 node. Kalau id udah ada → update field + hit_count++
-// + last_seen (reinforce). Return added=true kalau node baru. id WAJIB URN (caller/
-// resolver yang nentuin — lihat cognitive_resolve.go).
 func (s *Store) UpsertNode(n CogNode) (added bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -210,9 +178,6 @@ func (s *Store) UpsertNode(n CogNode) (added bool, err error) {
 	return added, nil
 }
 
-// UpsertEdge insert/perkuat 1 edge. Pastikan node ref ada dulu (stub) biar FK ga
-// gagal. relation_type WAJIB dari kosakata tetap (§4.2). On conflict → strength++
-// (capped 10) + last_seen.
 func (s *Store) UpsertEdge(e CogEdge) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -237,7 +202,7 @@ func (s *Store) UpsertEdge(e CogEdge) error {
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	// stub node biar FK ga gagal (label = id sementara; nanti di-enrich resolver)
+
 	for _, id := range []string{e.FromID, e.ToID} {
 		_, _ = s.db.Exec(
 			`INSERT OR IGNORE INTO cognitive_nodes (id, label, type) VALUES (?,?,'concept')`, id, id)
@@ -258,7 +223,6 @@ func (s *Store) UpsertEdge(e CogEdge) error {
 	return nil
 }
 
-// GetNode ambil 1 node by id (URN). Return ok=false kalau ga ada.
 func (s *Store) GetNode(id string) (CogNode, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -272,12 +236,11 @@ func (s *Store) GetNode(id string) (CogNode, bool, error) {
 		&n.ID, &n.Label, &n.Type, &n.Why, &n.Who, &n.WhereDomain, &n.WhenValid, &n.Properties,
 		&n.SourceKind, &n.SourceRef, &n.Confidence, &n.Status, &n.Embedding, &n.HitCount, &n.Version)
 	if err != nil {
-		return CogNode{}, false, nil //nolint:nilerr // not-found = (false,nil)
+		return CogNode{}, false, nil
 	}
 	return n, true, nil
 }
 
-// Neighbors ambil edge keluar+masuk dari sebuah node (1 hop). Buat traversal/recall.
 func (s *Store) Neighbors(id string) (out []CogEdge, in []CogEdge, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -309,7 +272,6 @@ func (s *Store) Neighbors(id string) (out []CogEdge, in []CogEdge, err error) {
 	return out, in, nil
 }
 
-// GraphNodeView / GraphEdgeView — payload ringan buat GUI (tanpa embedding).
 type GraphNodeView struct {
 	ID         string  `json:"id"`
 	Label      string  `json:"label"`
@@ -327,7 +289,6 @@ type GraphEdgeView struct {
 	Strength     float64 `json:"strength"`
 }
 
-// ListCogNodes — semua node (buat viz graph). limit default 500.
 func (s *Store) ListCogNodes(limit int) ([]GraphNodeView, error) {
 	if limit <= 0 || limit > 5000 {
 		limit = 500
@@ -353,7 +314,6 @@ func (s *Store) ListCogNodes(limit int) ([]GraphNodeView, error) {
 	return out, rows.Err()
 }
 
-// ListCogEdges — semua edge (buat viz graph). limit default 1000.
 func (s *Store) ListCogEdges(limit int) ([]GraphEdgeView, error) {
 	if limit <= 0 || limit > 10000 {
 		limit = 1000
@@ -379,7 +339,6 @@ func (s *Store) ListCogEdges(limit int) ([]GraphEdgeView, error) {
 	return out, rows.Err()
 }
 
-// CountCognitiveGraph — jumlah node + edge live (buat stats/QC).
 func (s *Store) CountCognitiveGraph() (nodes int, edges int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

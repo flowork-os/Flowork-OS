@@ -1,28 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-29
-// Reason: Section 9 (Educational error lookup phase 1) DONE.
-//   API stable: UpsertEduError (atomic UPSERT, content+title cap),
-//   LookupEduError (return zero+code on miss), ListEduErrors (category
-//   filter, limit cap 500), CountEduErrors. Future PullEduErrors sync
-//   dari Router → tambah file/function baru, JANGAN modify ini.
-//
-// edu_errors.go — Section 9 roadmap: Educational error lookup (lokal cache).
-//
-// PURPOSE:
-//   Cache catalog error pendidikan (mirror schema dari Router future).
-//   Warga lookup `code` → dapat explanation + remediation. Sync periodically
-//   dari Router /api/edu-errors (defer Section 9 phase 2).
-//
-// SEMANTIC:
-//   - UpsertEduError: PRIMARY KEY code → idempotent insert atau replace.
-//   - LookupEduError(code): single read, return zero+code kalau ngga ada.
-//   - ListEduErrors(category, limit): browse catalog.
-//
-// ⚠️ Anti over-prompt: lookup endpoint untuk diagnostic / decision log
-// rationale. JANGAN bundle full catalog ke prompt.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -32,7 +9,6 @@ import (
 	"time"
 )
 
-// EduError — satu row di educational_errors_cache.
 type EduError struct {
 	Code        string `json:"code"`
 	Category    string `json:"category"`
@@ -42,8 +18,6 @@ type EduError struct {
 	SyncedAt    string `json:"synced_at"`
 }
 
-// UpsertEduError — insert atau replace via PRIMARY KEY code. Hard cap
-// 4KB explanation, 4KB remediation, 256 char title.
 func (s *Store) UpsertEduError(e EduError) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -68,7 +42,6 @@ func (s *Store) UpsertEduError(e EduError) error {
 
 	ts := time.Now().UTC().Format(time.RFC3339)
 
-	// Atomic UPSERT via ON CONFLICT.
 	_, err := s.db.Exec(
 		`INSERT INTO educational_errors_cache(code, category, title, explanation, remediation, synced_at)
 		 VALUES(?, ?, ?, ?, ?, ?)
@@ -87,8 +60,6 @@ func (s *Store) UpsertEduError(e EduError) error {
 	return nil
 }
 
-// LookupEduError — single by code. Return zero EduError + code set kalau
-// ngga ada (caller check Title == "").
 func (s *Store) LookupEduError(code string) (EduError, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -112,8 +83,6 @@ func (s *Store) LookupEduError(code string) (EduError, error) {
 	return e, nil
 }
 
-// ListEduErrors — paginated. Filter optional category. Order: synced_at DESC.
-// Default 50, max 500.
 func (s *Store) ListEduErrors(category string, limit int) ([]EduError, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -150,7 +119,6 @@ func (s *Store) ListEduErrors(category string, limit int) ([]EduError, error) {
 	return out, rows.Err()
 }
 
-// CountEduErrors — total non-deleted.
 func (s *Store) CountEduErrors() (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

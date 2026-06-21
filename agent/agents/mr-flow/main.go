@@ -38,6 +38,11 @@
 // 2026-06-21 (owner-approved): PRIVACY D8 — cabut data personal owner dari komentar
 //   (changelog AUTO-RECALL di atas + contoh recall di fetchAutoRecall) jadi pola umum,
 //   anti-bocor ke repo publik. Comment-only (ga ngubah runtime/wasm). Re-locked.
+// 2026-06-22 (owner-approved): RECALL BRAIN directive DIPERKUAT. Akar: brain_search
+//   (verbatim drawer) PASTI nemu fakta (mis. guru gitar) + ke-inject, TAPI header brain
+//   lemah ("[RECALL BRAIN]:") → model 26B ikut directive KUAT graph + ngabaikan drawer →
+//   "ga tau" walau fakta ADA (K11 miss). Fix: header brain disamain TEGAS ("JAWAB PAKAI
+//   INI, JANGAN bilang ga tau kalau ADA"). wasm rebuilt (wasip1). Re-locked.
 // Locked at: 2026-05-30
 // Reason: Mr.Flow WASM agent (CRITICAL). Audit pass:
 //   - Token + TELEGRAM_ALLOWED_CHATS validation (drop kalau invalid)
@@ -1005,7 +1010,7 @@ func fetchAutoRecall(userText string) string {
 			lines = append(lines, "- "+c)
 		}
 		if len(lines) > 0 {
-			b.WriteString("[RECALL BRAIN (pengalaman/knowledge verbatim tersimpan)]:\n")
+			b.WriteString("[FAKTA VERBATIM dari memori lo (drawer tersimpan) — JAWAB PAKAI INI. JANGAN bilang \"gak tau / ga ada catatan\" kalau jawabannya ADA di bawah]:\n")
 			b.WriteString(strings.Join(lines, "\n"))
 			b.WriteString("\n")
 		}

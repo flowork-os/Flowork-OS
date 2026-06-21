@@ -1,18 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
-// Reason: CGM retrieval/grounding fact-sheet (budget-capped) — built + unit-tested (build/vet/test green). Extend = new file, jangan modify ini.
-//
-// cognitive_recall.go — Retrieval / Grounding dari cognitive graph (roadmap §4.8, D6, D1b).
-//
-// Anti muntah prompt: graph GAK PERNAH masuk konteks utuh. Alur: query → cari SEED
-// (embedding top-k + label fallback = 3-lapis recall D1b) → ekspansi 1 hop → rank
-// confidence×strength → render "fact-sheet" RINGKAS budget-capped. Cuma neighborhood
-// relevan yang nyentuh prompt, bukan 863K node.
-//
-// Layering: Embed di-inject (nil = label-only). Render = pure given graph.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -23,14 +10,12 @@ import (
 	"strings"
 )
 
-// RecallDeps — opsi 1 recall.
 type RecallDeps struct {
-	Embed    EmbedFunc // opsional (nil = label-only seed)
-	MaxChars int       // budget fact-sheet (default 1500)
-	SeedK    int       // top-k seed (default 5)
+	Embed    EmbedFunc
+	MaxChars int
+	SeedK    int
 }
 
-// ScoredNode — node + skor (cosine / relevance).
 type ScoredNode struct {
 	ID    string
 	Label string
@@ -38,8 +23,6 @@ type ScoredNode struct {
 	Score float64
 }
 
-// SearchNodesByEmbedding — top-k node active paling mirip queryEmb (cosine). typ
-// kosong = semua type.
 func (s *Store) SearchNodesByEmbedding(typ string, queryEmb []byte, k int) []ScoredNode {
 	if len(queryEmb) == 0 {
 		return nil
@@ -79,7 +62,6 @@ func (s *Store) SearchNodesByEmbedding(typ string, queryEmb []byte, k int) []Sco
 	return all
 }
 
-// SearchNodesByLabel — fallback keyword: node active yg label-nya cocok token query.
 func (s *Store) SearchNodesByLabel(query string, k int) []ScoredNode {
 	if k <= 0 {
 		k = 5
@@ -117,8 +99,6 @@ func (s *Store) SearchNodesByLabel(query string, k int) []ScoredNode {
 	return out
 }
 
-// RecallFactSheet rangkai grounding ringkas buat query. Seed (embedding + label) →
-// ekspansi 1 hop → rank → render budget-capped. Return "" kalau ga ada yg relevan.
 func (s *Store) RecallFactSheet(ctx context.Context, query string, dep RecallDeps) (string, error) {
 	if dep.MaxChars <= 0 {
 		dep.MaxChars = 1500
@@ -127,7 +107,6 @@ func (s *Store) RecallFactSheet(ctx context.Context, query string, dep RecallDep
 		dep.SeedK = 5
 	}
 
-	// ── seed: embedding (kalau ada) + label fallback (3-lapis D1b) ────────────
 	seedSet := map[string]ScoredNode{}
 	if dep.Embed != nil {
 		if vec, err := dep.Embed(ctx, query); err == nil {
@@ -145,7 +124,6 @@ func (s *Store) RecallFactSheet(ctx context.Context, query string, dep RecallDep
 		return "", nil
 	}
 
-	// ── ekspansi 1 hop + kumpulin edge unik ──────────────────────────────────
 	type factEdge struct {
 		from, rel, to string
 		score         float64
@@ -176,7 +154,6 @@ func (s *Store) RecallFactSheet(ctx context.Context, query string, dep RecallDep
 		}
 	}
 
-	// ── rank + render budget-capped ──────────────────────────────────────────
 	ranked := make([]factEdge, 0, len(facts))
 	for _, f := range facts {
 		ranked = append(ranked, f)
@@ -193,7 +170,7 @@ func (s *Store) RecallFactSheet(ctx context.Context, query string, dep RecallDep
 		b.WriteString(line)
 	}
 	if b.Len() <= len("# Relevant memory (grounding)\n") {
-		// ada seed tapi ga ada edge → minimal sebut node-nya
+
 		for _, n := range seedSet {
 			line := fmt.Sprintf("- %s (%s)\n", n.Label, n.Type)
 			if b.Len()+len(line) > dep.MaxChars {

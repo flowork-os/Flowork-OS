@@ -1,16 +1,6 @@
-// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-21 (3E/D13 + AI-IN-AGENT). LOCKED ≠ FREEZE (boleh diedit dgn izin owner + re-lock + changelog).
-// learning_feed.go — Phase 3E / D13 LOOP BELAJAR (owner-approved 2026-06-21).
-//
-// "Guru dateng-pergi, brain gak lupa": tangkap pengalaman model KUAT yg lewat router
-// (termasuk dari VS Code) → distil → tulis ke graph sbg SHADOW (kandidat, gak ikut
-// retrieval) tag source_kind='strong_model_unverified' → dedup otomatis (ResolveByEmbedding:
-// mirip → hit_count++; baru → shadow) → PROMOTE shadow→active HANYA kalau dikuatin repetisi
-// (PromoteShadows). Reuse PENUH primitif existing (recorder + DigestText via dream-digester +
-// gate antibody + dedup). Mode KONSERVATIF (owner pilih A): di luar Flowork gak ada outcome →
-// jangan telen mentah; di DALAM (build_pass=1) → fast-track Tier-2.
-//
-// PRIVASI (D8): distil LOKAL ke graph mr-flow (shadow), TIDAK di-federate/gossip ke mesh.
-// Kontrol owner: opt-in FLOWORK_LEARN_LOOP=1 (default OFF). Idempoten (learning_record_log).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+
 package agentmgr
 
 import (
@@ -27,10 +17,9 @@ import (
 	"flowork-gui/internal/routerclient"
 )
 
-const learningStoreAgent = "mr-flow"          // graph kanonik tempat instinct
+const learningStoreAgent = "mr-flow"
 const learningScope = "agent:" + learningStoreAgent
 
-// learningRecord — subset Record dari router GET /api/recordings.
 type learningRecord struct {
 	ID        int64  `json:"id"`
 	Model     string `json:"model"`
@@ -39,7 +28,6 @@ type learningRecord struct {
 	BuildPass int64  `json:"build_pass"`
 }
 
-// LearningStats — hasil 1 siklus loop-belajar (buat changelog/QC).
 type LearningStats struct {
 	Fetched   int `json:"fetched"`
 	Processed int `json:"processed"`
@@ -48,8 +36,6 @@ type LearningStats struct {
 	Promoted  int `json:"promoted"`
 }
 
-// isStrongModelForLearning — gate model: cuma model KUAT (cloud, bukan lokal flowork-brain)
-// yg pengalamannya layak di-distil. Model lokal lemah → skip (anti polusi/halu).
 func isStrongModelForLearning(model string) bool {
 	m := strings.ToLower(strings.TrimSpace(model))
 	if m == "" {
@@ -58,7 +44,6 @@ func isStrongModelForLearning(model string) bool {
 	return !strings.Contains(m, "flowork-brain") && !strings.Contains(m, "flowork")
 }
 
-// fetchRouterRecordings — GET router /api/recordings?include_body=1&limit=N → []learningRecord.
 func fetchRouterRecordings(limit int) ([]learningRecord, error) {
 	base := routerclient.New(strings.TrimSpace(os.Getenv("ROUTER_DEFAULT_URL"))).BaseURL
 	url := base + "/api/recordings?include_body=1&limit=" + itoaSmallLearn(limit)
@@ -80,10 +65,6 @@ func fetchRouterRecordings(limit int) ([]learningRecord, error) {
 	return out.Items, nil
 }
 
-// DigestRecordings — 1 siklus loop-belajar (distil recordings → shadow → promote).
-// Saklar UTAMA = toggle auto-capture di GUI router (owner 2026-06-21: "kebenaran di GUI,
-// env dihapus"): capture OFF → ga ada recording baru → digest no-op. Endpoint ini =
-// trigger proses (manual/cron). Tetap aman: skip model lokal + anti-replay + shadow.
 func DigestRecordings(limit int) (LearningStats, error) {
 	var ls LearningStats
 	if limit <= 0 || limit > 200 {
@@ -118,7 +99,7 @@ func DigestRecordings(limit int) (LearningStats, error) {
 		}
 		d := deps
 		if rc.BuildPass == 1 {
-			d.Tier = 2 // fast-track: outcome nyata (compile/test pass DI DALAM Flowork)
+			d.Tier = 2
 		}
 		st, derr := store.DigestText(ctx, rc.Response, d)
 		if derr == nil {
@@ -127,16 +108,13 @@ func DigestRecordings(limit int) (LearningStats, error) {
 		_ = store.MarkLearningRecord(rc.ID)
 		ls.Processed++
 	}
-	// promote shadow→active yg udah dikuatin repetisi lintas-sesi (D13 mode konservatif).
+
 	if n, _ := store.PromoteShadows(2); n > 0 {
 		ls.Promoted = n
 	}
 	return ls, nil
 }
 
-// LearningDigestHandler — POST /api/agents/learning/digest?limit=N → jalanin 1 siklus
-// loop-belajar (fetch recordings → distil shadow → promote on repetisi). Manual trigger
-// (owner-controlled). Gated FLOWORK_LEARN_LOOP=1.
 func LearningDigestHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		httpx.WriteJSON(w, map[string]any{"error": "method not allowed (POST)"})

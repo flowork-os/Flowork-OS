@@ -1,25 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B0 tools brain lokal. E2E verified (mr-flow brain_add →
-//   brain_search recall via pipeline). Extend (brain_forget/brain_promote) →
-//   tambah file baru, JANGAN modify ini.
-//
-// brain_local.go — Roadmap 2 Fase B0: tools brain LOKAL per-agent.
-//
-// 3 tool yang nyentuh brain lokal di state.db (agentdb brain_drawers.go):
-//   - brain_add    : simpen knowledge/experience ke brain SENDIRI (state:write)
-//   - brain_search : cari di brain SENDIRI pakai FTS5 lokal (state:read) — MURAH,
-//                    no router, no embedding. Ini default "inget pengalaman gw".
-//   - brain_get    : ambil 1 drawer full by id (state:read)
-//
-// Layered (roadmap 1.4/1.5): brain_search = LOKAL (pengalaman sendiri).
-// brain_search_shared (brain.go) = router 5jt (korpus luas, on-demand).
-// Local-first; shared optional. Router mati → brain_search lokal tetep jalan.
-//
-// Pola: tools.FromStore(ctx) + store.AddBrainDrawer/SearchLocalBrain/GetBrainDrawer.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 
@@ -30,8 +10,6 @@ import (
 
 	"flowork-gui/internal/tools"
 )
-
-// ── brain_add ───────────────────────────────────────────────────────────────
 
 type brainAddTool struct{}
 
@@ -78,8 +56,6 @@ func (brainAddTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	}, Note: note}, nil
 }
 
-// ── brain_search (LOKAL) ──────────────────────────────────────────────────────
-
 type brainSearchLocalTool struct{}
 
 func (brainSearchLocalTool) Name() string       { return "brain_search" }
@@ -121,8 +97,6 @@ func (brainSearchLocalTool) Run(ctx context.Context, args map[string]any) (tools
 		"count": len(hits),
 	}}, nil
 }
-
-// ── brain_get ─────────────────────────────────────────────────────────────────
 
 type brainGetTool struct{}
 

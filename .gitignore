@@ -67,3 +67,4 @@ node_modules/
 _scratch_cgm/
 **/_scratch_cgm/
 router/out/
+KERNEL_FREEZE.md

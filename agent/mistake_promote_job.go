@@ -1,19 +1,6 @@
-// mistake_promote_job.go — D32 inc-1: promote mistake RECURRING → recovery-instinct
-// (embedded, semantic-recallable). Non-beku (package main = wiring), mirror pola
-// wakeup_engine/task_worker.
-//
-// AKAR (D32): Flowork UDAH punya loop mistakes (AddMistake hit_count + tier
-// raw/reviewed/promoted + ListMistakesEligibleForPromote gate). GAP: (1) gate-nya GA
-// di-wire ke ticker (mistake numpuk di 'raw', ga pernah promote); (2) recall mistakes =
-// LIKE (keyword), BUKAN semantik. Job ini tutup dua-duanya: mistake yg hit_count>=N
-// (REPETISI = sinyal kualitas, anti-degenerasi SGS) → project jadi cognitive_node
-// type='instinct' where_domain='recovery' + embedding → ke-recall by-MAKNA via
-// instinct_recall pas error MIRIP muncul. SetMistakePromoted = anti re-sweep.
-//
-// REUSE (cabut-akar, jangan numpuk): ListMistakesEligibleForPromote (gate, file
-// LOCKED-nya GA disentuh) · UpsertNode+embedding (pola instproj) · EmbedText/Quantize.
-// Inc-1 = projeksi DETERMINISTIK (no LLM, cheap+testable). Generalisasi via dream-
-// digester + auto-capture error→recovery + share-ke-router-antibody = inc berikut.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+
 package main
 
 import (
@@ -30,17 +17,10 @@ import (
 	"flowork-gui/internal/routerclient"
 )
 
-// promoteMinHit — REPETISI minimum sebelum mistake jadi recovery-instinct. >=3 =
-// konservatif (cuma pola yg BENERAN keulang; sekali-error ga langsung jadi insting →
-// anti-degenerasi). LOCKED soft: jangan turunin di bawah 2 tanpa alasan.
 const promoteMinHit = 3
 
-// promoteBrandRe — leak-gate white-label (sama doktrin instinct seed). Brand → skip.
 var promoteBrandRe = regexp.MustCompile(`(?i)\b(claude|anthropic|fable|gemini|opus|sonnet|haiku|chatgpt|openai)\b`)
 
-// PromoteRecurringMistakes — sweep semua agent: mistake recurring → recovery-instinct
-// embedded. Return jumlah yang di-promote tick ini. Idempotent (SetMistakePromoted
-// nge-exclude dari sweep berikut).
 func PromoteRecurringMistakes(ctx context.Context, host *kernelhost.Host) int {
 	rc := routerclient.New("")
 	promoted := 0
@@ -49,7 +29,7 @@ func PromoteRecurringMistakes(ctx context.Context, host *kernelhost.Host) int {
 		if err != nil {
 			continue
 		}
-		// Skip murah kalau ga ada tabel mistakes_local (agent ga pernah catat mistake).
+
 		var tbl string
 		if store.DB().QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='mistakes_local'").Scan(&tbl) != nil {
 			store.Close()
@@ -64,7 +44,7 @@ func PromoteRecurringMistakes(ctx context.Context, host *kernelhost.Host) int {
 		for _, m := range eligible {
 			label := recoveryLabel(m)
 			if promoteBrandRe.MatchString(label) {
-				// Brand ke-deteksi → jangan kotorin graph; mark promoted biar ga muter.
+
 				_ = store.SetMistakePromoted(m.ID, 1)
 				continue
 			}
@@ -72,7 +52,7 @@ func PromoteRecurringMistakes(ctx context.Context, host *kernelhost.Host) int {
 			vec, eerr := rc.EmbedText(ectx, "", label)
 			cancel()
 			if eerr != nil {
-				continue // router lagi sibuk → coba lagi tick berikut (belum di-mark)
+				continue
 			}
 			h := fnv.New64a()
 			h.Write([]byte(strings.ToLower(label)))
@@ -96,18 +76,14 @@ func PromoteRecurringMistakes(ctx context.Context, host *kernelhost.Host) int {
 	return promoted
 }
 
-// recoveryLabel — bentuk recovery-instinct DETERMINISTIK dari mistake (no LLM).
-// LEAD sama lesson bersih (sinyal embedding fokus, ga ke-dilute boilerplate — kalau
-// noisy, recall kalah saing sama 891 instinct existing). Inc-2 = generalisasi via
-// dream-digester (buang spesifik path/id).
 func recoveryLabel(m agentdb.Mistake) string {
 	content := strings.TrimSpace(m.Content)
 	title := strings.TrimSpace(m.Title)
-	// Content udah bentuk instinct bersih ("WHEN ... -> ...") → pakai LANGSUNG.
+
 	if strings.HasPrefix(strings.ToUpper(content), "WHEN ") && strings.Contains(content, "->") {
 		return trimLen(content, 400)
 	}
-	// Else: bentuk minimal "WHEN <title> -> <lesson>" (boilerplate seminimal mungkin).
+
 	lesson := content
 	if lesson == "" {
 		lesson = title

@@ -1,29 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B0 brain lokal. E2E verified (add/dedup/FTS-search/get/count
-//   + agent pipeline). Schema forward-compat (amplitude/quarantined/confidence
-//   buat B1/B5). Extend (constitution/immune methods) → tambah file baru
-//   (constitution.go/immune.go) operasi tabel ini, JANGAN modify ini.
-//
-// brain_drawers.go — Roadmap 2 Fase B0: brain LOKAL per-agent (di state.db).
-//
-// Tiap warga punya brain SENDIRI — knowledge/experience disimpan lokal +
-// dicari pakai FTS5 (BM25), TANPA gantung router. Ini fondasi "self-contained
-// > centralized": router mati, agent tetep inget pengalamannya.
-//
-// Beda peran sama router brain (5jt drawers, korpus shared):
-//   - brain lokal (di sini) = PENGALAMAN agent sendiri (kecil, isolated, portable).
-//   - router brain          = KORPUS pengetahuan shared (di-query remote via
-//                             brain_search_shared, on-demand).
-//
-// Anti-boros (roadmap 1.5): FTS5 keyword-only (NO embedding di lokal — hemat),
-// dedup via content_hash, drawer quarantine buat anti-halu (Fase B5).
-//
-// Pola di-adapt dari: internal/agentdb/skills_curate.go (ensureCols/Add/List)
-// + flowork_Router/internal/brain/{retrieve,write,fts}.go (FTS5 MATCH + bm25).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
@@ -35,43 +11,37 @@ import (
 	"time"
 )
 
-// BrainDrawer — satu entri knowledge/experience di brain lokal.
 type BrainDrawer struct {
 	ID          string  `json:"id"`
 	Content     string  `json:"content"`
-	Wing        string  `json:"wing"`       // kategori besar (general/experience/eureka/constitution/…)
-	Room        string  `json:"room"`       // sub-kategori opsional
-	MemType     string  `json:"mem_type"`   // experience|eureka|fact|user|constitution|…
-	Importance  float64 `json:"importance"` // 0..10 (ranking hint)
-	Amplitude   int     `json:"amplitude"`  // sacred always-inject (Fase B1); 999999 = sacred
+	Wing        string  `json:"wing"`
+	Room        string  `json:"room"`
+	MemType     string  `json:"mem_type"`
+	Importance  float64 `json:"importance"`
+	Amplitude   int     `json:"amplitude"`
 	ContentHash string  `json:"content_hash"`
-	Source      string  `json:"source"`      // siapa nyetor (agent/dream/user/…)
-	Quarantined bool    `json:"quarantined"` // Fase B5 immune — ga dipake sampe verified
-	Confidence  float64 `json:"confidence"`  // Fase B5 tier-confidence 0..1
+	Source      string  `json:"source"`
+	Quarantined bool    `json:"quarantined"`
+	Confidence  float64 `json:"confidence"`
 	CreatedAt   string  `json:"created_at"`
 }
 
-// BrainHit — hasil SearchLocalBrain (drawer + skor relevansi FTS).
 type BrainHit struct {
 	DrawerID string  `json:"drawer_id"`
 	Wing     string  `json:"wing"`
 	Room     string  `json:"room"`
 	MemType  string  `json:"mem_type"`
 	Content  string  `json:"content"`
-	Score    float64 `json:"score"` // normalized (0,1], higher = better
+	Score    float64 `json:"score"`
 }
 
-// Budget anti over-prompt (README_FIRST section 7).
 const (
-	maxBrainContentBytes = 16 * 1024 // 1 drawer cap 16KB
+	maxBrainContentBytes = 16 * 1024
 	defaultLocalBrainK   = 5
 	maxLocalBrainK       = 10
-	maxBrainSnippetChars = 1000 // truncate tiap hit content
+	maxBrainSnippetChars = 1000
 )
 
-// ensureBrainSchema bikin tabel brain lokal (idempotent). Caller WAJIB sudah
-// pegang s.mu (dipanggil dari method ber-lock). FTS5 = virtual table, ga ada
-// trigger sync — Add nulis ke drawers + fts dua-duanya.
 func (s *Store) ensureBrainSchema() {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS brain_drawers (
@@ -101,9 +71,6 @@ func (s *Store) ensureBrainSchema() {
 	}
 }
 
-// AddBrainDrawer simpan 1 drawer ke brain lokal (+ FTS sync). Dedup by
-// content_hash: kalau udah ada drawer live dengan content sama → ga insert lagi
-// (return id lama, added=false). Pola dari Router AddDrawer.
 func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id string, added bool, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -130,7 +97,6 @@ func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id 
 	hash := hex.EncodeToString(sum[:])
 	id = hash[:16]
 
-	// Dedup: skip kalau drawer live dengan hash sama udah ada.
 	var existing string
 	if qerr := s.db.QueryRow(
 		`SELECT id FROM brain_drawers WHERE content_hash=? AND deleted_at IS NULL LIMIT 1`, hash,
@@ -147,7 +113,7 @@ func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id 
 	); err != nil {
 		return "", false, fmt.Errorf("insert drawer: %w", err)
 	}
-	// Sync FTS (no auto-trigger).
+
 	if _, err = s.db.Exec(
 		`INSERT INTO brain_fts (drawer_id, content, wing, room) VALUES (?,?,?,?)`,
 		id, content, wing, room,
@@ -157,9 +123,6 @@ func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id 
 	return id, true, nil
 }
 
-// SearchLocalBrain cari drawer relevan di brain lokal pakai FTS5 BM25.
-// Precision-first: coba AND dulu (set kecil, presisi), fallback OR kalau kosong.
-// Skip quarantined + deleted. Cap k anti over-prompt.
 func (s *Store) SearchLocalBrain(query string, k int) ([]BrainHit, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -189,8 +152,6 @@ func (s *Store) SearchLocalBrain(query string, k int) ([]BrainHit, error) {
 	return hits, nil
 }
 
-// runBrainFTS — jalanin 1 query FTS5 MATCH, join ke drawers buat metadata +
-// filter quarantine/deleted. Caller pegang lock. Pola bm25 dari Router runFTS.
 func (s *Store) runBrainFTS(match string, k int) ([]BrainHit, error) {
 	rows, err := s.db.Query(
 		`SELECT f.drawer_id, d.wing, d.room, d.mem_type, d.content, bm25(brain_fts) AS score
@@ -227,7 +188,6 @@ func (s *Store) runBrainFTS(match string, k int) ([]BrainHit, error) {
 	return out, rows.Err()
 }
 
-// GetBrainDrawer ambil 1 drawer full by id (buat brain_get).
 func (s *Store) GetBrainDrawer(id string) (BrainDrawer, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -244,13 +204,12 @@ func (s *Store) GetBrainDrawer(id string) (BrainDrawer, bool, error) {
 		&d.ContentHash, &d.Source, &quar, &d.Confidence, &d.CreatedAt)
 	_ = deletedAt
 	if err != nil {
-		return BrainDrawer{}, false, nil // not found → not an error
+		return BrainDrawer{}, false, nil
 	}
 	d.Quarantined = quar == 1
 	return d, true, nil
 }
 
-// CountBrainDrawers — jumlah drawer live (buat status/test).
 func (s *Store) CountBrainDrawers() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -260,9 +219,6 @@ func (s *Store) CountBrainDrawers() (int, error) {
 	return n, err
 }
 
-// ── FTS token helpers (di-adapt dari flowork_Router internal/brain/fts.go) ──
-
-// ftsTokens ubah free-text jadi token FTS5 aman (strip char berbahaya, quote).
 func ftsTokens(q string) []string {
 	q = strings.TrimSpace(q)
 	if q == "" {
@@ -289,7 +245,6 @@ func ftsTokens(q string) []string {
 	return parts
 }
 
-// joinFTS gabung token ber-quote pakai operator ("AND"/"OR").
 func joinFTS(tokens []string, op string) string {
 	return strings.Join(tokens, " "+op+" ")
 }

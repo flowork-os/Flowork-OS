@@ -1,21 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval (autonomy grant 2026-06-19).
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-19
-// Update 2026-06-20 (owner autonomy-grant): WIRE EMBEDDER — RecallDeps.Embed kini
-//   nyolok ke router /v1/embeddings (bge-m3) → seed graph recall jadi SEMANTIK
-//   (by-makna), bukan label-only. Aktifin recall semantik atas SELURUH graph lokal
-//   (twin/code/tool/agent). Degrade aman kalau router down (EmbedText error → seed
-//   fallback ke label). Re-locked.
-// Reason: CGM graph_recall tool — built + unit-tested. Extend = new file, jangan modify ini.
-//
-// cognitive_tools.go — tool yang nyentuh Cognitive Graph (CGM) lokal agent.
-//
-// graph_recall: tarik subgraph relevan dari twin graph → fact-sheet RINGKAS
-// (budget-capped, anti muntah prompt). Beda dari brain_search (FTS teks): ini
-// HUBUNGAN/konteks antar-entitas (roadmap §4.8). Pola: tools.FromStore(ctx) +
-// store.RecallFactSheet (agentdb/cognitive_recall.go, locked).
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 
@@ -61,9 +45,7 @@ func (graphRecallTool) Run(ctx context.Context, args map[string]any) (tools.Resu
 	case int:
 		maxChars = v
 	}
-	// Embedder: seed graph recall by-MAKNA (router /v1/embeddings, bge-m3). Resolve
-	// router URL dari agent kv (pola brain_search/instinct_recall). Degrade aman:
-	// kalau router down, EmbedText error → RecallFactSheet fallback ke seed label.
+
 	routerURL := routerclient.DefaultRouterURL
 	if cfg, lerr := store.Load(); lerr == nil {
 		if u, ok := cfg["router_url"].(string); ok && u != "" {

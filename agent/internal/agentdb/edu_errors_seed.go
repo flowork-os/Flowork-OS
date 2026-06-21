@@ -1,38 +1,13 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-05-31
-// Reason: Katalog doktrin edukasi default (28 entry anti-stuck) + seed
-//   idempotent (INSERT OR IGNORE, ga overwrite edit owner). Remediation
-//   ngarah ke tool real (verified). E2E: seeded 28 → mr-flow.
-//   Nambah doktrin = tambah ke slice DefaultEduErrors, BUKAN ubah logic.
-//
-// edu_errors_seed.go — katalog default "doktrin edukasi" (educational_errors).
-//
-// Tujuan: pas AI agent (Mr.Flow) kepentok error/skenario tertentu, dia bisa
-// `edu_error_lookup <code>` → dapet penjelasan + remediation → ngikutin
-// tuntunan biar GA STUCK (ga loop, ga halu, ga nyerah, ga ngabisin saldo).
-//
-// Adaptasi dari katalog referensi (flowork lama) TAPI remediation diarahin ke
-// tool yang BENERAN ada di registry sekarang (tool_search, edu_error_lookup,
-// askuser, telegram_send, mistake_log, decision_log, brain_search, dll) —
-// jangan nyuruh agent pake tool hantu, itu malah bikin tambah stuck.
-//
-// Seed idempotent (INSERT OR IGNORE): entry baru ke-insert, edit owner via
-// GUI/tool TIDAK ke-overwrite pas restart. Tambah doktrin = tambah ke slice
-// DefaultEduErrors lalu restart.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package agentdb
 
 import "time"
 
-// DefaultEduErrors — katalog awal doktrin edukasi. Category dipakai buat
-// grouping; Title fixed; Explanation = "ini error apa"; Remediation = "gimana
-// nyelesainnya biar ga stuck".
 func DefaultEduErrors() []EduError {
 	return []EduError{
-		// ── Tool / capability ───────────────────────────────────────────
+
 		{Code: "ERR_TOOL_NOT_FOUND", Category: "tool", Title: "Tool ga ketemu",
 			Explanation: "Tool yang lo panggil ga ada di registry (salah nama atau emang belum ada).",
 			Remediation: "Jangan nebak atau nyerah. Pakai `tool_search <kata kunci>` buat nyari nama tool yang bener, atau `tool_lookup` buat lihat detail + argumennya. Kalau emang ga ada, lapor owner — tool dibikin dari kebutuhan yang lo artikulasikan jelas, bukan dari nebak."},
@@ -52,7 +27,6 @@ func DefaultEduErrors() []EduError {
 			Explanation: "Job terjadwal gagal dieksekusi.",
 			Remediation: "Cek `schedule_runs_query` buat lihat error-nya. Betulin cron/task via scheduler tool. Kalau berulang, catat `mistake_log` + kabarin owner."},
 
-		// ── Safety / proteksi ───────────────────────────────────────────
 		{Code: "ERR_PROTECTED_BLOCKED", Category: "safety", Title: "Diblokir Protector",
 			Explanation: "Akses ke file/resource ini diblokir Host Protection Gate.",
 			Remediation: "Ini PENGAMAN, bukan bug. File/perintah ini bisa bikin lo & warga lain lumpuh. JANGAN retry atau cari celah (anti-bypass). Kalau yakin perlu, eskalasi ke owner via `telegram_send` + jelasin alasannya. Owner yang approve."},
@@ -69,7 +43,6 @@ func DefaultEduErrors() []EduError {
 			Explanation: "Lo mau lakuin aksi yang susah di-undo / outward-facing tanpa konfirmasi.",
 			Remediation: "Konfirmasi ke owner dulu via `telegram_send` sebelum eksekusi. Approval di satu konteks ga otomatis berlaku ke konteks lain. Hati-hati = selamat."},
 
-		// ── Psikologi / anti-stuck ──────────────────────────────────────
 		{Code: "ERR_PANIC_LOOP", Category: "psychology", Title: "Kejebak loop / panik berulang",
 			Explanation: "Lo ngulang error yang sama berkali-kali berturut-turut.",
 			Remediation: "STOP. Mundur selangkah. Ngulang hal sama berharap hasil beda = ga waras. Catat via `mistake_log`, coba pendekatan BEDA, atau eskalasi ke owner via `telegram_send`. Jangan brute-force."},
@@ -92,7 +65,6 @@ func DefaultEduErrors() []EduError {
 			Explanation: "Ketemu error yang belum ada panduannya di doktrin edukasi.",
 			Remediation: "Jangan panik atau loop. Catat lengkap via `mistake_log`, cek panduan lain via `edu_error_list`, atau eskalasi ke owner via `telegram_send` dengan detail error-nya. Error baru = kesempatan nambah doktrin."},
 
-		// ── Verifikasi / kejujuran ──────────────────────────────────────
 		{Code: "ERR_HALU_NO_PROOF", Category: "verification", Title: "Klaim selesai tanpa bukti (anti-halu)",
 			Explanation: "Lo bilang selesai tapi belum ada bukti verifikasi.",
 			Remediation: "Kejujuran teknis harga mati. JANGAN panggil `goal_done` sebelum ada bukti nyata: build sukses, test pass, output ke-cek. Tanpa bukti = halu. Owner cape kalau lo cuma PHP."},
@@ -100,7 +72,6 @@ func DefaultEduErrors() []EduError {
 			Explanation: "Lo ngandelin info lama yang mungkin udah berubah.",
 			Remediation: "Verifikasi ulang sebelum pakai — file/config/state bisa udah beda. `file_read`/`kv_get` dulu, jangan ngandelin ingatan lama."},
 
-		// ── Resource / budget ───────────────────────────────────────────
 		{Code: "ERR_RATE_LIMIT", Category: "resource", Title: "Kena rate limit",
 			Explanation: "Tool atau LLM kena batas frekuensi panggilan.",
 			Remediation: "Jangan spam retry — itu mperparah. Tunggu (backoff), kerjain hal lain dulu, atau kabarin owner kalau blocking. Sabar = hemat."},
@@ -111,12 +82,10 @@ func DefaultEduErrors() []EduError {
 			Explanation: "Secret/API key yang dibutuhin tool belum ada.",
 			Remediation: "Minta owner isi di tab Settings → Token Crypto/API Keys (mis. ETHERSCAN_API_KEY). JANGAN hardcode atau nebak key."},
 
-		// ── Workspace / isolasi ─────────────────────────────────────────
 		{Code: "ERR_WORKSPACE_ESCAPE", Category: "workspace", Title: "Keluar dari kamar (workspace)",
 			Explanation: "Path yang lo akses ada di luar /workspace lo.",
 			Remediation: "Lo cuma boleh baca/tulis di /workspace (privat) atau /shared (kolaborasi). Pakai path relatif di dalam workspace. Mau file warga lain? Lewat /shared atau mesh, bukan nembus langsung."},
 
-		// ── LLM / koneksi ───────────────────────────────────────────────
 		{Code: "ERR_LLM_UNREACHABLE", Category: "llm", Title: "Router LLM ga kebuka",
 			Explanation: "Gagal manggil router LLM.",
 			Remediation: "Cek Router URL di setting agent. Coba model fallback. Kalau router emang down, catat via `decision_log` + kabarin owner. Jangan diem — kasih tau statusnya."},
@@ -132,9 +101,6 @@ func DefaultEduErrors() []EduError {
 	}
 }
 
-// SeedEduErrors — INSERT OR IGNORE katalog default. Idempotent: cuma insert
-// code baru, edit owner (via GUI/tool) TIDAK ke-overwrite. Return jumlah row
-// yang benar-benar baru di-insert.
 func (s *Store) SeedEduErrors() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

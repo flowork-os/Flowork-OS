@@ -1,19 +1,5 @@
-// === LOCKED FILE ===
-// Status: STABLE — DO NOT MODIFY without owner approval.
-// Owner: Aola Sahidin (Mr.Dev)
-// Repo: https://github.com/flowork-os/Flowork-OS
-// Locked at: 2026-06-03
-// Reason: Roadmap 2 B2 mistakes recall. Verified: add 2x→hit_count, SearchMistakes
-//   recall by context + hit_count order. Extend → file baru, JANGAN modify ini.
-//
-// mistakes_recall.go — Roadmap 2 Fase B2: tool mistake_recall.
-//
-// Sebelum ngerjain sesuatu yang beresiko keulang error, agent panggil ini buat
-// cek "dulu gw pernah salah di konteks mirip ga?" → di-warn pakai remediation
-// lampau. Plus tool mistake_log (existing) yang increment hit_count tiap error
-// keulang. Pasangan log+recall = agent belajar dari kesalahan sendiri.
-//
-// On-demand (anti over-prompt) — bukan auto-inject.
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
 
 package builtins
 
