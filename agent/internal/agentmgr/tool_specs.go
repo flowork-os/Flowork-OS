@@ -12,6 +12,14 @@
 //   + otak-kolektif (referensi SHARED brain, bukan copy). 12→15 core (cap 50, aman).
 //   Alasan: directive owner "agent baru kewarisan roadmap (instinct/graph/tools)".
 //
+// MODIFIED 2026-06-21 (owner-approved buka-lock, re-locked; header-lock): D15 —
+//   +codemap_search ke primaryExtraTools + cap 50→51. Akar: codemap KE-INDEX (336
+//   file) tapi GA ke-expose ke spec → tool_search bisa DISCOVER tapi GA bisa CALL
+//   (spec di-fetch SEKALI per-turn = statik, ga ada meta-runner). Sekarang mr-flow
+//   (primary) bisa query struktur kode-nya sendiri (semantic). Additive: ants
+//   (core-only) ga kena; cap+1 = codemap masuk TANPA drop subscription. Host
+//   rebuilt. Re-locked.
+//
 // tool_specs.go — Fase 0 (tool-calling loop): endpoint yang balikin tools yang
 // di-EXPOSE ke LLM dalam format OpenAI function-schema. Host yang bangun schema
 // (punya registry + subscription); WASM agent tinggal fetch + forward ke LLM.
@@ -55,7 +63,7 @@ var coreExposedTools = []string{
 // capable agent (mr-flow holds ~40 first-class tools via subscriptions) needs the
 // higher ceiling; ants stay tiny because they have no subscriptions (core set only),
 // so raising the ceiling never bloats them.
-const maxExposedTools = 50
+const maxExposedTools = 51 // D15 (2026-06-21): 50→51 — muat codemap_search (primary) tanpa drop subscription
 
 // primaryExtraTools — surface-vocabulary tools exposed ONLY to the primary
 // orchestrator (mr-flow), not to ants. These cover shell/task-lifecycle/schedule/
@@ -64,6 +72,11 @@ const maxExposedTools = 50
 var primaryExtraTools = []string{
 	"PowerShell", "TaskCreate", "TaskUpdate", "TaskStop", "TaskOutput",
 	"ScheduleWakeup", "Monitor", "SendUserFile", "StructuredOutput", "Workflow",
+	// D15 (2026-06-21): codemap_search — primary bisa query struktur kode-nya sendiri
+	// (semantic, 336 file ke-index). Ditambah SEBELUM subscriptions → pasti masuk
+	// (cap dinaikin ke 51 biar ga nyenggol subscription flowalpha). Coordinator-only:
+	// ants (core set) ga ikut, prompt mereka tetap kecil (anti over-prompt utuh).
+	"codemap_search",
 }
 
 // ToolSpecsHandler — GET /api/agents/tools/specs?id=<agent>
