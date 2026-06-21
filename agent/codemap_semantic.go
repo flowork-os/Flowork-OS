@@ -59,8 +59,10 @@ func codemapSemanticSummarizer(host *kernelhost.Host) agentmgr.SemanticSummarize
 				}
 			}
 		}
-		// 2) Fallback: routerChat hardcoded (kalau agent belum ke-load / output invalid).
-		usedModel = coderModel(model)
+		// 2) Fallback: routerChat (kalau agent belum ke-load / output invalid).
+		// AI-IN-AGENT G7 (owner 2026-06-21): fallback pun pakai model AGENT codemap-enricher
+		// (GUI) bukan global — biar konsisten "model fitur enrich = 1 sumber (GUI agent)".
+		usedModel = enricherModel() // sumber model enrich = 1 (agent GUI), override ?model= jarang dipakai internal
 		sys := "You are a codebase cartographer. Given ONE source file, reply ONLY a compact JSON object: " +
 			`{"summary":"one sentence: what this file does","domain":"functional area (e.g. auth, triggers, brain, ui, codemap, finance, router, orchestrator)","role":"architecture role (e.g. http-handler, engine, data-store, config, parser, wasm-agent, test)"}. ` +
 			"No markdown, no code fences, no prose — JSON only."
