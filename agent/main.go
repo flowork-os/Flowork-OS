@@ -3,9 +3,10 @@
 // Owner: Aola Sahidin (Mr.Dev)
 // Repo: https://github.com/flowork-os/Flowork-OS
 // 2026-06-21 OWNER-APPROVED (Phase 3E/D13 loop-belajar): +route POST /api/agents/learning/digest
-//   (agentmgr.LearningDigestHandler) — distil recording model kuat → shadow → promote-on-repetisi.
-//   Gated FLOWORK_LEARN_LOOP=1 (default OFF). Logic di non-locked agentmgr/learning_feed.go +
-//   agentdb/learning_log.go. Additive, 1 baris route.
+//   (agentmgr.LearningDigestHandler) + AUTO-TRIGGER ticker 30 menit (goroutine, per-tick recover)
+//   → distil recording model kuat (capture real-time di ROUTER, toggle GUI) → shadow → promote-on-
+//   repetisi. Saklar = toggle capture GUI router (env DIHAPUS, owner "kebenaran di GUI"). Logic di
+//   agentmgr/learning_feed.go + agentdb/learning_log.go (LOCKED). Additive (route + ticker).
 // 2026-06-21 OWNER-APPROVED (AI-IN-AGENT mandate G1): +seedDreamDigester() & wire
 //   agentmgr.DigestLLMOverride = dreamDigestLLM(host) (deket seedCodemapEnricher/AIStudio)
 //   → reasoning CGM digest/extraction pindah dari host+model-global ke AGENT dream-digester
@@ -410,6 +411,33 @@ func main() {
 					// Resilient: per-agent error di-skip (lihat agentmgr.DigestAllAgents).
 					if dg := agentmgr.DigestAllAgents(host.AgentIDs()); dg > 0 {
 						log.Printf("cgm: %d interactions dicerna ke cognitive graph (Tier-2)", dg)
+					}
+				}()
+			}
+		}
+	}()
+
+	// 3E/D13 LOOP-BELAJAR auto-trigger (owner 2026-06-21): capture REAL-TIME di router (toggle
+	// GUI), distil-nya BATCH tiap 30 menit → recordings model kuat jadi shadow → promote on
+	// repetisi. No-op kalau ga ada recording baru (anti-replay learning_record_log). Per-tick
+	// recover (1 error ga nyeret yg lain). Saklar = toggle capture GUI (capture OFF → ga ada
+	// recording baru → trigger no-op).
+	go func() {
+		t := time.NewTicker(30 * time.Minute)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("3E loop-belajar PANIC (ticker selamat): %v", r)
+						}
+					}()
+					if ls, err := agentmgr.DigestRecordings(100); err == nil && ls.Added > 0 {
+						log.Printf("3E loop-belajar: %d node shadow baru (%d processed, %d promoted)", ls.Added, ls.Processed, ls.Promoted)
 					}
 				}()
 			}

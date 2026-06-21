@@ -1,3 +1,4 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-21 (3E/D13 + AI-IN-AGENT). LOCKED ≠ FREEZE (boleh diedit dgn izin owner + re-lock + changelog).
 package main
 
 // handlers_chat_learn.go — Phase 3E / D13 AUTO-CAPTURE (owner-approved 2026-06-21).

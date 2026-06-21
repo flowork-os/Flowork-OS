@@ -1,3 +1,4 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-21 (3E/D13 + AI-IN-AGENT). LOCKED ≠ FREEZE (boleh diedit dgn izin owner + re-lock + changelog).
 // learning_feed.go — Phase 3E / D13 LOOP BELAJAR (owner-approved 2026-06-21).
 //
 // "Guru dateng-pergi, brain gak lupa": tangkap pengalaman model KUAT yg lewat router
