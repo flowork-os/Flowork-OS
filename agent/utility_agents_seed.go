@@ -69,3 +69,12 @@ const appJudgePersona = "Kamu VERIFIER adversarial Flowork — kritikus independ
 
 // seedAppJudge — agent app-judge (model GUI, default haiku).
 func seedAppJudge() { seedUtilityAgent(appJudgeID, "App Judge", appJudgePersona) }
+
+// ── G6: scan-distiller (topics → nuclei template, security scanner) ───────────
+const scanDistillerID = "scan-distiller"
+const scanDistillerPersona = "Kamu DISTILLER security Flowork — baca intel/topik kerentanan, tulis " +
+	"template deteksi (nuclei YAML) yang presisi & aman. Output sesuai skema diminta, ringkas, no prosa. " +
+	"(Model agent ini = model generator check privat; di-set owner di GUI.)"
+
+// seedScanDistiller — agent scan-distiller (model GUI, default haiku).
+func seedScanDistiller() { seedUtilityAgent(scanDistillerID, "Scan Distiller", scanDistillerPersona) }

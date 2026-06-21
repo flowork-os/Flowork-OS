@@ -204,7 +204,7 @@ func ScannerDistillHandler() http.HandlerFunc {
 		}
 		model := strings.TrimSpace(body.Model)
 		if model == "" {
-			model = distillModelDefault
+			model = distillDefaultModel() // AI-IN-AGENT G6: model agent scan-distiller (GUI), bukan hardcode
 		}
 		dir := privateChecksDir()
 		if dir == "" {

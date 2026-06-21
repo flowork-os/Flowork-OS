@@ -624,6 +624,8 @@ func main() {
 	seedDreamDigester()   // agent dream-digester: otak CGM digest/extraction, model GUI — owner 2026-06-21 (AI-IN-AGENT)
 	agentmgr.DigestLLMOverride = dreamDigestLLM(host) // digest reasoning lewat agent (model GUI), bukan global
 	seedAppJudge()        // G5: agent app-judge (verifier adversarial), model GUI haiku — owner 2026-06-21 (AI-IN-AGENT)
+	seedScanDistiller()   // G6: agent scan-distiller (generator check privat), model GUI haiku — owner 2026-06-21
+	scanapi.DistillModelResolver = func() string { return utilityAgentModel(scanDistillerID) } // distiller model dari agent GUI
 	// DB-DRIVEN SELF-HEAL (owner 2026-06-20 "pake db biar flexibel"): crew/category yg
 	// SEMUA member agent-nya udah dihapus (dir ga ada) = mati → auto-clean (cascade
 	// task_agents + trigger_rules). Realisasi "hapus agent → crew auto-ilang", lepas
