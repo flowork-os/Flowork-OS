@@ -104,6 +104,8 @@ Embedding([]byte, 8-bit quantized) · HitCount · Version
 
 **`RecallFactSheet`** (`cognitive_recall.go`): seed (embedding + label) → rangkai fact-sheet ringkas budget-capped. Ranking saat ini `confidence×strength` (bukan pure query-relevance — keterbatasan known).
 
+⚠️ **fact-sheet `graph_recall` = EDGES doang** (relasi `X —rel→ Y`), BUKAN label-node standalone (temuan N2 2026-06-22). Akibat: node `knowledge`/drawer-projeksi yang GA punya edge → **invisible di graph_recall** walau ke-seed by-embedding. Jadi **verbatim-drawer cuma bantu `brain_search`, BUKAN graph_recall.** Buat jawab query relasi-kebalik (mis. "siapa guru gitar gw") → fakta WAJIB ada sebagai **EDGE** (mis. `Irin —taught→ User`, outgoing-dari-seed) ATAU **verbatim drawer** (jalur brain_search, model 26B pakai). K11/K12: JANGAN graph-hack ranking; tutup gap via verbatim drawer + data-fix edge salah-atribusi (lihat N2: cabut halu `User —is_a→ Best Guitarist` → re-point ke Irin).
+
 ---
 
 ## 6. CARA TIAP SUBSISTEM MASUK KE GRAPH
@@ -255,4 +257,4 @@ Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, 
 
 **⛔ JANGAN di-freeze:** **GUI** (cognitive.js + cognitive_handlers.go — viz berkembang) · **main.go** (fetchAutoRecall di sini; main.go bakal jadi LIST/wiring doang — nano-modular, nanti) · **scratch** (`_scratch_cgm/*` — gitignored, sekali-pakai) · **DATA** (db/`cognitive_nodes`/embedding/drawer — TUMBUH terus; freeze cuma buat CODE).
 
-**STATUS 2026-06-22:** **30 file brain-LOGIC** (A+B+C+E) di-STRIP komentar + header minimal + SHA256 di `KERNEL_FREEZE.md` + chattr +i. Verified: gofmt clean · go build · go vet · brain-tests PASS · TestKernelFreeze OK (kode+perilaku IDENTIK, strip=comment-only). **+1 file (D2) 2026-06-22:** `recovery_capture.go` (D32 INC-2, di-ekstrak dari main.go) di-freeze juga (chattr+hash) = **31 file brain-core**. **SISA (nanti):** OS-sealer otomatis (N3).
+**STATUS 2026-06-22:** **32 file brain-core FROZEN** (chattr +i + SHA256 di `KERNEL_FREEZE.md`, TestKernelFreeze 59 hash PASS): 30 brain-LOGIC (A+B+C+E, strip-komentar + header minimal, kode+perilaku IDENTIK) + **D2** `recovery_capture.go` (D32 INC-2, di-ekstrak dari main.go) + **B4** `graph_autosync.go` (auto-sync sumber→graph). Pola **nano-modular**: file brain-pathway terpisah → FREEZE; orkestrator (`main.go`) tetap EDITABLE. **+ DOC INI (`lock/brain.md`) di-FREEZE 2026-06-22 (chattr +i)** — lindungi arsitektur kanonik dari edit-tak-sadar AI; unfreeze sadar (`sudo chattr -i`) buat update. **SISA (nanti):** OS-sealer otomatis pas `--arm` (N3).
