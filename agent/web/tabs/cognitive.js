@@ -9,6 +9,11 @@
 //   (a) truncate label viz (cgTrunc, 18 char + …), (b) klik node → panel detail
 //   penuh (#cgDetail: label full + type/conf/status/hits/why). Verified live
 //   screenshot. Re-locked.
+// 2026-06-21 (owner-approved buka-lock, re-locked) BRAIN.md FASE B3: +TYPE_COLOR utk
+//   instinct/edu_error/agent (subsistem baru ke-project: skills/constitution/edu/drawer)
+//   + legend + fetch limit 500→2000 (ListCogNodes order hit_count DESC bikin node baru
+//   hit=1 ga masuk top-500 → ga ke-render). Cosmetic/data-map (render pakai
+//   TYPE_COLOR[type]||fallback — ga bisa mecah struktur). Re-locked.
 //
 // cognitive.js — Cognitive Graph (CGM) tab. D3 force-directed "balls connected"
 // view of an agent's per-agent twin graph (roadmap_opus8.md §4.9, D14).
@@ -19,6 +24,7 @@ const TYPE_COLOR = {
   person: '#f472b6', preference: '#a78bfa', trait: '#c084fc', concept: '#38bdf8',
   project: '#34d399', event: '#fbbf24', skill: '#4ade80', fact: '#67e8f9',
   knowledge: '#22d3ee', doctrine: '#fb7185', persona: '#818cf8', memory: '#fcd34d',
+  instinct: '#fb923c', edu_error: '#f87171', agent: '#2dd4bf',
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // cgTrunc — potong label panjang di viz biar ga numpuk (anti-berantakan); detail
@@ -51,6 +57,11 @@ export async function render(container) {
         <span>● <span style="color:#a78bfa">preference/trait</span></span>
         <span>● <span style="color:#34d399">project</span></span>
         <span>● <span style="color:#4ade80">skill</span></span>
+        <span>● <span style="color:#fb923c">instinct</span></span>
+        <span>● <span style="color:#fb7185">doctrine/constitution</span></span>
+        <span>● <span style="color:#f87171">edu_error</span></span>
+        <span>● <span style="color:#22d3ee">knowledge/drawer</span></span>
+        <span>● <span style="color:#2dd4bf">agent</span></span>
         <span>● <span style="color:#fbbf24">event</span></span>
         <span>dashed = shadow (not yet promoted)</span>
       </div>
@@ -76,7 +87,7 @@ async function draw(d3, container, agentId) {
   stats.textContent = 'loading…';
   let data;
   try {
-    data = await (await fetch(`/api/agents/cognitive/graph?id=${encodeURIComponent(agentId)}`)).json();
+    data = await (await fetch(`/api/agents/cognitive/graph?id=${encodeURIComponent(agentId)}&limit=2000`)).json();
   } catch (e) { stats.textContent = 'error: ' + e.message; return; }
   if (data.error) { stats.textContent = 'error: ' + data.error; return; }
 
