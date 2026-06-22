@@ -627,6 +627,9 @@ func main() {
 					if n := PromoteRecurringMistakes(ctx, host); n > 0 { // D32: mistake recurring → recovery-instinct (embedded)
 						log.Printf("mistake-promote: %d → recovery-instinct", n)
 					}
+					if n := PromoteRecoveryInstinctsShared(ctx, host); n > 0 { // D32-INC4: recovery-instinct generik → shared-brain (imunitas kolektif)
+						log.Printf("recovery-share: %d instinct → shared-brain", n)
+					}
 					if n := SyncSourcesToGraph(ctx, host); n > 0 { // B4: auto-sync sumber→graph (throttle 30min, change-detect)
 						log.Printf("graph-autosync: %d node sumber→graph diperbarui", n)
 					}
