@@ -386,6 +386,9 @@ func main() {
 					if n := ArchiveColdNodesAllAgents(host); n > 0 { // D (Phase 5): cold-archive graph gede (gated, reversible)
 						log.Printf("cold-archive: %d node graph diarsipkan (reversible)", n)
 					}
+					if n := PromoteCollectiveAntibodies(ctx, host); n > 0 { // F4: antibody kolektif lintas-agent
+						log.Printf("antibody: %d push collective antibody lintas-agent", n)
+					}
 				}()
 			}
 		}
