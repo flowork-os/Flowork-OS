@@ -196,32 +196,54 @@ func (s *Store) DigestPendingInteractions(ctx context.Context, dep DigestDeps, l
 	rows.Close()
 	s.mu.Unlock()
 
-	var total DigestStats
-	var b strings.Builder
-	var ids []int64
-	for _, r := range pending {
-		b.WriteString(r.content)
-		b.WriteString("\n")
-		ids = append(ids, r.id)
-	}
 	if len(pending) == 0 {
-		return total, 0, nil
+		return DigestStats{}, 0, nil
 	}
-
-	st, derr := s.DigestText(ctx, b.String(), dep)
-	if derr != nil {
-		return total, 0, derr
+	// CHUNK by budget-char (owner 2026-06-22 "buat sistem chunk kalau kegedean"): extract
+	// call KECIL = LLM andal balikin JSON valid. Batch gede (puluhan ribu char) bikin model
+	// nyerah → balikin kosong/prosa → ParseExtraction gagal → digest gagal → ga pernah trim.
+	// Tiap chunk di-digest + di-mark SENDIRI; chunk GAGAL → interaksinya GA di-mark (stay
+	// undigested → ga ke-trim = NO LOSS, retry tick berikut). Return firstErr biar AutoCompact
+	// tau belum tuntas (ga trim sampe semua chunk sukses) — fail-safe utuh.
+	const chunkCharBudget = 6000
+	var total DigestStats
+	var firstErr error
+	marked := 0
+	for i := 0; i < len(pending); {
+		var b strings.Builder
+		var ids []int64
+		for i < len(pending) {
+			c := pending[i].content
+			if b.Len() > 0 && b.Len()+len(c)+1 > chunkCharBudget {
+				break // chunk penuh (1 interaksi solo boleh lewat budget — tetep 1 chunk)
+			}
+			b.WriteString(c)
+			b.WriteString("\n")
+			ids = append(ids, pending[i].id)
+			i++
+		}
+		st, derr := s.DigestText(ctx, b.String(), dep)
+		if derr != nil {
+			if firstErr == nil {
+				firstErr = derr
+			}
+			continue // chunk gagal → JANGAN mark (no loss); lanjut chunk lain
+		}
+		total.NodesAdded += st.NodesAdded
+		total.EdgesAdded += st.EdgesAdded
+		total.Quarantined += st.Quarantined
+		total.Tensions += st.Tensions
+		total.Dropped += st.Dropped
+		s.mu.Lock()
+		for _, id := range ids {
+			_, _ = s.db.Exec(
+				`INSERT OR IGNORE INTO cognitive_digest_log (interaction_id, nodes_added, edges_added, status)
+				 VALUES (?,?,?, 'ok')`, id, st.NodesAdded, st.EdgesAdded)
+		}
+		s.mu.Unlock()
+		marked += len(ids)
 	}
-	total = st
-
-	s.mu.Lock()
-	for _, id := range ids {
-		_, _ = s.db.Exec(
-			`INSERT OR IGNORE INTO cognitive_digest_log (interaction_id, nodes_added, edges_added, status)
-			 VALUES (?,?,?, 'ok')`, id, st.NodesAdded, st.EdgesAdded)
-	}
-	s.mu.Unlock()
-	return total, len(ids), nil
+	return total, marked, firstErr
 }
 
 func (s *Store) PromoteShadows(minHits int) (int, error) {
