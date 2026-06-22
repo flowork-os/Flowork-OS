@@ -240,3 +240,55 @@ Restore = `rsync` balik kalau refactor berabe.
   mr-flow.fwagent stale) + bangun GUI tab Tools + freeze template agent + seed.
 - Branch kerja git: `cgm-exec-phase0`. Remote: `origin` (Flowork-OS) + `flowork-base`. Push ke DUA-duanya.
 - Roadmap ini **belum** dieksekusi — ini rencana buat kerja berikutnya.
+
+---
+
+## 12. Auto-discovery tool baru + NAMA = kontrak abadi (2 syarat dari owner)
+
+### 12.1 Apakah AI otomatis sadar punya tool baru + cara + kapan pakai?
+
+**"Punya tool + CARA pakai" = OTOMATIS** (terverifikasi):
+- Tool ke-`RegisterDynamic` → masuk registry. Kalau di-subscribe ke agent →
+  OTOMATIS muncul di tool-specs (nama + deskripsi + schema params, format OpenAI
+  function) yang disuntik ke LLM **tiap turn** (`internal/agentmgr/tool_specs.go`,
+  cap `maxExposedTools`=52). Ga perlu restart / ajarin manual — **schema ITU cara pakainya**.
+- Buat tool di luar 52-exposed: ada meta-tool **`tool_search`** (`internal/tools/builtins/v9_extras.go`)
+  — agent nyari KATALOG PENUH by-substring on-demand pas butuh. Jadi long-tail ke-discover sendiri.
+
+**"KAPAN tepat pakai" = 2 lapis:**
+1. **Deskripsi tool** (field `Schema().Description`) = "buat apa + kira2 kapan". Deskripsi
+   bagus → LLM tau kapan. **→ tiap tool/plugin WAJIB punya deskripsi tajam (kapan dipakai, kapan TIDAK).**
+2. **Constitution 5W1H-gate + instinct** = judgment generic anti-asal-ceplos yg berlaku ke
+   SEMUA tool (termasuk baru). Judgment DALAM yg spesifik ("pas situasi X pakai tool Y") =
+   ditanam sebagai **insting/doktrin** — dan insting itu nyebut tool **by-name** → makanya §12.2.
+
+**Implikasi roadmap:** tiap tool-pack `.fwpack` + tiap tool platform WAJIB punya deskripsi
+yang jelas "kapan dipakai". Buat kapabilitas baru yg owner peduli judgment-nya → tambah
+1 insting/doktrin (opsional) yg nyebut nama tool-nya.
+
+### 12.2 NAMA TOOL = KONTRAK ABADI (immutable ABI) — syarat keras owner
+
+Owner: "tool yg jadi plugin, nama perintahnya HARUS SAMA — takut udah ke-tanam di insting."
+
+**Aturan:** **nama tool itu kontrak, kayak ABI syscall.** Impl / platform / packaging boleh
+ganti; **NAMA JANGAN PERNAH.** Insting/doktrin/skill/pattern nyebut tool by-name → ganti nama
+= insting putus.
+
+**Kabar baik (terverifikasi 2026-06-23):**
+- Rencana ini **ga ganti nama apapun**: build-tag split cuma misah IMPL per-OS, nama tetap
+  (`app_open` ya `app_open` di semua OS). Privileged tool TETAP builtin (cuma di-split), **ga**
+  dipindah jadi plugin beda-nama.
+- Ada **guard bawaan**: `tools.IsBuiltinName` + `RegisterDynamic` NOLAK plugin yg pakai nama
+  builtin (`internal/tools/dynamic.go:38`, `tool_install.go:71`) → nama builtin **ga bisa**
+  ke-timpa/ke-shadow diam-diam. Guard ini JUSTRU lindungi insting.
+- **Audit protected-names (brain-data):** scan `constitution` + `cognitive_nodes` +
+  `mistakes_journal` → **0 nama tool ke-hardcode** di insting/graph. Cuma `brain_search`
+  ke-sebut di `router/internal/brain/doctrine_seed.json` (kode). → risiko PUTUS rendah.
+
+**Aturan keras buat eksekusi:**
+1. JANGAN rename tool apapun pas refactor (split build-tag = nama sama, impl beda file).
+2. Kalau SUATU saat butuh ubah/mindah tool, **rename = HARAM** — bikin tool baru + alias nama
+   lama (registrasi 2 nama → 1 impl), JANGAN hapus nama lama.
+3. Sebelum nyentuh tool manapun, ulang audit protected-names (code grep doctrine_seed +
+   `sqlite3 -readonly flowork-brain.sqlite` LIKE di constitution/cognitive_nodes/mistakes_journal +
+   cek persona/self-prompt). Nama yg ke-sebut = HARAM diganti.
