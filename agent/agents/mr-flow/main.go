@@ -558,7 +558,6 @@ type chatTurn struct {
 const (
 	maxHistoryMsgs        = 16   // max giliran percakapan di-inject (≈8 tukar-balik)
 	maxHistoryCharsPerMsg = 1200 // cap per pesan history (anti over-prompt)
-	keepRecentTurns       = 4    // anti-anchor §6.1: N turn terbaru SELALU utuh (koherensi); yg lebih lama di-filter anchor-noise
 )
 
 // fetchHistory — ambil riwayat percakapan chat ini dari API interactions
@@ -587,6 +586,14 @@ func fetchHistory(actor string) []chatTurn {
 	}
 	// items newest-first → kumpulin yang match actor ini, stop di cap, reverse.
 	picked := make([]chatTurn, 0, maxHistoryMsgs)
+	// ANTI-ANCHOR (§6.1, cabut-akar v2 2026-06-22): buang EXCHANGE denial SE-PASANG (assistant-A
+	// gagal/denial + user-Q pasangannya), BUKAN cuma A. Akar bug 2-lapis kebukti QC:
+	//   v0: phrase-list ejaan "tau" doang + exemption recent → denial "nggak tahu" TERBARU ke-echo.
+	//   v1: buang assistant-A doang → user-Q jadi YATIM (2 user-turn beruntun) → model lokal jawab
+	//       user-Q LAMA, bukan yg current (lag 1-turn). FIX: skip Q pasangannya juga.
+	// Iterasi newest-first → assistant-A(denial) ke-iterate SEBELUM user-Q-nya → set flag, skip Q
+	// berikut. User-turn current (newest, belum ada denial sebelumnya) TIDAK pernah ke-skip.
+	skipPairedUser := false
 	for _, it := range out.Items {
 		if it.Actor != actor || it.Content == "" {
 			continue
@@ -595,12 +602,15 @@ func fetchHistory(actor string) []chatTurn {
 		if it.Direction == "out" {
 			role = "assistant"
 		}
-		// ANTI-ANCHOR (§6.1): items newest-first → len(picked)<keepRecentTurns =
-		// turn TERBARU (utuh, buat koherensi). Yg lebih LAMA: skip kalau anchor-noise
-		// (reply gagal/denial "gw ga tau") biar 26B ga ngechо pola basi-nya sendiri.
-		if len(picked) >= keepRecentTurns && isAnchorNoise(role, it.Content) {
+		if role == "assistant" && isAnchorNoise(role, it.Content) {
+			skipPairedUser = true // buang juga user-Q pasangan (muncul berikutnya, newest-first)
 			continue
 		}
+		if role == "user" && skipPairedUser {
+			skipPairedUser = false // ini Q pasangan denial → buang
+			continue
+		}
+		skipPairedUser = false // turn sehat → reset
 		c := it.Content
 		if len(c) > maxHistoryCharsPerMsg {
 			c = c[:maxHistoryCharsPerMsg] + "…"
@@ -616,12 +626,18 @@ func fetchHistory(actor string) []chatTurn {
 	return picked
 }
 
-// anchorNoisePhrases — reply ASSISTANT gagal/denial yg kalau LAMA bikin 26B ngechо
+// anchorNoisePhrases — reply ASSISTANT gagal/denial yg bikin model lokal ngechо
 // pola basi-nya sendiri (history-anchoring). TinyGo-safe substring (no regexp).
+// AKAR-FIX 2026-06-22: dulu cuma ejaan "tau" → model lokal jawab "nggak TAHU" (pakai H)
+// lolos → P1-denial ke-echo ke P2/P3 (QC kebukti). Tambah varian "tahu" + "tidak tahu"
+// (juga kena gaya cloud "Saya tidak tahu") + "tidak memiliki data". Hindari bare "ga tahu"
+// (substring "juGA TAHU" = false-positive) → pakai bentuk ber-prefix yg aman.
 var anchorNoisePhrases = []string{
 	"router error:", "(no choices)", "(tool loop limit reached", "llm call gagal",
 	"gw ga tau", "gw gatau", "gw nggak tau", "gw ngga tau",
-	"ga ada datanya", "gak ada datanya", "belum ada di brain",
+	"gw ga tahu", "gw nggak tahu", "gw ngga tahu", "gak tahu", "nggak tahu",
+	"ngga tahu", "tidak tahu", "tidak mengetahui", "tidak memiliki data",
+	"ga ada datanya", "gak ada datanya", "belum ada di brain", "ga bisa sebutin",
 }
 
 // isAnchorNoise — true kalau turn = reply gagal/denial yg layak di-skip dari history
@@ -1130,8 +1146,8 @@ func buildSystemPrompt(cfg agentConfig) string {
 
 	// ===== TIER 3 — VOLATILE =====
 	b.WriteString("\n=== TIER 3 · SEKARANG (volatile) ===\n")
-	b.WriteString("[WAKTU_UTC: " + nowISO() + "]\n")
-	b.WriteString("[MODEL: " + cfg.Router.Model + "]\n")
+	fmt.Fprintf(&b, "[WAKTU_UTC: %s]\n", nowISO())
+	fmt.Fprintf(&b, "[MODEL: %s]\n", cfg.Router.Model)
 	// GROUNDING live-crew (owner 2026-06-20, anti-halu): kasih tau LLM status crew
 	// SEKARANG dari task_list. 0 = ga ada crew → HARAM ngaku trigger crew/ngarang
 	// run_id; jawab sendiri. State live = sumber kebenaran ("auto paham, auto ilang").
@@ -1143,13 +1159,15 @@ func buildSystemPrompt(cfg agentConfig) string {
 	usr := capStr(fetchMemoryValue("USER.md"), memUserCap)
 	proj := capStr(fetchMemoryValue("MEMORY.md"), memProjectCap)
 	if usr != "" {
-		b.WriteString("[INGATAN tentang Mr.Dev (USER.md)]:\n" + usr + "\n")
+		fmt.Fprintf(&b, "[INGATAN tentang Mr.Dev (USER.md)]:\n%s\n", usr)
 	}
 	if proj != "" {
-		b.WriteString("[INGATAN proyek (MEMORY.md)]:\n" + proj + "\n")
+		fmt.Fprintf(&b, "[INGATAN proyek (MEMORY.md)]:\n%s\n", proj)
 	}
-	b.WriteString("[KONTEKS: lo PUNYA history percakapan di messages ini — pakai, jangan tanya ulang " +
-		"hal yang udah dibahas.]\n")
+	b.WriteString("[KONTEKS: lo PUNYA history percakapan di messages ini — pakai buat koherensi. " +
+		"TAPI FOKUS jawab pesan TERAKHIR user. Kalau pertanyaan TERAKHIR beda topik dari turn " +
+		"sebelumnya, JANGAN ngulang / nyamain jawaban turn lama — jawab yg BARU pakai FAKTA " +
+		"TERVERIFIKASI di atas. Jangan tanya ulang hal yang udah dibahas.]\n")
 
 	return b.String()
 }
@@ -1216,7 +1234,7 @@ func compressHistory(cfg agentConfig, msgs []any) []any {
 			role, _ := mm["role"].(string)
 			c, _ := mm["content"].(string)
 			if c != "" {
-				sb.WriteString(role + ": " + c + "\n")
+				fmt.Fprintf(&sb, "%s: %s\n", role, c)
 			}
 		}
 	}
