@@ -1,3 +1,6 @@
+// === LOCKED FILE (soft) === Status: STABLE — owner-approved 2026-06-22 (F5 fresh-recall).
+// AI lain: JANGAN otak-atik tanpa izin owner. Additive + vector-only + 0-regresi by-construction.
+//
 // fresh_index.go — F5 (D32-INC4 enabler): FRESH-RECALL untuk knowledge yang BARU di-promote
 // ke shared-brain. Akar masalah: index utama `brain.vindex` di-build MANUAL + di-cache, jadi
 // drawer baru (mis. recovery-instinct dari INC-4) KESIMPAN tapi belum ke-recall sampe rebuild

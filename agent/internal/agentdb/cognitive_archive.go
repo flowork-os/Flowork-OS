@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+//
 // cognitive_archive.go — D (PHASE 5) SCALE & LONGEVITY: COLD-ARCHIVE node graph yg lama +
 // jarang-kepake biar recall tetep cepet pas graph membengkak. FILE BARU (additive, ga nyentuh
 // cognitive_graph.go / cognitive_recall.go yg FROZEN).

@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+//
 // cognitive_share_job.go — C (PHASE 4) COLLECTIVE GRAPH: promote fakta UMUM (concept/skill/
 // knowledge) dari graph LOKAL agent → shared-brain router → agent lain bisa recall pengetahuan
 // umum yg udah ditemuin. REUSE SelectPromotableCognitiveNodes/Edges (federation_cognitive.go,

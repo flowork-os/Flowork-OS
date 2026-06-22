@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+//
 // cognitive_archive_job.go — D (PHASE 5) host orchestrator: cold-archive node graph tua+
 // low-hit per-agent, tiap hari. GATED (activateThreshold) → no-op sampe graph beneran gede,
 // jadi 0 dampak di skala sekarang (~2k node). Logika di agentdb.ArchiveColdNodes (reversible).

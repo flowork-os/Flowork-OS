@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN (host worker — E race-guard) — jangan edit tanpa unfreeze owner. Lihat lock/brain.md §13.
+//
 // task_worker.go — drive background (queued) tasks async (Phase 6 / E, opsi-1 minimal).
 //
 // AKAR (roadmap E): kernel WASM SINKRON → ga ada background-agent paralel. Pola yang

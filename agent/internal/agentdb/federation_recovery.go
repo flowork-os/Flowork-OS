@@ -1,3 +1,6 @@
+// Owner: Mr.Dev · github.com/flowork-os/Flowork-OS · floworkos.com
+// ⚠️ FROZEN brain-core — jangan edit tanpa unfreeze owner. Arsitektur & alasan: lihat lock/brain.md
+//
 // federation_recovery.go — D32-INC4: pilih recovery-instinct GENERIK (hasil INC-3) buat
 // di-share ke shared-brain router → imunitas kolektif (agent lain recall via
 // brain_search_shared). FILE BARU (extend, ga nyentuh federation_cognitive.go yg soft-
