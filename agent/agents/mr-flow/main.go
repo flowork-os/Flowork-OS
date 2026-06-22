@@ -646,11 +646,13 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// / Tier-3 volatile). Volatile (waktu + memory snapshot) di BAWAH = paling
 	// salient buat LLM. Budget di-handle di dalam buildSystemPrompt.
 	sys := buildSystemPrompt(cfg)
+	recallLen := 0 // D18-P0 observability: ukur kontribusi tiap tier ke context-window
 	// AUTO-RECALL (D18/D19): inject grounding memori relevan pesan ini di BAWAH sys
 	// (paling salient) → recall produksi RELIABLE tanpa gantung LLM manggil tool. Jaga
 	// blok recall ga ke-potong budget: cap bagian persona dulu, recall nempel utuh.
 	if recall := fetchAutoRecall(userText); recall != "" {
 		recall = "\n=== RECALL OTOMATIS (relevan pesan terakhir) ===\n" + recall
+		recallLen = len(recall)
 		if budget := maxPersonaTotalChars - len(recall); len(sys) > budget {
 			if budget < 0 {
 				budget = 0
@@ -683,6 +685,11 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// (core set, BUKAN 106 — anti over-prompt). LLM minta tool → kita eksekusi
 	// via /api/agents/tools/run → feed hasil → ulang sampai LLM jawab teks.
 	toolSpecs := fetchToolSpecs()
+	// D18-P0 (observability): instrumentasi rakit-konteks per turn — LIHAT dulu apa yg
+	// ngisi context-window sebelum bikin assembler (P2), biar fakta-ilang/halu ke-detect.
+	// Cuma log stderr (→ /tmp/flowork-gui.log), ZERO perubahan perilaku.
+	fmt.Fprintf(os.Stderr, "[%s] D18-ctx: sys=%dch recall=%dch history=%dturn tools=%d\n",
+		selfID(), len(sys), recallLen, len(history), len(toolSpecs))
 	ghostNudges := 0 // ghost-guard: berapa kali udah maksa model lanjut (anti narasi-tanpa-aksi)
 	loopStartMs := hostTimeNowMs()
 	budgetNudged := false            // sekali aja kasih peringatan budget (biar model wrap-up/ScheduleWakeup)
