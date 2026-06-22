@@ -129,9 +129,10 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
 
 ### 6.3 PEMBELAJARAN (dari pengalaman) — loop
 - **3E loop-belajar** (`agentmgr/learning_feed.go` + `agentdb/learning_log.go`): router capture model-kuat → `recordings` → distil (dream-digester) → SHADOW node (`source_kind=strong_model_unverified`) → promote-on-repetisi.
-- **D32 recovery-instinct (loop 2-tahap, FROZEN):**
+- **D32 recovery-instinct (loop 3-tahap, FROZEN):**
   - **(INC-2 CAPTURE)** `recovery_capture.go` (di-panggil 1 baris dari mr-flow tool-loop): tool ERROR lalu tool yg SAMA SUKSES dalam loop → `mistake_log` "WHEN <tool> <kelas> -> recovered" (kelas error BEBAS path/data owner — privasi). Reuse pipeline mistake.
-  - **(INC-1 PROMOTE)** `mistake_promote_job.go` (non-beku, ticker): `mistakes_local` `hit_count≥3` → `type=instinct where_domain='recovery'` (+embedding) → recall semantic. Gate repetisi = anti-degenerasi. → agent ga ngulang stuck yg udah ke-recover (hemat token).
+  - **(INC-1 PROMOTE)** `mistake_promote_job.go` (non-beku, ticker 1-menit): `mistakes_local` `hit_count≥3` (eligible) → kirim ke INC-3 generalize → SHADOW instinct. Lalu **GERBANG** `PromoteRecoveryShadows(2)` (di ticker yg SAMA, BUKAN nyandar autodigest yg default-OFF): recovery-instinct SHADOW yg `hit_count≥2` → ACTIVE → baru ke-recall.
+  - **(INC-3 GENERALIZE, `recovery_generalize.go`)** raw recovery → instinct UMUM privacy-safe: **Lapis A** strip deterministik (path/url/email/token/hex + nama-personal allowlist-runtime → JAMIN 0 data owner walau LLM meleset) → **Lapis B** coarsen via dream-digester (model Haiku) jadi pola "WHEN <umum> -> <aksi>" (re-strip + brand-check atas output) → `type=instinct where_domain='recovery'` SHADOW (+embedding buat recall by-makna). ⚠️ IDENTITAS/DEDUP pakai **kunci KELAS-error deterministik** (mis. `recov-not-found`), BUKAN embedding output LLM — sebab LLM coarsen non-deterministik (teks goyang tiap call) → embedding-dedup ga reliable → instinct nyangkut shadow. Kelas stabil → recovery kelas-sama lintas-tool nyatu ke 1 node → hit naik → gerbang firable. → agent ga ngulang stuck yg udah ke-recover (hemat token).
 
 ---
 
@@ -171,6 +172,7 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
 - `cognitive_codemap.go` — codemap (struktur kode dirinya) ke graph.
 - `brain_drawers.go` — drawer verbatim + FTS5.
 - `mistakes.go` / `mistakes_promote.go` / `mistakes_recall.go` — jurnal mistake + gerbang promote + recall.
+- `recovery_generalize.go` — **D32 INC-3** generalisasi recovery-instinct (Lapis A strip privasi + Lapis B coarsen LLM + `GeneralizeRecovery` shadow + `PromoteRecoveryShadows` gerbang; dedup by kelas-error deterministik).
 - `edu_errors_seed.go` / `edu_errors.go` — katalog doktrin edukasi (statis, 28).
 - `constitution.go` — 8 aturan sacred.
 
@@ -250,7 +252,7 @@ Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, 
 > Owner 2026-06-22: **freeze SEMUA jalur brain** — lindungi dari AI yg ngubah TANPA SADAR (internal-evolusi DAN eksternal spt asisten-AI pas autonom). Pola = extend `KERNEL_FREEZE` (SHA256 manifest + `TestBrainFreeze` + Guardian baseline + appliance dm-verity). **Komentar file2 ini bakal DIHAPUS → diganti rujukan `// arsitektur: lihat lock/brain.md`** (clean code; semua "kenapa" pindah ke doc ini).
 
 **A. Inti recall/graph — `agent/internal/agentdb/`:**
-`cognitive_graph.go` · `cognitive_recall.go` · `cognitive_resolve.go` · `cognitive_extract.go` · `cognitive_dream.go` · `cognitive_gate.go` · `cognitive_coref.go` · `cognitive_temporal.go` · `cognitive_heal.go` · `cognitive_embed_backfill.go` · `cognitive_codemap.go` · `brain_drawers.go` · `mistakes.go`/`mistakes_promote.go`/`mistakes_recall.go` · `edu_errors.go`/`edu_errors_seed.go` · `constitution.go`.
+`cognitive_graph.go` · `cognitive_recall.go` · `cognitive_resolve.go` · `cognitive_extract.go` · `cognitive_dream.go` · `cognitive_gate.go` · `cognitive_coref.go` · `cognitive_temporal.go` · `cognitive_heal.go` · `cognitive_embed_backfill.go` · `cognitive_codemap.go` · `brain_drawers.go` · `mistakes.go`/`mistakes_promote.go`/`mistakes_recall.go` · `recovery_generalize.go` (**D32 INC-3** generalisasi recovery) · `edu_errors.go`/`edu_errors_seed.go` · `constitution.go`.
 
 **B. Tool jembatan — `agent/internal/tools/builtins/`:**
 `cognitive_tools.go` (graph_recall) · `instinct_recall.go` · `brain.go` · `brain_local.go` · `brain_immune.go` · `mistakes_recall.go`.
@@ -271,4 +273,4 @@ Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, 
 
 **⛔ JANGAN di-freeze:** **GUI** (cognitive.js + cognitive_handlers.go — viz berkembang) · **main.go** (fetchAutoRecall di sini; main.go bakal jadi LIST/wiring doang — nano-modular, nanti) · **scratch** (`_scratch_cgm/*` — gitignored, sekali-pakai) · **DATA** (db/`cognitive_nodes`/embedding/drawer — TUMBUH terus; freeze cuma buat CODE).
 
-**STATUS 2026-06-22:** **34 file brain-core FROZEN** (chattr +i + SHA256 di `KERNEL_FREEZE.md`, TestKernelFreeze 61 hash PASS): 30 brain-LOGIC (A+B+C+E, strip-komentar + header minimal, kode+perilaku IDENTIK) + **D2** `recovery_capture.go` (D32 INC-2, di-ekstrak dari main.go) + **B4** `graph_autosync.go` (auto-sync sumber→graph) + **D3** `recall_gate.go` (N1-C gate auto-recall, di-ekstrak dari main.go) + **D4** `working_set.go` (D18-P1 TUGAS AKTIF persist, di-ekstrak dari main.go). Pola **nano-modular**: file brain-pathway terpisah → FREEZE; orkestrator (`main.go`) tetap EDITABLE. **+ DOC INI (`lock/brain.md`) di-FREEZE 2026-06-22 (chattr +i)** — lindungi arsitektur kanonik dari edit-tak-sadar AI; unfreeze sadar (`sudo chattr -i`) buat update. **SISA (nanti):** OS-sealer otomatis pas `--arm` (N3).
+**STATUS 2026-06-22:** **35 file brain-core FROZEN** (chattr +i + SHA256 di `KERNEL_FREEZE.md`, TestKernelFreeze 62 hash PASS): 30 brain-LOGIC (A+B+C+E, strip-komentar + header minimal, kode+perilaku IDENTIK) + **D2** `recovery_capture.go` (D32 INC-2, di-ekstrak dari main.go) + **B4** `graph_autosync.go` (auto-sync sumber→graph) + **D3** `recall_gate.go` (N1-C gate auto-recall, di-ekstrak dari main.go) + **D4** `working_set.go` (D18-P1 TUGAS AKTIF persist, di-ekstrak dari main.go) + **D32-INC3** `recovery_generalize.go` (generalisasi recovery: Lapis A strip + Lapis B coarsen + gerbang shadow→active dedup-by-kelas; e2e infra-real PASS, 0 leak). Pola **nano-modular**: file brain-pathway terpisah → FREEZE; orkestrator (`main.go`) tetap EDITABLE. **+ DOC INI (`lock/brain.md`) di-FREEZE 2026-06-22 (chattr +i)** — lindungi arsitektur kanonik dari edit-tak-sadar AI; unfreeze sadar (`sudo chattr -i`) buat update. **SISA (nanti):** OS-sealer otomatis pas `--arm` (N3).
