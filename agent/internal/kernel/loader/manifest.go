@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 // Manifest is the in-memory representation of a plugin's manifest.json.
@@ -401,18 +402,41 @@ func validateCapability(c string) error {
 	if primitive == "*" || primitive == "" {
 		return errors.New("primitive cannot be wildcard or empty")
 	}
-	// Known primitive enforcement — drop in extras here as spec evolves.
+	// Known primitive enforcement. Core di switch; tambahan via JALAN PINTAS (RegisterPrimitive).
 	switch primitive {
 	case "fs", "net", "kv", "exec", "bus", "secret", "time", "rpc", "state", "mcp":
-		// known. `state` ditambah 2026-05-29 untuk host_log_interaction
-		// (`state:write`) — log row ke tabel `interactions` di state.db
-		// agent. Lihat internal/kernel/runtime/host.go::logInteraction.
-		// `mcp` ditambah 2026-06-11 (owner-approved): cap `mcp:<connector>` —
-		// izin agent manggil tool MCP (mcp_<id>_<tool>) lewat tool.run; broker
-		// prefix-match `mcp:web` ke approved `mcp`. Tanpa ini MCP-buat-agent
-		// setengah jadi (tool kedaftar tapi agent gak bisa di-grant cap-nya).
+		// known core. `state` (2026-05-29) host_log_interaction; `mcp` (2026-06-11)
+		// cap `mcp:<connector>` buat tool MCP. Lihat internal/kernel/runtime/host.go.
 	default:
-		return fmt.Errorf("unknown primitive %q", primitive)
+		// JALAN PINTAS (owner 2026-06-23): primitive EXTRA didaftarin RegisterPrimitive()
+		// dari kode NON-FROZEN (mis. "browser" dari browser tool) → nambah kapabilitas
+		// TANPA bongkar file frozen ini lagi. Flexible tapi brain stabil aman. Pola =
+		// hook EnvForwardKeys. Edit cap-primitive masa depan = RegisterPrimitive, BUKAN sini.
+		if !primitiveAllowed(primitive) {
+			return fmt.Errorf("unknown primitive %q", primitive)
+		}
 	}
 	return nil
+}
+
+// extPrims — registry primitive cap tambahan (JALAN PINTAS non-frozen). Diisi
+// RegisterPrimitive() pas init/boot, dibaca primitiveAllowed() pas parse manifest.
+var (
+	extPrimMu sync.RWMutex
+	extPrims  = map[string]bool{}
+)
+
+// RegisterPrimitive — daftarin primitive cap baru dari kode NON-FROZEN (mis. "browser").
+// Panggil di init()/boot SEBELUM agent di-parse. Nambah primitive = pakai ini, BUKAN edit switch.
+func RegisterPrimitive(p string) {
+	extPrimMu.Lock()
+	extPrims[strings.TrimSpace(p)] = true
+	extPrimMu.Unlock()
+}
+
+func primitiveAllowed(p string) bool {
+	extPrimMu.RLock()
+	ok := extPrims[p]
+	extPrimMu.RUnlock()
+	return ok
 }

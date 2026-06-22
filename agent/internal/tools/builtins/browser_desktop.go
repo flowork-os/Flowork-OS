@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"flowork-gui/internal/kernel/loader"
 	"flowork-gui/internal/tools"
 
 	"github.com/go-rod/rod"
@@ -31,6 +32,10 @@ import (
 )
 
 func init() {
+	// JALAN PINTAS (owner 2026-06-23): daftarin primitive cap "browser" ke loader (non-frozen)
+	// → manifest agent boleh deklarasi `browser:control` TANPA bongkar loader/manifest.go (frozen).
+	// Build-tag desktop → android (ga ada browser) otomatis ga daftar primitive ini.
+	loader.RegisterPrimitive("browser")
 	tools.Register(&browserNavigateTool{})
 	tools.Register(&browserSnapshotTool{})
 	tools.Register(&browserClickTool{})
