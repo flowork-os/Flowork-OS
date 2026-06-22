@@ -1,0 +1,17 @@
+{
+  "title": "TOOL PLUGINS",
+  "sub": "Flowork ships hand-less. Fill its hands here: upload a tool-pack (.fwpack) to install, remove it to uninstall. Per-agent access is set under each Agent's Tools tab.",
+  "count_label": "tool plugins",
+  "status_online": "REGISTRY LIVE",
+  "install_h": "INSTALL TOOL-PACK",
+  "install_drop": "Drop a .fwpack here — or click to choose a file",
+  "install_hint": "A tool-pack is a .fwpack zip (plugin.json kind:tool + agent.wasm). It hot-loads instantly — no restart. Dangerous capabilities (exec/secret/shared-fs) are refused.",
+  "installing": "Installing…",
+  "install_ok": "Tool '{tool}' installed and live ✓",
+  "install_fail": "Install failed: ",
+  "empty": "No tool plugins installed yet. Upload a .fwpack above to fill Flowork's hands. (MCP tools are managed under Connections.)",
+  "params_label": "{n} params",
+  "btn_uninstall": "Uninstall",
+  "uninstall_confirm": "Uninstall tool '{tool}'? Agents will lose access to it.",
+  "uninstall_fail": "Uninstall failed: "
+}

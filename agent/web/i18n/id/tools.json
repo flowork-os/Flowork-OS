@@ -1,0 +1,17 @@
+{
+  "title": "TOOL PLUGIN",
+  "sub": "Flowork lahir tanpa tangan. Isi tangannya di sini: upload tool-pack (.fwpack) buat install, hapus buat uninstall. Akses per-agent diatur di tab Tools tiap Agent.",
+  "count_label": "tool plugin",
+  "status_online": "REGISTRY AKTIF",
+  "install_h": "INSTALL TOOL-PACK",
+  "install_drop": "Taruh .fwpack di sini — atau klik buat pilih file",
+  "install_hint": "Tool-pack itu zip .fwpack (plugin.json kind:tool + agent.wasm). Hot-load seketika — tanpa restart. Capability bahaya (exec/secret/fs-shared) ditolak otomatis.",
+  "installing": "Menginstall…",
+  "install_ok": "Tool '{tool}' ke-install & aktif ✓",
+  "install_fail": "Gagal install: ",
+  "empty": "Belum ada tool plugin. Upload .fwpack di atas buat ngisi tangan Flowork. (Tool MCP dikelola di tab Connections.)",
+  "params_label": "{n} parameter",
+  "btn_uninstall": "Uninstall",
+  "uninstall_confirm": "Uninstall tool '{tool}'? Agent bakal kehilangan akses ke tool ini.",
+  "uninstall_fail": "Gagal uninstall: "
+}

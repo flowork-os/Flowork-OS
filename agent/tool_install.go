@@ -126,8 +126,13 @@ func toolInstallHandler(host *kernelhost.Host) http.HandlerFunc {
 	}
 }
 
-// findToolAgent — cari agent_id yang punya tool bernama `name` (scan marker).
-func findToolAgent(name string) string {
+// toolPackNames — map nama→agent_id tool yg di-install sebagai .fwpack TOOL-PACK
+// (punya marker tool.json di dir agent-nya). Pembeda dari tool App (prefix app_)
+// & MCP (prefix mcp_) yang JUGA lewat RegisterDynamic tapi TANPA marker tool.json
+// — mereka dikelola di tab Apps / Connections, bukan tab Tools. Sumber kebenaran
+// "tool plugin mana yang upload-an" buat /api/tools/installed + uninstall.
+func toolPackNames() map[string]string {
+	out := map[string]string{}
 	root := loader.AgentsDir()
 	entries, _ := os.ReadDir(root)
 	for _, e := range entries {
@@ -139,12 +144,15 @@ func findToolAgent(name string) string {
 			continue
 		}
 		var spec toolSpec
-		if json.Unmarshal(raw, &spec) == nil && spec.Name == name {
-			return spec.AgentID
+		if json.Unmarshal(raw, &spec) == nil && spec.Name != "" {
+			out[spec.Name] = spec.AgentID
 		}
 	}
-	return ""
+	return out
 }
+
+// findToolAgent — agent_id pemilik tool-pack bernama `name` ("" kalau bukan tool-pack).
+func findToolAgent(name string) string { return toolPackNames()[name] }
 
 func toolUninstallHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -169,12 +177,19 @@ func toolUninstallHandler() http.HandlerFunc {
 	}
 }
 
-// toolInstalledHandler — GET daftar tool PLUGIN (vs builtin) buat GUI.
+// toolInstalledHandler — GET daftar TOOL-PACK (.fwpack upload-an) buat tab Tools.
+// HANYA tool yg punya marker tool.json — tool App (app_) & MCP (mcp_) disaring
+// (mereka dynamic juga tapi dikelola di tab Apps/Connections, bukan di sini).
 func toolInstalledHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		packs := toolPackNames()
 		out := []map[string]any{}
 		for _, n := range tools.DynamicNames() {
-			item := map[string]any{"name": n}
+			agentID, isPack := packs[n]
+			if !isPack {
+				continue // bukan tool-pack upload-an (app_/mcp_/dll) — skip
+			}
+			item := map[string]any{"name": n, "agent_id": agentID}
 			if t, ok := tools.Lookup(n); ok {
 				s := t.Schema()
 				item["description"] = s.Description
