@@ -646,6 +646,21 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 	// / Tier-3 volatile). Volatile (waktu + memory snapshot) di BAWAH = paling
 	// salient buat LLM. Budget di-handle di dalam buildSystemPrompt.
 	sys := buildSystemPrompt(cfg)
+	// D18-P1 working-set: TUGAS AKTIF persist lintas-turn/sesi (ga ke-scroll keluar window
+	// 16-turn). Request SUBSTANTIF (bukan sapaan/ack — reuse gate recall_gate) → simpan ke kv;
+	// di-PREPEND tiap turn (ga ke-truncate) → goal ga ilang walau restart. Trivial chat ga
+	// ngubah (makasih ≠ tugas baru). Reuse memory_set/get (tool_memory) — ga butuh host-func.
+	const d18TaskKey = "__d18_active_task"
+	activeTask := fetchMemoryValue(d18TaskKey)
+	if base, _ := parseAutoCont(strings.TrimSpace(userText)); base != "" && !isTrivialChat(base) {
+		if len([]rune(base)) > 240 {
+			base = string([]rune(base)[:240]) + "…"
+		}
+		if base != activeTask {
+			activeTask = base
+			runTool("memory_set", map[string]any{"key": d18TaskKey, "value": activeTask})
+		}
+	}
 	recallLen := 0 // D18-P0 observability: ukur kontribusi tiap tier ke context-window
 	// AUTO-RECALL (D18/D19): inject grounding memori relevan pesan ini di BAWAH sys
 	// (paling salient) → recall produksi RELIABLE tanpa gantung LLM manggil tool. Jaga
@@ -662,6 +677,11 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		sys += recall
 	} else if len(sys) > maxPersonaTotalChars {
 		sys = sys[:maxPersonaTotalChars] + "\n…[truncated to respect prompt budget]"
+	}
+	// D18-P1: TUGAS AKTIF di BOTTOM (paling salient, deket pesan) — top ke-abaikan model 26B.
+	// Best-effort grounding spt auto-recall. Persist lintas-sesi → goal ga ilang walau restart.
+	if activeTask != "" {
+		sys += "\n=== TUGAS AKTIF (inget lintas-sesi — PAKAI ini kalau pertanyaan nyambung) ===\n" + activeTask
 	}
 
 	// Bangun messages: system + history (history SUDAH termasuk pesan user
