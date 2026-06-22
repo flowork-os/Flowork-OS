@@ -25,8 +25,9 @@ const (
 	compactBusyWindow             = 90 * time.Second // skip agent yg baru aktif (mungkin mid-task)
 )
 
-// compactConfig — ambang + toggle dari GUI/KV (owner kontrol). Default aman kalau belum di-set.
-func compactConfig() (maxLive, keepRecent int, enabled bool) {
+// compactConfig — ambang + toggle + model dari GUI/KV (owner kontrol). Default aman kalau belum
+// di-set. model "" = pake model digest default (agent dream-digester / DefaultModelShared).
+func compactConfig() (maxLive, keepRecent int, enabled bool, model string) {
 	maxLive, keepRecent, enabled = compactDefaultMaxInteractions, compactDefaultKeepRecent, true
 	db, err := floworkdb.Shared()
 	if err != nil {
@@ -45,12 +46,16 @@ func compactConfig() (maxLive, keepRecent int, enabled bool) {
 	if v, _ := db.GetKV("compact_enabled"); strings.TrimSpace(v) == "0" {
 		enabled = false
 	}
+	if v, _ := db.GetKV("compact_model"); strings.TrimSpace(v) != "" {
+		model = strings.TrimSpace(v)
+	}
 	return
 }
 
 // AutoCompactAgent — compact 1 agent kalau konteks lewat ambang. digest pending → VERIFY → trim.
 // FATAL-SAFE: (1) digest gagal → ga trim. (2) trim cuma yg UDAH di-digest. (3) skip agent mid-task.
-func AutoCompactAgent(agentID string, maxLive, keepRecent int) (trimmed int64, digested int, note string) {
+// model "" = model digest default; kalau di-set (compact_model GUI) → digest pake model itu.
+func AutoCompactAgent(agentID string, maxLive, keepRecent int, model string) (trimmed int64, digested int, note string) {
 	store, err := openAgentStore(agentID)
 	if err != nil {
 		return 0, 0, "open: " + err.Error()
@@ -72,7 +77,7 @@ func AutoCompactAgent(agentID string, maxLive, keepRecent int) (trimmed int64, d
 	// 1. DIGEST pending → brain (loop bounded, 100/batch). Gagal = STOP, JANGAN trim.
 	if undigested > 0 {
 		for i := 0; i < 20; i++ {
-			_, n, derr := DigestAgent(agentID, 2)
+			_, n, derr := DigestAgentModel(agentID, 2, model)
 			if derr != nil {
 				return 0, digested, "digest GAGAL (ga trim, no loss): " + derr.Error()
 			}
@@ -104,7 +109,7 @@ func AutoCompactAgent(agentID string, maxLive, keepRecent int) (trimmed int64, d
 // abaikan ambang). Return ringkasan per-agent (buat handler GUI). Hemat: kalau ga force, mayoritas
 // cuma 1 query COUNT (agent under-threshold ga kena LLM).
 func AutoCompactAllAgents(agentIDs []string, force bool) []map[string]any {
-	maxLive, keepRecent, enabled := compactConfig()
+	maxLive, keepRecent, enabled, model := compactConfig()
 	out := make([]map[string]any, 0, len(agentIDs))
 	if !enabled && !force {
 		return out
@@ -119,7 +124,7 @@ func AutoCompactAllAgents(agentIDs []string, force bool) []map[string]any {
 					log.Printf("[auto-compact] %s PANIC (di-skip): %v", id, r)
 				}
 			}()
-			tr, dg, note := AutoCompactAgent(id, maxLive, keepRecent)
+			tr, dg, note := AutoCompactAgent(id, maxLive, keepRecent, model)
 			if tr > 0 || dg > 0 {
 				log.Printf("[auto-compact] %s: digested=%d trimmed=%d (%s)", id, dg, tr, note)
 			}
@@ -143,9 +148,10 @@ func CompactConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodPost {
 		var b struct {
-			Enabled         *bool `json:"enabled"`
-			MaxInteractions *int  `json:"max_interactions"`
-			KeepRecent      *int  `json:"keep_recent"`
+			Enabled         *bool   `json:"enabled"`
+			MaxInteractions *int    `json:"max_interactions"`
+			KeepRecent      *int    `json:"keep_recent"`
+			Model           *string `json:"model"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&b)
 		if b.Enabled != nil {
@@ -161,13 +167,17 @@ func CompactConfigHandler(w http.ResponseWriter, r *http.Request) {
 		if b.KeepRecent != nil && *b.KeepRecent >= 0 {
 			_ = db.SetKV("compact_keep_recent", strconv.Itoa(*b.KeepRecent))
 		}
+		if b.Model != nil {
+			// kosong = clear (balik ke model digest default). free-text, owner kontrol penuh.
+			_ = db.SetKV("compact_model", strings.TrimSpace(*b.Model))
+		}
 		httpx.WriteJSON(w, map[string]any{"ok": true})
 		return
 	}
-	maxLive, keepRecent, enabled := compactConfig()
+	maxLive, keepRecent, enabled, model := compactConfig()
 	httpx.WriteJSON(w, map[string]any{
-		"enabled": enabled, "max_interactions": maxLive, "keep_recent": keepRecent,
-		"note": "Tiap " + "15 menit agent yg interaksi non-deleted-nya > max bakal di-digest ke brain + trim (sisain keep_recent terbaru). Pengalaman ga ilang (pindah ke brain).",
+		"enabled": enabled, "max_interactions": maxLive, "keep_recent": keepRecent, "model": model,
+		"note": "Tiap " + "15 menit agent yg interaksi non-deleted-nya > max bakal di-digest ke brain + trim (sisain keep_recent terbaru). Pengalaman ga ilang (pindah ke brain). Model kosong = pake model LOKAL (flowork-brain) — gratis & jalan tanpa langganan.",
 	})
 }
 
@@ -183,13 +193,13 @@ func CompactAgentHandler(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, map[string]any{"error": "agent id required"})
 		return
 	}
-	maxLive, keepRecent, _ := compactConfig()
+	maxLive, keepRecent, _, model := compactConfig()
 	if r.URL.Query().Get("force") == "1" {
 		maxLive = 0 // paksa: ambang 0 = selalu lewat
 	}
-	tr, dg, note := AutoCompactAgent(agentID, maxLive, keepRecent)
+	tr, dg, note := AutoCompactAgent(agentID, maxLive, keepRecent, model)
 	httpx.WriteJSON(w, map[string]any{
 		"ok": true, "agent": agentID, "digested": dg, "trimmed": tr, "note": note,
-		"max_interactions": maxLive, "keep_recent": keepRecent,
+		"max_interactions": maxLive, "keep_recent": keepRecent, "model": model,
 	})
 }

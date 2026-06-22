@@ -513,6 +513,11 @@ async function renderCompact(panel) {
         <input type="number" id="cmpKeep" min="0" step="10" style="width:110px">
       </div>
       <div class="set-hint">Berapa interaksi TERBARU yang tetap utuh di konteks (tidak di-trim). Default 60.</div>
+      <div class="set-row">
+        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Model digest (opsional):</label>
+        <input type="text" id="cmpModel" placeholder="kosong = pakai model LOKAL (flowork-brain)" style="flex:1;min-width:240px" autocomplete="off">
+      </div>
+      <div class="set-hint">Model buat digest pengalaman ke brain saat compact (auto, Compact All, maupun per-agent). <b>Kosongkan = pakai model LOKAL (flowork-brain)</b> — gratis &amp; tetap jalan tanpa langganan. Isi nama model cloud kapabel kalau mau digest lebih andal pas konteks besar (selama masih ada langganan).</div>
       <div class="set-row"><button class="set-btn-primary" id="cmpSave">${esc(t('common.btn.save'))}</button></div>
       <div class="set-msg" id="cmpMsg"></div>
     </div>
@@ -523,11 +528,13 @@ async function renderCompact(panel) {
     panel.querySelector('#cmpEnabled').checked = d.enabled !== false;
     panel.querySelector('#cmpMax').value = d.max_interactions || 400;
     panel.querySelector('#cmpKeep').value = (d.keep_recent ?? 60);
+    panel.querySelector('#cmpModel').value = (d.model || '');
   } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   panel.querySelector('#cmpSave').addEventListener('click', async () => {
     const enabled = panel.querySelector('#cmpEnabled').checked;
     const max_interactions = parseInt(panel.querySelector('#cmpMax').value, 10) || 400;
     const keep_recent = parseInt(panel.querySelector('#cmpKeep').value, 10);
+    const model = panel.querySelector('#cmpModel').value.trim();
     msg.className = 'set-msg'; msg.textContent = '';
     if (keep_recent >= max_interactions) {
       msg.className = 'set-msg err'; msg.textContent = 'keep_recent harus < ambang (kalau ga, ga ada yg di-trim)'; return;
@@ -535,7 +542,7 @@ async function renderCompact(panel) {
     try {
       await fetchJSON('/api/compact/config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, max_interactions, keep_recent: isNaN(keep_recent) ? 60 : keep_recent }),
+        body: JSON.stringify({ enabled, max_interactions, keep_recent: isNaN(keep_recent) ? 60 : keep_recent, model }),
       });
       msg.className = 'set-msg ok'; msg.textContent = 'Tersimpan ✓';
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
