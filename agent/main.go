@@ -1,3 +1,4 @@
+// FROZEN skeleton (FASE-B agnostic host, owner-approved 2026-06-22) — bootstrap BUTA: build Deps → applyPhase(Wire/Route/Seed) → listen. Nambah fitur = file feature_*.go BARU (init→RegisterFeature), JANGAN sentuh file ini. Kalau "nyasar": ini BY-DESIGN, baca lock/brain.md.
 // === LOCKED FILE ===
 // Status: STABLE — DO NOT MODIFY without owner approval.
 // Owner: Aola Sahidin (Mr.Dev)
