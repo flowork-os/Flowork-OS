@@ -208,7 +208,7 @@ func coderTemplate(role string) ([]byte, []byte, error) {
 	// orchestrators / self so we template off a plain worker-style agent.
 	skip := map[string]bool{
 		"telegram-channel": true, "discord-channel": true, "slack-channel": true,
-		"whatsapp-channel": true, "operator-shutdown": true, "operator-komputer": true,
+		"whatsapp-channel": true, "operator-komputer": true,
 		"mr-flow": true, "mr-flow-next": true, "flowork-architect": true,
 	}
 	if ents, e := os.ReadDir(root); e == nil {

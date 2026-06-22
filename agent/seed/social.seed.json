@@ -1,15 +1,6 @@
 {
-    "_comment": "Portable social-pipeline defaults so a FRESH git clone runs the SAME setup as the owner \u2014 tokens excluded (those live in Settings \u2192 API Keys / flowork.db, never pushed). Loaded on boot by seedSocialDefaults(): the schedule is installed ONLY when trigger_rules is empty (never clobbers an existing schedule); flowork_tele_link is set per group only when absent. [2026-06-20: social-promo/trend crews (repo-reviewer/promo-x/promo-devto) DIHAPUS owner \u2014 entry mati dibuang biar fresh-clone & boot ga materialize group hantu. Rebuild via AI Studio kelak.]",
-    "schedule": [
-        {
-            "id": "operator-shutdown-0000",
-            "name": "Operator \u2014 matikan PC 00:00 WIB",
-            "cron": "0 0 * * *",
-            "target": "operator-shutdown",
-            "prompt": "/shutdown",
-            "kind": "agent"
-        }
-    ],
+    "_comment": "Portable social-pipeline defaults so a FRESH git clone runs the SAME setup as the owner \u2014 tokens excluded (those live in Settings \u2192 API Keys / flowork.db, never pushed). Loaded on boot by seedSocialDefaults(): the schedule is installed ONLY when trigger_rules is empty (never clobbers an existing schedule); flowork_tele_link is set per group only when absent. [2026-06-20: social-promo/trend crews (repo-reviewer/promo-x/promo-devto) DIHAPUS owner \u2014 entry mati dibuang biar fresh-clone & boot ga materialize group hantu. Rebuild via AI Studio kelak.] [2026-06-22: jadwal 'matikan PC 00:00' + template templates/operator-shutdown DIHAPUS owner — fitur setengah-jadi (agent operator-shutdown ga pernah dimaterialisasi: no manifest, no _seed.go, no rebuild path) — referensi menggantung dibuang biar fresh-clone bersih.]",
+    "schedule": [],
     "group_config": {
         "flowork_tele_link": "change me"
     },
