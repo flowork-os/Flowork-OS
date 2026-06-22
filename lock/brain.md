@@ -24,7 +24,7 @@ Prinsip: sumber tetap raja; graph = lapis-akses terpadu. Recall 3-lapis (verbati
 - Tabel kunci: `cognitive_nodes`, `cognitive_edges`, `cognitive_identity_alias`, `brain_drawers` (+`brain_fts*` FTS5), `skills`, `constitution`, `educational_errors_cache`, `mistakes_local`, `kv`, `tool_memory`, `learning_record_log`, `agent_runs`, `wakeups`, `interactions`, `decisions`, `codemap_*`.
 
 ### 1.2 SHARED — Router brain `flowork-brain.sqlite`
-- Lokasi: `router/brain/flowork-brain.sqlite` (~jutaan drawers: security/training/knowledge umum).
+- Lokasi: `router/brain/flowork-brain.sqlite` (~860k drawers, 859.808 per 2026-06-22: security/training/knowledge umum; dulu ~5jt, sampah dibersihin).
 - Mesin **embedding** (bge-m3, dim 1024) + **vecindex** ada di ROUTER (`:2402`). Agent "pinjem hitungan" via HTTP.
 - Akses dari agent: tool `brain_search_shared` (capability `rpc:router:brain`).
 
@@ -36,7 +36,7 @@ Prinsip: sumber tetap raja; graph = lapis-akses terpadu. Recall 3-lapis (verbati
 
 | # | Subsistem | Sumber (tabel/store) | File pengelola | Isi |
 |---|---|---|---|---|
-| 1 | **Knowledge base** | Router `flowork-brain.sqlite` | `tools/builtins/brain.go` | korpus luas shared (jutaan drawer) |
+| 1 | **Knowledge base** | Router `flowork-brain.sqlite` | `tools/builtins/brain.go` | korpus luas shared (~860k drawer) |
 | 2 | **Knowledge drawer** | `brain_drawers` (+`brain_fts` FTS5) | `agentdb/brain_drawers.go`, `tools/builtins/brain_local.go` | memori verbatim per-agent (wing/room) |
 | 3 | **Constitution** | `constitution` | `agentdb/constitution.go` | 8 aturan sacred (always_inject, amplitude, lens) |
 | 4 | **Typed Memory** | `kv`, `tool_memory` | `tools/builtins` (memory_get/set) | key-value + config toggle |
@@ -249,7 +249,7 @@ Ada **3 jalur** node bisa lahir di `cognitive_nodes`:
             ▲                                                        ▲
         EmbedText(router bge-m3) + Quantize(8-bit) ←── lem semantic ─┘
 ```
-Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, diakses `brain_search_shared` (rpc:router:brain), + mesin embedding (bge-m3).
+Router brain (`flowork-brain.sqlite`, shared ~860k) = sumber knowledge-base luas, diakses `brain_search_shared` (rpc:router:brain), + mesin embedding (bge-m3).
 
 ---
 
@@ -279,4 +279,4 @@ Router brain (`flowork-brain.sqlite`, shared 5jt) = sumber knowledge-base luas, 
 
 **⛔ JANGAN di-freeze:** **GUI** (cognitive.js + cognitive_handlers.go — viz berkembang) · **main.go** (fetchAutoRecall di sini; main.go bakal jadi LIST/wiring doang — nano-modular, nanti) · **scratch** (`_scratch_cgm/*` — gitignored, sekali-pakai) · **DATA** (db/`cognitive_nodes`/embedding/drawer — TUMBUH terus; freeze cuma buat CODE).
 
-**STATUS 2026-06-22:** **41 file brain-core FROZEN** (chattr +i + SHA256 di `KERNEL_FREEZE.md`, TestKernelFreeze 68 hash PASS): 30 brain-LOGIC + **D2** `recovery_capture.go` (D32 INC-2) + **B4** `graph_autosync.go` + **D3** `recall_gate.go` (N1-C) + **D4** `working_set.go` (D18-P1) + **D32-INC3** `recovery_generalize.go` (generalisasi recovery, e2e infra-real PASS 0 leak) + **6 BARU 2026-06-22** (INC-4/C/D/E): `federation_recovery.go` + `recovery_share_job.go` (INC-4 share→shared-brain) · `cognitive_share_job.go` (C collective graph) · `cognitive_archive.go` + `cognitive_archive_job.go` (D cold-archive, gated) · `task_worker.go` (E worker race-guard). Semua additive, unit/`-race` PASS, 0-regresi, di-push 2 repo. (Recall payoff INC-4/C nunggu deploy + F5 router fresh-recall.) Pola **nano-modular**: file brain-pathway terpisah → FREEZE; orkestrator (`main.go`) tetap EDITABLE. **+ DOC INI (`lock/brain.md`) di-FREEZE 2026-06-22 (chattr +i)** — lindungi arsitektur kanonik dari edit-tak-sadar AI; unfreeze sadar (`sudo chattr -i`) buat update. **SISA (nanti):** OS-sealer otomatis pas `--arm` (N3).
+**STATUS 2026-06-22:** **48 file brain-core FROZEN** (chattr +i + SHA256 di `KERNEL_FREEZE.md`, TestKernelFreeze 75 hash PASS): 30 brain-LOGIC + **D2** `recovery_capture.go` (D32 INC-2) + **B4** `graph_autosync.go` + **D3** `recall_gate.go` (N1-C) + **D4** `working_set.go` (D18-P1) + **D32-INC3** `recovery_generalize.go` (generalisasi recovery, e2e infra-real PASS 0 leak) + **6 BARU 2026-06-22** (INC-4/C/D/E): `federation_recovery.go` + `recovery_share_job.go` (INC-4 share→shared-brain) · `cognitive_share_job.go` (C collective graph) · `cognitive_archive.go` + `cognitive_archive_job.go` (D cold-archive, gated) · `task_worker.go` (E worker race-guard). Semua additive, unit/`-race` PASS, 0-regresi, di-push 2 repo. (Recall payoff INC-4/C nunggu deploy + F5 router fresh-recall.) **+ 7 brain-dep di-AUDIT-bersih + freeze 2026-06-22** (owner: "cek bug+keamanan, kalau ga ada freeze"): `federation_cognitive.go` (gate privasi C; +fix: edge anti-double pakai label, exclude personal diperluas person/persona/trait/preference) · `brain_federation.go` · `routerclient/federation.go`+`brain_search.go` · `brain_dream.go` · `codemap_tools.go`+`codemap_files_tool.go`. Pre-freeze fix SSRF di `routerclient.go` (userinfo-bypass `user@host` → exfil; net/url+tolak-userinfo; soft-lock NON-chattr krn infra HTTP). Router `dream_cycle.go`+`seed_doctrine.go` = soft-lock (konvensi router). Pola **nano-modular**: file brain-pathway terpisah → FREEZE; orkestrator (`main.go`) tetap EDITABLE. **+ DOC INI (`lock/brain.md`) di-FREEZE 2026-06-22 (chattr +i)** — lindungi arsitektur kanonik dari edit-tak-sadar AI; unfreeze sadar (`sudo chattr -i`) buat update. **SISA (nanti):** OS-sealer otomatis pas `--arm` (N3).
