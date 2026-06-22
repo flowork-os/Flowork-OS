@@ -63,7 +63,7 @@ var coreExposedTools = []string{
 // capable agent (mr-flow holds ~40 first-class tools via subscriptions) needs the
 // higher ceiling; ants stay tiny because they have no subscriptions (core set only),
 // so raising the ceiling never bloats them.
-const maxExposedTools = 51 // D15 (2026-06-21): 50→51 — muat codemap_search (primary) tanpa drop subscription
+const maxExposedTools = 52 // D15 (2026-06-21): 50→51 codemap_search; 2026-06-22: 51→52 muat system_power (mr-flow operator, owner pakai "matiin pc")
 
 // primaryExtraTools — surface-vocabulary tools exposed ONLY to the primary
 // orchestrator (mr-flow), not to ants. These cover shell/task-lifecycle/schedule/
@@ -72,6 +72,11 @@ const maxExposedTools = 51 // D15 (2026-06-21): 50→51 — muat codemap_search 
 var primaryExtraTools = []string{
 	"PowerShell", "TaskCreate", "TaskUpdate", "TaskStop", "TaskOutput",
 	"ScheduleWakeup", "Monitor", "SendUserFile", "StructuredOutput", "Workflow",
+	// 2026-06-22: system_power — operator-essential (owner pakai "matiin pc malam").
+	// Di primaryExtra (BUKAN subscription) biar GARANSI ke-expose (mr-flow 182 subs >
+	// cap → subscription ke-drop). Cap-gated exec:power (cuma mr-flow punya) → primary
+	// lain yg ga punya cap = graceful denial. ARM switch (FLOWORK_POWER_ARMED) tetap jaga.
+	"system_power",
 	// D15 (2026-06-21): codemap_search — primary bisa query struktur kode-nya sendiri
 	// (semantic, 336 file ke-index). Ditambah SEBELUM subscriptions → pasti masuk
 	// (cap dinaikin ke 51 biar ga nyenggol subscription flowalpha). Coordinator-only:
