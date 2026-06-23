@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// MemTypeClassifierHook adalah switch/hook untuk auto-klasifikasi tipe memori.
+// Di-set oleh package/file terpisah (editable) agar core beku tidak perlu diubah lagi.
+var MemTypeClassifierHook func(content, wing, room, currentType string) string
+
 type BrainDrawer struct {
 	ID          string  `json:"id"`
 	Content     string  `json:"content"`
@@ -88,6 +92,9 @@ func (s *Store) AddBrainDrawer(content, wing, room, memType, source string) (id 
 	}
 	if memType == "" {
 		memType = "experience"
+	}
+	if MemTypeClassifierHook != nil {
+		memType = MemTypeClassifierHook(content, wing, room, memType)
 	}
 	if source == "" {
 		source = "agent"

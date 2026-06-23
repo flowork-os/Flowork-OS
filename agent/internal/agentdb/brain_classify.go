@@ -15,6 +15,12 @@ package agentdb
 
 import "strings"
 
+func init() {
+	MemTypeClassifierHook = func(content, wing, room, currentType string) string {
+		return SuggestMemType(content, wing, room, currentType)
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Heuristic Classifier
 // ──────────────────────────────────────────────────────────────────────────────
