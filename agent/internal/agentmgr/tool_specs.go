@@ -154,12 +154,10 @@ func ToolSpecsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, n := range coreExposedTools {
 		add(n)
 	}
-	// 1b. primary-only surface tools (coordinator vocabulary). Ants skip these.
-	if isPrimary {
-		for _, n := range primaryExtraTools {
-			add(n)
-		}
-	}
+	// 1b. (owner 2026-06-23 "GUI = KEBENARAN UTAMA, hardcode HARAM") — primaryExtra HARDCODE-force DIBUANG.
+	// Tool primary (browser/task/sleep-wait/brain-extra) sekarang murni dari SUBSCRIPTION GUI (di-seed
+	// default sekali via SeedPrimaryDefaults pas provision; owner curate/uncheck per-agent di Tools-catalog).
+	// Exposure = core (engine wajib) + sidecar + subscription. Cap = window-safety (16K), bukan kontrol fitur.
 	// 1c. SIDECAR TOOLS — SHARED ke SEMUA agent + PRIVAT cuma ke pembuatnya (owner 2026-06-23:
 	// self-evolving — tool buatan-agent lahir privat sampai lolos Dewan → shared). NamesForAgent
 	// nyaring: shared (semua) + private-owned-by-id. Ditaruh SEBELUM subscription = prioritas.

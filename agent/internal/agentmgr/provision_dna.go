@@ -62,6 +62,20 @@ func ProvisionAgentDNA(agentID string) DNAResult {
 	if n, e := store.SeedAntibodies(); e == nil {
 		res.Antibodies = n
 	}
+	// owner 2026-06-23 "GUI = KEBENARAN UTAMA, hardcode HARAM": tool default primary (browser/task/
+	// sleep-wait/brain-extra) DULU hardcode-force di ToolSpecsHandler — sekarang DI-SEED jadi subscription
+	// (SEKALI, sentinel-flag) → owner curate/uncheck per-agent di GUI Tools-catalog. brain_add ditambah
+	// (brain INPUT). Idempoten: sentinel cegah re-seed (hormati uncheck owner). Ant (non-primary) ga di-seed.
+	if IsPrimaryAgent(agentID) {
+		if done, _ := store.IsSubscribed("__primary_seeded_v1__"); !done {
+			for _, t := range append([]string{"brain_add"}, primaryExtraTools...) {
+				_ = store.SubscribeTool(t, "manual", "{}")
+			}
+			_ = store.SubscribeTool("__primary_seeded_v1__", "seed", "{}")
+			log.Printf("provision-dna %s: seeded %d default primary tools (GUI-curate)", agentID, len(primaryExtraTools)+1)
+		}
+	}
+
 	// Pastiin schema cognitive graph ke-create (CountCognitiveGraph manggil
 	// ensureCognitiveGraphSchema) → graph_recall + digestion siap dari turn-1,
 	// ga nunggu operasi cognitive pertama.
