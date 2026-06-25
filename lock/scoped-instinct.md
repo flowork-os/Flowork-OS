@@ -45,6 +45,21 @@ Tab tool-catalog (subscribe/unsubscribe, vestigial pasca all-tools) di-REPURPOSE
 - **Verified live:** set file `mr-flow→[instinct_bisnis]` → `instinct-scope: agent="mr-flow" domains=[bisnis]
   284→184` (override compiled 4-domain). defer fallback no-regression (env defer/expose=1 → mr-flow tools=22 tetap).
 
+## KURASI PENUH via GUI — Brain tab router (#6 SELESAI 2026-06-26)
+Selain panel per-agent di atas, **Brain tab** (`router/web/static/index.html`, di-embed router :2402)
+= kurasi DOKTRIN + INSTING penuh, semua NON-frozen (web) di atas handler yg udah ada:
+- **Insting CRUD** (room LIKE `instinct%`): ADD (`openInstinctAdd`→`/api/brain/ingest/submit`),
+  **EDIT** (`openInstinctEdit`→`PUT /api/brain/drawer`) — bisa **pindahin domain** (room editable,
+  normalisasi "coding"→"instinct_coding"; **penting buat scoping** krn injeksi room-based), **HAPUS**
+  (`confirmInstinctDelete`→`DELETE /api/brain/drawer` soft-delete). Backend: `brain.AddDrawer/UpdateDrawer/
+  SoftDeleteDrawer` (`internal/brain/crud.go`) sinkron FTS; fresh-index re-embed ≤2 mnt; content selalu
+  fresh dari tabel `drawers` saat retrieve (vektor cuma buat NEMU). mem_type ga relevan ke insting
+  (injeksi room-based) → default 'project' aman, ga perlu buka frozen instincts.go.
+- **Doktrin CRUD**: add/edit/del (`/api/brain/constitution` GET/POST/PUT/DELETE) + **amendments
+  governance-gated** (`loadBrainAmendments`/`voteAmendment` → `/api/brain/constitution/amendments` +
+  `/amend/vote`) — edit aturan sakral butuh approve owner, ga langsung apply.
+- **Verified live (Rule-9):** ADD/EDIT/DELETE insting 200; edit domain `universal→crypto` readback OK.
+
 ## FAILS-OPEN (anti-rusak) — di TIAP titik balik ke `semanticInstinctSelector` (perilaku lama):
 switch off · agent-id kosong (external / agent belum di-rebuild kirim header) · agent belum di-map ·
 hasil filter kosong. **Baseline `instinct_universal` + `instinct_tool` SELALU lolos** → ga ada agent

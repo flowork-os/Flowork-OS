@@ -2914,7 +2914,8 @@ done &lt; my_knowledge.jsonl</pre>
       const r = await uiModal({
         title: 'Edit Instinct · ' + id,
         fields: [
-          { name: 'content', label: 'Instinct Content', value: cur.content || '', type: 'textarea' }
+          { name: 'content', label: 'Instinct Content (pola WHEN → THEN)', value: cur.content || '', type: 'textarea' },
+          { name: 'room', label: 'Domain (pindahin antar-domain → atur scoping)', value: cur.room || 'instinct_universal', ph: 'instinct_universal | instinct_coding | instinct_security | instinct_crypto | instinct_bisnis | instinct_tool' }
         ],
         actions: [
           { label: 'Save', kind: 'primary', value: true },
@@ -2924,14 +2925,17 @@ done &lt; my_knowledge.jsonl</pre>
       if (!r.action) return;
       const f = r.fields;
       if (!(f.content || '').trim()) { uiToast('Content required', 'warn'); return; }
+      // domain → room=instinct_*. Normalisasi sama kayak Add: user boleh ketik "coding" → "instinct_coding".
+      let room = (f.room || cur.room || 'instinct_universal').trim().toLowerCase().replace(/\s+/g, '_');
+      if (!room.startsWith('instinct_')) room = 'instinct_' + room.replace(/^instinct[_-]?/, '');
       try {
         const resp = await fetch('/api/brain/drawer', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, content: f.content, wing: cur.wing || 'doctrine', room: cur.room || 'instinct_universal', memType: 'project' })
+          body: JSON.stringify({ id, content: f.content, wing: cur.wing || 'doctrine', room, memType: cur.mem_type || cur.memType || 'project' })
         });
         if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
-        uiToast('Instinct updated successfully', 'success');
+        uiToast('Instinct updated → ' + room + ' (index ≤2 mnt)', 'success');
         loadBrainInstincts();
       } catch (e) { uiToast('Error updating instinct: ' + e, 'error'); }
     }
