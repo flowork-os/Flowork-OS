@@ -40,7 +40,8 @@ Tab tool-catalog (subscribe/unsubscribe, vestigial pasca all-tools) di-REPURPOSE
 - **Router** `instinctenrich_ext2.go` `scopeFromBrainConfig`: baca file → instinct_domains per-agent.
 - **Prioritas scope:** file brain-config (GUI) **>** ENV `FLOWORK_INSTINCT_SCOPE_MAP` **>** compiled `roleDomains`.
 - **Frontend** `web/tabs/agents_tool_catalog.js` (export `renderToolCatalog` dipertahankan): centang domain insting
-  (baseline universal/tool locked) + tri-state defer/all-tools + Simpan.
+  (baseline universal/tool locked) + tri-state defer/all-tools + Simpan. **+ Form "➕ Tambah insting"** → POST
+  `/api/brain/ingest/submit` (content WHEN→THEN + domain=room + importance) → brain SHARED, auto-index ≤2 menit.
 - **Verified live:** set file `mr-flow→[instinct_bisnis]` → `instinct-scope: agent="mr-flow" domains=[bisnis]
   284→184` (override compiled 4-domain). defer fallback no-regression (env defer/expose=1 → mr-flow tools=22 tetap).
 
