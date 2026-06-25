@@ -62,6 +62,10 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 	// → agent SADAR kapan pakai tool/fitur. Fails open. (stream path: mirror non-stream.)
 	maybeInjectInstinct(ctx, &req, settings)
 
+	// #9 intent-gated tools (mirror non-stream): prune tool-schema relevan → potong token.
+	// Escape-hatch selalu lolos. No-op kalau FLOW_ROUTER_DYNAMIC_TOOLS!=1. dynamic_tools.go.
+	req = maybeFilterTools(ctx, req, settings)
+
 	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)
 	req.Model = resolvedModel

@@ -215,6 +215,11 @@ func DispatchChatCompletion(ctx context.Context, req OpenAIRequest) (*OpenAIResp
 	// masuk (sejajar antibodi) → agent SADAR kapan pakai tool/fitur. Fails open.
 	maybeInjectInstinct(ctx, &req, settings)
 
+	// #9 intent-gated tools: prune tool-schema ke yg RELEVAN (semantic) → potong biang
+	// token #1 (~55% prompt). Escape-hatch (tool_search/tool_lookup) selalu lolos → aman.
+	// No-op kalau FLOW_ROUTER_DYNAMIC_TOOLS!=1 (default off). dynamic_tools.go.
+	req = maybeFilterTools(ctx, req, settings)
+
 	// Model manager: resolve alias / custom (→ effective model + provider pin).
 	resolvedModel, pinnedProvider := resolveModel(d, req.Model)
 	req.Model = resolvedModel

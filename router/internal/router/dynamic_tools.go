@@ -1,3 +1,5 @@
+// ⚠️ FROZEN 2026-06-26 — intent-gated tool filter (#9), stabil+Rule-9. Extend lewat ENV/GUI
+// (FLOWORK_DYNAMIC_TOOLS/_TOPK/_MINSCORE), BUKAN edit file ini. lock/intent-gated-tools.md
 package router
 
 import (
@@ -7,6 +9,8 @@ import (
 	"log"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/flowork-os/flowork_Router/internal/providers/embedding"
 	"github.com/flowork-os/flowork_Router/internal/store"
@@ -23,9 +27,39 @@ type requestTool struct {
 }
 
 // maybeFilterTools - memfilter tools secara dinamis menggunakan embedding lokal
+// envIntDefault / envFloatDefault — baca ENV (di-override GUI Switch Fitur lewat fwswitch),
+// fallback default kalau kosong/invalid. Tunable runtime tanpa rebuild.
+func envIntDefault(key string, def int) int {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
+}
+
+// truthyEnv — true kalau ENV key = 1/on/true/yes.
+func truthyEnv(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "on", "true", "yes":
+		return true
+	}
+	return false
+}
+
+func envFloatDefault(key string, def float64) float64 {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil && f >= 0 {
+			return f
+		}
+	}
+	return def
+}
+
 func maybeFilterTools(ctx context.Context, req OpenAIRequest, settings *store.Settings) OpenAIRequest {
-	// 1. Cek apakah fitur diaktifkan lewat ENV
-	if os.Getenv("FLOW_ROUTER_DYNAMIC_TOOLS") != "1" {
+	// 1. Cek switch. PRIMARY: FLOWORK_DYNAMIC_TOOLS (dikelola GUI Switch Fitur lewat fwswitch —
+	// prefix FLOWORK_). FALLBACK: legacy FLOW_ROUTER_DYNAMIC_TOOLS. Default OFF.
+	if !truthyEnv("FLOWORK_DYNAMIC_TOOLS") && os.Getenv("FLOW_ROUTER_DYNAMIC_TOOLS") != "1" {
 		return req
 	}
 
@@ -50,9 +84,16 @@ func maybeFilterTools(ctx context.Context, req OpenAIRequest, settings *store.Se
 		return req
 	}
 
-	// 4. Deteksi tool yang pernah dipanggil (always-keep based on history)
+	// 4. Deteksi tool yang pernah dipanggil (always-keep based on history) + ESCAPE-HATCH.
+	// Escape-hatch WAJIB lolos: kalau tool yg dibutuhin ke-prune, model masih bisa NEMU/AMBIL
+	// balik lewat tool_search/tool_lookup (#2C) → pruning jadi AMAN (anti salah-gate). +
+	// StructuredOutput (kontrak output) + ScheduleWakeup (loop/wait) selalu ada.
 	alwaysKeep := map[string]bool{
-		"structured_output": true, // Selalu pertahaman tool ini jika ada
+		"structured_output": true,
+		"StructuredOutput":  true,
+		"tool_search":       true,
+		"tool_lookup":       true,
+		"ScheduleWakeup":    true,
 	}
 	for _, msg := range req.Messages {
 		if msg.Role == "tool" && msg.Name != "" {
@@ -126,10 +167,11 @@ func maybeFilterTools(ctx context.Context, req OpenAIRequest, settings *store.Se
 		}
 	}
 
-	// 7. Saring tools berdasarkan skor
-	// Default: top-K = 5, threshold = 0.35
-	topK := 5
-	threshold := 0.35
+	// 7. Saring tools berdasarkan skor. Default lebih AMAN dari versi awal (top-K 5 kekecilan
+	// buat orkestrator yg butuh tool beragam) → 12. Tunable RUNTIME tanpa rebuild (+GUI Switch
+	// Fitur): FLOW_ROUTER_DYNAMIC_TOOLS_TOPK / _MINSCORE. Escape-hatch (always-keep) DI LUAR top-K.
+	topK := envIntDefault("FLOWORK_DYNAMIC_TOOLS_TOPK", 12)
+	threshold := envFloatDefault("FLOWORK_DYNAMIC_TOOLS_MINSCORE", 0.30)
 
 	var filtered []requestTool
 	// Masukkan yang alwaysKeep dulu
