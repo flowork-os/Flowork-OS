@@ -219,6 +219,16 @@ func (r *Runtime) Start(modelName, ggufPath string) error {
 	if kt := strings.TrimSpace(os.Getenv("FLOWORK_KV_TYPE")); kt != "" {
 		args = append(args, "-fa", "on", "-ctk", kt, "-ctv", kt)
 	}
+	// KV PROMPT-CACHE REUSE (FLOWORK_CACHE_REUSE=N, opt-in): reuse cached prompt-prefix
+	// lintas-call via KV-shifting → SKIP re-prefill prefix STATIK (konstitusi + tool-schema
+	// = ~68% tiap prompt = biang token-boros yg kediagnosa). Output-transparent (optimasi
+	// prefill, BUKAN sampling); pasangan --cache-prompt (llama.cpp default-on). Keystone #3
+	// KV-cache. OPT-IN (default OFF) sebab llama.cpp lama bisa ga kenal flag → startup gagal;
+	// set FLOWORK_CACHE_REUSE=256 di flowork.local.env pada mesin yg llama-server-nya support
+	// (cek: `llama-server --help | grep cache-reuse`). "0"/"off" = eksplisit mati.
+	if cr := strings.TrimSpace(os.Getenv("FLOWORK_CACHE_REUSE")); cr != "" && cr != "0" && !strings.EqualFold(cr, "off") {
+		args = append(args, "--cache-reuse", cr)
+	}
 	cmd := exec.Command(r.binPath, args...)
 	// PORTABLE (audit #10 2026-06-15): prefer shared libs (libggml/libllama .so) yang
 	// se-folder sama binary (router/bin/), biar self-contained — gak gantung ke build dir
