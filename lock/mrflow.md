@@ -80,6 +80,12 @@ POLOS (`stripMarkdown`) — pesan ga pernah ilang. Switch `FLOWORK_TG_FORMAT`: `
 
 - **Route ke squad**: `task_list`→`task_run(category)` (anti-nyasar, lihat `lock/group.md`). Pre-classifier (`deterministicRoute` keyword + `classifyRoute` LLM) jalan SEBELUM `callLLM` di runDaemon + doHandle.
 - **SELF-HANDLE GATE** (akar fix "disuruh sendiri malah nyalain crew"): kalau owner eksplisit nolak delegasi ("jangan pake agent/crew", "lakuin/kerjain sendiri") → `wantsSelfHandle()` true → **4 kondisi route di-SKIP** (`&& !wantsSelfHandle`) → jatuh ke `callLLM`, mr-flow kerjain SENDIRI (browser/web/file). Frasa di `self_handle_ext.go` (NON-frozen) + ENV `FLOWORK_SELF_HANDLE_PHRASES` (nambah tanpa buka freeze).
+- **TOOL-CALL LEAK GUARD** (router, harness angkat beban): model lokal kadang emit `<tool_call>{...}</tool_call>`
+  sebagai TEKS di content (key "parameters" / JSON invalid unquoted) → --jinja ga parse → BOCOR ke user + tool ga
+  jalan. AKAR di doktrin: AOLA-001 + insting dulu nyuruh "GUNAKAN format `<tool_call>`" (udah DIBETULIN di
+  `doctrine_seed.json`/`instinct_seed.json` → "panggil tool LANGSUNG, jangan tulis sintaks sbg teks"). HARNESS:
+  `router/internal/router/toolcall_recover_ext.go` (`recoverTextToolCalls`, dipanggil dispatcher) parse-LENIENT teks
+  tool_call → native tool_calls + strip content. Switch `FLOWORK_TOOLCALL_RECOVER=0`. Verified Rule-9 + 4 unit test.
 - **Anti-halu + akses internet**: web_search/webfetch + **browser asli** (akses penuh) + cek tahun, ga ngarang. Lihat persona block "ANTI-HALU".
 - **Kontradiksi data**: `cognitive_tensions`/`cognitive_resolve` + tanya owner 3x/hari. Lihat `lock/CognitiveGraph.md`.
 - **Persona** (kv `prompt`): identitas + ROUTER TEAM + ANTI-HALU + browser + kontradiksi. Edit AMAN: GET config UTUH → ubah `prompt` → POST (Save full-replace, secret ke-reconcile).

@@ -468,6 +468,7 @@ func dispatchSingleModel(ctx context.Context, d *sql.DB, req OpenAIRequest, sett
 		}
 
 		if err == nil && resp != nil {
+			recoverTextToolCalls(resp) // HARNESS: <tool_call> teks bocor (model lemah) → native tool_calls + anti-bocor
 			clearModelLock(p.ID, req.Model) // recovered → prefer this pair again
 			log.Printf("flow_router dispatch model=%s → provider=%s tokens=%d",
 				req.Model, p.Name, resp.Usage.TotalTokens)
