@@ -55,6 +55,14 @@ func maybeInjectConstitution(ctx context.Context, req *OpenAIRequest, settings *
 	if len(rules) == 0 {
 		return
 	}
+	// #10 brain-as-service: filter doktrin buat caller EKSTERNAL (hook non-frozen di
+	// brain_constitution_ext.go; default NO-OP → zero perubahan perilaku). Switch-gated.
+	if constitutionFilterHook != nil {
+		rules = constitutionFilterHook(ctx, rules)
+		if len(rules) == 0 {
+			return
+		}
+	}
 	sysMsg := buildConstitutionSystem(rules)
 	req.Messages = injectSystem(req.Messages, sysMsg, settings.Brain.Mode)
 	log.Printf("flow_router constitution: injected %d sacred rule(s) into system message", len(rules))

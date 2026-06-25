@@ -74,8 +74,12 @@ Agent LUAR (ber-jiwa-Aola via `:2402/v1`, ga punya tool internal Flowork) kalau 
   setting). Mode `augment` (jangan clobber persona external) + `AlwaysOn` udah ADA di `BrainConfig`.
 - **Verified:** unit `TestExternalScope_{DropsToolInstinct,InternalUnaffected,OffKeepsToolForLegacy}`
   (3 PASS). Live `/v1` external (no X-Agent-ID) → HTTP 200 jawaban ber-jiwa-Aola.
-- **Residual:** constitution-scoping buat external (cuma UNIVERSAL doktrin, skip doktrin-internal-Flowork)
-  → butuh tag universal di tabel constitution + nyentuh `brain_constitution.go` (FROZEN). Belum.
+- **Constitution external-scope ✅ SELESAI 2026-06-26** (#10): caller eksternal + `FLOWORK_BRAIN_EXTERNAL_SCOPE`
+  on → doktrin Flowork-INTERNAL di-skip (AOLA-001/002/006/007/008/012 = identitas/navigasi-tool/preferensi-owner/
+  idempotent/ephemeral/hierarki-OS), UNIVERSAL tetep (003 kejujuran/005 5W1H/009 transparansi/010 anti-delusi/
+  011 blast-radius/013 loop). Mekanisme: hook `constitutionFilterHook` (1 baris di `brain_constitution.go` FROZEN,
+  re-hash+re-freeze) → filter di `brain_constitution_ext.go` (NON-frozen, default NO-OP). 3 unit test PASS.
+  Switch SAMA dgn instinct external-scope (1 toggle). Denylist AOLA tunable di ext (non-frozen).
 
 ## FAILS-OPEN (anti-rusak) — di TIAP titik balik ke `semanticInstinctSelector` (perilaku lama):
 switch off · agent-id kosong (external / agent belum di-rebuild kirim header) · agent belum di-map ·
