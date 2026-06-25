@@ -15,6 +15,8 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/flowork-os/flowork_Router/internal/brain"
@@ -188,7 +190,12 @@ func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 	hits := []map[string]any{}
 	if brain.Available() {
 		if db, err := brain.Open(); err == nil {
-			snips, _ := brain.SemanticRetrieve(r.Context(), db, query, brain.RetrieveOpts{Limit: k})
+			// RELEVANSI ABSOLUT (#3 fix 2026-06-26): SemanticRetrieve menormalisasi skor ke
+			// hit teratas → #1 selalu 1.0 walau query sampah, ga ada lantai → hasil "ngak valid".
+			// SemanticRetrieveScored balikin cosine ABSOLUT + buang di bawah minCosine.
+			// Switch FLOWORK_SEARCH_MINSCORE (default searchMinCosine; "0" = matikan lantai).
+			min := searchMinCosine()
+			snips, _ := brain.SemanticRetrieveScored(r.Context(), db, query, brain.RetrieveOpts{Limit: k}, min)
 			for _, sn := range snips {
 				hits = append(hits, map[string]any{
 					"wing": sn.Wing, "room": sn.Room, "content": sn.Content,
@@ -197,7 +204,20 @@ func brainSearchDrawersHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"query": query, "hits": hits, "count": len(hits)})
+	writeJSON(w, http.StatusOK, map[string]any{"query": query, "hits": hits, "count": len(hits), "min_score": searchMinCosine()})
+}
+
+// searchMinCosine — lantai relevansi absolut utk /api/brain/search-drawers.
+// ENV FLOWORK_SEARCH_MINSCORE override (set "0" buat matikan lantai). Default = kalibrasi
+// bge-m3 (loosely-related biasanya < ini). NON-frozen → gampang di-tune.
+func searchMinCosine() float64 {
+	const def = 0.45
+	if s := strings.TrimSpace(os.Getenv("FLOWORK_SEARCH_MINSCORE")); s != "" {
+		if f, err := strconv.ParseFloat(s, 64); err == nil && f >= 0 {
+			return f
+		}
+	}
+	return def
 }
 
 // brainByTypeHandler — GET /api/brain/by-type?type=project[&limit=N]

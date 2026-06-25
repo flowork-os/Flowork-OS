@@ -44,6 +44,23 @@ query → embed (bge-m3) → cari di brain.vindex (cosine top-k) → ambil TEKS 
 Murni VECTOR (bukan hybrid FTS+vector yg bikin bingung). FTS cuma fallback transisi. Tombstoned
 (`deleted_at`) selalu di-exclude. Endpoint: `GET /api/brain/search-drawers?query=…&k=…`.
 
+### 2b. LANTAI RELEVANSI ABSOLUT (#3 fix 2026-06-26) — "search valid"
+
+**Masalah:** `SemanticRetrieve` (FROZEN) menormalisasi skor ke hit teratas (`sn.Score =
+h.Score/top`) → hasil #1 **selalu 1.0** walau query-nya sampah, dan ga ada cara nyaring hit
+loosely-related. bge-m3 punya baseline cosine tinggi (~0.40 buat apa pun se-bahasa) → tanpa lantai,
+search selalu balikin top-k → **berasa "ngak valid"** (semua keliatan match sama rata).
+
+**Fix (NON-frozen, semantic.go tetep beku):** handler `/api/brain/search-drawers` pakai
+`brain.SemanticRetrieveScored` (file `semantic_threshold_ext.go`) yg:
+- skor = **cosine ABSOLUT** (`vecindex.(*Index).Cosine`, file `cosine_ext.go`) — bukan rasio ke top;
+- buang hit di bawah **lantai** `FLOWORK_SEARCH_MINSCORE` (default **0.45**; `0` = matiin lantai).
+
+Hasil terkalibrasi (data asli): query relevan 0.50–0.56 (topik tepat: crypto→instinct_crypto,
+tool→instinct_tool), query di luar korpus (mis. "hukum waris islam") → **kosong** (jujur "ga ada
+knowledge", bukan noise). Rumus konversi int8-dot→cosine + bukti order-equivalent: lihat header
+`cosine_ext.go` + test `cosine_ext_test.go` (`TestCosineApproxAbsolute`).
+
 ---
 
 ## 3. ⭐ TIGA LAPIS INDEX (kunci "nambah apapun → otomatis semantic")
@@ -82,6 +99,7 @@ knowledge apapun → otomatis ke-recall by-makna dalam ≤2 menit, TANPA rebuild
 | `FLOWORK_BRAIN_VINDEX` | path index utama (default `<exe>/brain/brain.vindex` > cwd `brain/`) |
 | `FLOWORK_FRESH_MEMTYPES` | override TOTAL daftar mem_type fresh-index (comma) — atur cakupan auto-semantic |
 | `FLOWORK_INSTINCT_SEMANTIC` | `0` = seleksi insting balik ke token-overlap (matiin semantic-select) |
+| `FLOWORK_SEARCH_MINSCORE` | lantai relevansi absolut search-drawers (default `0.45`; `0` = matiin; naikin = lebih ketat) |
 
 ---
 
@@ -110,6 +128,9 @@ knowledge apapun → otomatis ke-recall by-makna dalam ≤2 menit, TANPA rebuild
 | `router/internal/brain/fresh_index.go` | fresh-index core (`RebuildFreshIndex`/`freshRetrieve`) | LOCKED soft |
 | `router/internal/brain/fresh_index_ext.go` | lebarin `freshMemTypes` (auto-semantic semua tipe) + ENV switch | **FROZEN** |
 | `router/internal/brain/vecindex/ann.go` | index vektor (`Build`/`Search`) + `Quantize` 8-bit | — |
+| `router/internal/brain/vecindex/cosine_ext.go` | int8-dot mentah → cosine ABSOLUT (`(*Index).Cosine`) | NON-frozen |
+| `router/internal/brain/semantic_threshold_ext.go` | `SemanticRetrieveScored` (cosine absolut + lantai relevansi) | NON-frozen |
+| `router/handlers_brain_views.go` | handler search pakai scored+lantai (`searchMinCosine`) | NON-frozen |
 | `router/cmd/brain-reembed` · `cmd/brain-buildindex` | re-embed + build vindex | soft-lock |
 | Data: `router/brain/flowork-brain.sqlite` · `brain.vindex` · `_rag/…vec-v2.sqlite` | korpus + index + vec | gitignored |
 
