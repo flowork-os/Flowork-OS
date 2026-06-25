@@ -1,4 +1,7 @@
-// fresh_index_ext.go — GROWTH-POINT (NON-frozen sibling fresh_index.go soft-lock).
+// fresh_index_ext.go — ⚠️ FROZEN (chattr+i + hash KERNEL_FREEZE.md, owner-approved 2026-06-25):
+// auto-semantic widening udah STABIL + kebukti live. EXTEND TANPA buka freeze: ENV
+// FLOWORK_FRESH_MEMTYPES (override total daftar mem_type) ATAU sibling _ext2 baru. Fitur masa
+// depan (embed incremental, dll) = sibling baru / config, bukan edit file ini.
 //
 // Owner 2026-06-25 (opsi A — "brain self-maintaining semantic"): LEBARIN fresh-recall index ke
 // SEMUA tambahan baru, biar nambah doktrin/insting/knowledge → otomatis ke-recall BY-MAKNA dalam

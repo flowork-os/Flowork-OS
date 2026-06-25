@@ -1,4 +1,7 @@
-// instinctenrich_ext.go — GROWTH-POINT (NON-frozen, JANGAN di-freeze).
+// instinctenrich_ext.go — ⚠️ FROZEN (chattr+i + hash KERNEL_FREEZE.md, owner-approved 2026-06-25):
+// selektor SEMANTIC udah STABIL + kebukti live. EXTEND TANPA buka freeze: ENV FLOWORK_INSTINCT_SEMANTIC
+// (kill-switch) ATAU bikin sibling _ext2 BARU yang manggil RegisterInstinctSelector lagi (yang terakhir
+// menang). Fitur masa depan (mis. RI-5 scoping per-peran) = sibling baru, bukan edit file ini.
 //
 // Pasangan extension buat instinctenrich.go (FROZEN). Flowork didesain BEREVOLUSI
 // tanpa ngerusak diri: logika inti injeksi insting di-freeze (stabil, deterministik),
