@@ -229,6 +229,19 @@ func (r *Runtime) Start(modelName, ggufPath string) error {
 	if cr := strings.TrimSpace(os.Getenv("FLOWORK_CACHE_REUSE")); cr != "" && cr != "0" && !strings.EqualFold(cr, "off") {
 		args = append(args, "--cache-reuse", cr)
 	}
+	// #8 PARALLEL SLOTS (FLOWORK_PARALLEL_SLOTS=N, opt-in): -np N → N slot server biar multi-semut
+	// (mr-flow + worker) bisa share 1 engine BARENGAN tanpa antri/KV-thrash. ⚠️ ctx kebagi N
+	// (ctx/np per slot) → naikin FLOWORK_CTX kalau np>1. Default off (auto 1 slot). Butuh RESTART LLM.
+	// Supported: cek `llama-server --help | grep parallel`. "0"/kosong = off.
+	if np := strings.TrimSpace(os.Getenv("FLOWORK_PARALLEL_SLOTS")); np != "" && np != "0" {
+		args = append(args, "-np", np)
+	}
+	// #8 SLOT KV PERSIST (FLOWORK_SLOT_SAVE_PATH=dir, opt-in): --slot-save-path → simpan KV slot ke
+	// disk → WARM-RESTORE (skip re-prefill prefix statik konstitusi+tool-schema) lintas-restart.
+	// Default off. Butuh RESTART LLM. Supported: cek `llama-server --help | grep slot-save-path`.
+	if sp := strings.TrimSpace(os.Getenv("FLOWORK_SLOT_SAVE_PATH")); sp != "" {
+		args = append(args, "--slot-save-path", sp)
+	}
 	cmd := exec.Command(r.binPath, args...)
 	// PORTABLE (audit #10 2026-06-15): prefer shared libs (libggml/libllama .so) yang
 	// se-folder sama binary (router/bin/), biar self-contained — gak gantung ke build dir

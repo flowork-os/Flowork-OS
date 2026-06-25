@@ -46,14 +46,20 @@ ps aux | grep llama-server.real | grep -- '--cache-reuse'      # harus muncul "-
 Verified live 2026-06-25: flowork-brain :8088 jalan dgn `--cache-reuse 256`, `/api/chat` default → HTTP200
 balas koheren (no regression). Reversible: hapus/0-kan ENV → balik perilaku lama (tanpa rebuild kode).
 
-## NEXT (sisa keystone #3 — belum dikerjain)
+## STATUS #8 (KV-cache SISA) — 2026-06-26
 
-1. **Prompt ordering** (🟡 sebagian terverifikasi): di `dispatcher.go` urutan enrich = `maybeInjectConstitution`
-   (STATIK, "di ATAS knowledge", dipanggil PERTAMA) → `maybeEnrichBrain` → `maybeInjectAntibodies` →
-   `maybeInjectInstinct` (DINAMIS, by-query) → pesan user. Jadi message-level udah FAVORABLE (statik konstitusi
-   di depan, dinamis recall/insting di belakang) → cache-reuse reuse prefix statik. **SISA:** konfirmasi posisi
-   render TOOL-SCHEMA (biang ~55% statik) lewat jinja template — kalau di depan = reuse penuh; ukur prompt-eval
-   time call-1 vs call-2 (prefix sama) buat bukti empiris. JANGAN ubah urutan sembarangan (persona FROZEN).
-2. **slot-save-restore** (`--slot-save-path`): persist KV ke disk → warm-start lebih cepat lintas-restart.
-3. **`-np` parallel slots**: tune buat banyak semut jalan barengan (visi 1000 agent) vs RAM/VRAM.
-4. **Ukur**: warm 54s pecah prefill-vs-gen; recall@latency sebelum/sesudah cache-reuse pada beban nyata.
+1. **Prompt ordering** ✅ udah FAVORABLE (message-level): `dispatcher.go` urutan = `maybeInjectConstitution`
+   (STATIK, pertama) → `maybeEnrichBrain` → `maybeInjectAntibodies` → `maybeInjectInstinct` (DINAMIS) →
+   `maybeFilterTools` (#9) → pesan user. Statik di depan, dinamis di belakang → cache-reuse reuse prefix.
+   Plus #9 intent-gated TOOLS udah motong tool-schema (biang ~55%) di hulu. **Ga diubah** (persona FROZEN, udah benar).
+2. **slot-save-restore** ✅ wired: `FLOWORK_SLOT_SAVE_PATH=dir` → `--slot-save-path` (opt-in, default off).
+   `runtime.go`. Llama-server lokal support (verified `--help`). GUI Switch Fitur "Engine / KV-cache".
+3. **`-np` parallel slots** ✅ wired: `FLOWORK_PARALLEL_SLOTS=N` → `-np N` (opt-in). ⚠️ ctx kebagi N → naikin
+   `FLOWORK_CTX`. Buat visi 1000-semut share 1 engine. GUI Switch Fitur. Berlaku saat LLM reload.
+4. **`FLOWORK_CACHE_REUSE`** juga masuk GUI Switch Fitur (dulu cuma env). Switch via [[flowork-settings-gui]] fwswitch.
+
+**RESIDUAL (ukur empiris — butuh engine-restart terkontrol, owner enable):** prompt-eval call-1 vs call-2
+(prefix sama) buat angka warm-split; tuning -np vs RAM/VRAM pada beban multi-semut nyata. Flag aman default-off.
+
+> Catatan: flag opt-in default OFF → ZERO perubahan perilaku sampai owner nyalain di GUI. `runtime.go` NON-frozen
+> (config aktif, sering di-tune). Switch-able = ga rusak walau AI lain ngutak-ngatik (Rule 7).
