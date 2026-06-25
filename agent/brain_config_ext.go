@@ -143,6 +143,31 @@ func brainConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// brainDomainsHandler — GET /api/agents/brain-domains. Brain (insting) ada di ROUTER :2402,
+// panel Agent-Brain di host :1987 → proxy same-origin. Balikin distinct room (domain) + count
+// dari SEMUA insting (limit 1000) → panel render checkbox domain DINAMIS (auto ikut domain baru).
+func brainDomainsHandler(w http.ResponseWriter, r *http.Request) {
+	counts := map[string]int{}
+	resp, err := http.Get("http://127.0.0.1:2402/api/brain/instincts?limit=1000")
+	if err != nil {
+		tfWriteJSON(w, 0, map[string]any{"rooms": counts, "error": err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+	var d struct {
+		Drawers []struct {
+			Room string `json:"room"`
+		} `json:"drawers"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&d)
+	for _, dr := range d.Drawers {
+		if strings.HasPrefix(strings.TrimSpace(dr.Room), "instinct_") {
+			counts[strings.TrimSpace(dr.Room)]++
+		}
+	}
+	tfWriteJSON(w, 0, map[string]any{"rooms": counts})
+}
+
 func init() {
 	// WIRE: pasang defer-policy per-agent (sumber tunggal resolveDeferPolicy). Fallback ENV → aman.
 	RegisterFeature(Feature{Name: "brain-config-wire", Phase: PhaseWire, Apply: func(d *Deps) {
@@ -151,5 +176,6 @@ func init() {
 	// ROUTE: endpoint kurasi GUI.
 	RegisterFeature(Feature{Name: "brain-config-route", Phase: PhaseRoute, Apply: func(d *Deps) {
 		d.Mux.HandleFunc("/api/agents/brain-config", brainConfigHandler)
+		d.Mux.HandleFunc("/api/agents/brain-domains", brainDomainsHandler) // proxy domain insting dari router :2402
 	}})
 }

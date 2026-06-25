@@ -27,15 +27,12 @@ const short = (r) => esc(String(r).replace(/^instinct_/, ''));
 async function loadDomains() {
   const counts = {};
   try {
-    // limit=1000 → liat SEMUA room (default 50 nge-cap → domain kaya coding/crypto/filsafat ke-hide).
-    // Domain di GUI = DINAMIS dari brain: tambah insting room=instinct_<domain> → domain auto muncul.
-    const r = await fetch(API_INSTINCTS + '?limit=1000');
+    // Brain (insting) ada di ROUTER :2402; panel ini di host :1987 → proxy same-origin
+    // /api/agents/brain-domains (balikin SEMUA room+count, no-cap). DINAMIS: tambah insting
+    // room=instinct_<domain> di brain → domain auto muncul di sini. (fails-soft → KNOWN_DOMAINS).
+    const r = await fetch('/api/agents/brain-domains');
     const d = await r.json();
-    const items = d.items || d.drawers || d.instincts || (Array.isArray(d) ? d : []);
-    for (const it of items) {
-      const room = String(it.room || it.Room || '').trim();
-      if (room.startsWith('instinct_')) counts[room] = (counts[room] || 0) + 1;
-    }
+    Object.assign(counts, d.rooms || {});
   } catch { /* fails-soft */ }
   const domains = new Set([...KNOWN_DOMAINS, ...Object.keys(counts)]);
   BASELINE.forEach((b) => domains.delete(b));
@@ -80,22 +77,7 @@ export async function renderToolCatalog(hostEl, agentId) {
       </div>
       <button id="cf-brain-save" style="background:#2563eb;color:#fff;border:0;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">Simpan</button>
       <span id="cf-brain-status" style="margin-left:10px;font-size:11px;color:#94a3b8"></span>
-      <details style="margin-top:12px">
-        <summary style="cursor:pointer;color:#94a3b8;font-size:12px">➕ Tambah insting ke brain (SHARED — di-scope by domain)</summary>
-        <div style="margin-top:6px;display:grid;gap:6px">
-          <textarea id="cf-ins-content" rows="3" placeholder="WHEN <kondisi> -> <tindakan>  (pola insting WHEN→THEN)"
-            style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:6px;font-size:12px;padding:6px;resize:vertical"></textarea>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11px;color:#94a3b8">
-            domain
-            <select id="cf-ins-domain" style="background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:5px;font-size:11px;padding:2px 4px">
-              ${[...BASELINE, ...domains].map((d) => `<option value="${escAttr(d)}">${short(d)}</option>`).join('')}
-            </select>
-            importance <input id="cf-ins-imp" type="number" min="1" max="10" value="6" style="width:46px;background:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:5px;font-size:11px;padding:2px 4px">
-            <button id="cf-ins-add" style="background:#16a34a;color:#fff;border:0;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer">Tambah</button>
-          </div>
-          <span id="cf-ins-status" style="font-size:11px;color:#94a3b8;min-height:1.2em"></span>
-        </div>
-      </details>
+      <p style="margin-top:10px;font-size:10px;color:#64748b">➕ Tambah/edit insting di tab <b>Brain → Instincts</b> (pilih domain di situ) — auto muncul di sini.</p>
     `;
 
     const statusEl = hostEl.querySelector('#cf-brain-status');
@@ -113,27 +95,6 @@ export async function renderToolCatalog(hostEl, agentId) {
         statusEl.textContent = `✓ tersimpan (${instinct_domains.length} domain) — efek instan (router baca file)`;
         statusEl.style.color = '#34d399';
       } catch (err) { statusEl.textContent = String(err); statusEl.style.color = '#f87171'; }
-    });
-
-    // ➕ Tambah insting → brain SHARED (room=domain). Brain auto-index ≤2 menit → langsung ke-inject.
-    hostEl.querySelector('#cf-ins-add').addEventListener('click', async () => {
-      const content = hostEl.querySelector('#cf-ins-content').value.trim();
-      const room = hostEl.querySelector('#cf-ins-domain').value;
-      const importance = Number(hostEl.querySelector('#cf-ins-imp').value) || 6;
-      const st = hostEl.querySelector('#cf-ins-status');
-      if (!content) { st.textContent = 'isi content dulu (WHEN→THEN)'; st.style.color = '#f87171'; return; }
-      st.textContent = 'Menambah…'; st.style.color = '#94a3b8';
-      try {
-        const r = await fetch('/api/brain/ingest/submit', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, room, wing: 'capability', importance, source_type: 'gui-curation' }),
-        });
-        const d = await r.json();
-        if (d.error) { st.textContent = d.error; st.style.color = '#f87171'; return; }
-        st.textContent = d.added ? `✓ insting masuk (${String(d.drawer_id).slice(0, 8)}) — ke-index ≤2 menit` : '(sudah ada / dedupe)';
-        st.style.color = '#34d399';
-        if (d.added) hostEl.querySelector('#cf-ins-content').value = '';
-      } catch (err) { st.textContent = String(err); st.style.color = '#f87171'; }
     });
   } catch (err) {
     hostEl.innerHTML = `<p style="color:#f87171;font-size:12px">${esc(String(err))}</p>`;
