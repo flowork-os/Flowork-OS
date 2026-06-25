@@ -139,7 +139,7 @@ Owner usul: **buang gating subscription tool** (footgun "lupa centang GUI → ag
 - **Cap migrasi ke manifest** (langkah-3): 4 cap (`exec:shell`/`fs:read:/shared/*`/`fs:write:/shared/*`/`net:fetch:telegram`) ditambah ke `capabilities_required` (20→24) → mr-flow gak gantung subscription buat cap. Manifest re-frozen. (`net:fetch:telegram` KRITIS = I/O Telegram.)
 - **All-tools ON** (langkah-4, switch `FLOWORK_DEFER_TOOLS`+`FLOWORK_EXPOSE_ALL_TOOLS`, scoped primary): mr-flow liat **202 tool** (22 schema + 180 katalog), tool non-sub bisa lookup+run, **Rule-9 LLM koheren NOL flail**. Agen lain gak kena.
 
-**SISA (GLOBAL):** (1) **agentkit** — semua agent punya seam (sekarang cuma mr-flow); (2) perkuat insting/konstitusi (roadmap #2/#2B) sbg kemudi pilih dari 200 tool; (3) GUI tool-catalog → repurpose ke kurasi doktrin/insting + toggle per-agent (ganti ENV). Detail tool: `lock/tools.md §7.5–7.6`.
+**SISA (GLOBAL):** (1) ~~**agentkit**~~ ✅ **SELESAI 2026-06-25** — loop+guard+seam #2C ke-ekstrak ke modul SHARED `agent/agentkit/`; 5 worker + template warisan (verified Rule-9). Semua worker punya seam → all-tools GLOBAL ke-unblock. mr-flow tetep loop sendiri (referensi). Kanonik: `lock/agentkit.md`. (2) perkuat insting/konstitusi (roadmap #2/#2B) sbg kemudi pilih dari 200 tool; (3) GUI tool-catalog → repurpose ke kurasi doktrin/insting + toggle per-agent (ganti ENV). Detail tool: `lock/tools.md §7.5–7.6`.
 
 ---
 

@@ -176,7 +176,7 @@ Kalau kebutuhan lo ada di tabel → kerjain di kolom tengah, SELESAI, ga usah un
 
 **SWITCH:** ENV `FLOWORK_DEFER_TOOLS` (default OFF = byte-identik perilaku lama). **Scoped ke PRIMARY** (`isPrimary`, kode 2026-06-25) → cuma mr-flow yg defer sampe agentkit warisan seam ke semua agent (agen lain full-schema, aman). ⚠️ **ENV = prototipe-dev doang.** Versi PERMANEN (doktrin "GUI=kebenaran-utama, hardcode haram") = **toggle per-agent di GUI** (tab tool-catalog) + tampil X-loaded/Y-deferred.
 
-**⚠️ WARISAN belum lengkap:** seam baru di `mr-flow/main.go`. 5 agen lain + `agent-template` punya loop ke-COPY (gak ada seam + gak ada flail-guard) → nyalain defer global = mereka flail. **Cabut-akar (Rule 5/6): extract `agentkit`** (loop+guards+seam jadi package shared → semua agent+template warisan, mirror host FASE-B). Sampe itu landing, defer SCOPED ke mr-flow. Host-side (announce+activate) udah agent-agnostic (jalan buat semua). Detail: `KERNEL_FREEZE.md` entri 2026-06-25 #2C.
+**✅ WARISAN LANDED (2026-06-25):** seam #2C + flail/ghost/recovery guard udah di modul SHARED `agent/agentkit/` (`flowork-agentkit`). 5 worker + `agent-template` jadi bootstrap tipis (`agentkit.Main()`) → semua warisan seam + flail-guard (verified Rule-9 browse-surfer live). defer/all-tools sekarang AMAN dinyalain GLOBAL per-worker. mr-flow tetep loop sendiri (FROZEN, referensi). Host-side (announce+activate) emang udah agent-agnostic. Kanonik: `lock/agentkit.md`. (Defer masih SCOPED ke primary via ENV `isPrimary`; longgarin ke worker = ganti switch + insting/konstitusi kuat dulu — roadmap #2/#2B.)
 
 ---
 
@@ -193,7 +193,7 @@ Kalau kebutuhan lo ada di tabel → kerjain di kolom tengah, SELESAI, ga usah un
 
 **Cap-source (PRA-SYARAT):** subscription dulu DOBEL-fungsi (exposure + auto-grant-cap utk privileged, `main.go:842 grantSubscribedToolCaps`). Buang subscription = cap kudu dari **manifest `capabilities_required`** (`kernelhost.go:313` filterPrivilegedCaps→Broker.Approve). mr-flow: 4 cap (`exec:shell`/`fs:read:/shared/*`/`fs:write:/shared/*`/`net:fetch:telegram`) DI-MIGRASI ke manifest (20→24 cap, re-frozen). `grantSubscribedToolCaps` no-op kalau subs kosong → NOL edit frozen. (operator-*/mr-flow-next belum deploy → skip.)
 
-**PROVEN mr-flow:** liat 202 tool (22 schema + 180 katalog), tool non-sub (`decision_count`) lookup+run OK, Rule-9 LLM koheren+akurat NOL flail walau 180 nama. Agen lain gak kena (scoped primary). **GLOBAL** butuh **agentkit** dulu (semua agent punya seam) + **insting/konstitusi kuat** (kemudi pilih dari 200 tool).
+**PROVEN mr-flow:** liat 202 tool (22 schema + 180 katalog), tool non-sub (`decision_count`) lookup+run OK, Rule-9 LLM koheren+akurat NOL flail walau 180 nama. **GLOBAL:** ~~agentkit~~ ✅ udah landing (semua worker punya seam, `lock/agentkit.md`) → tinggal **insting/konstitusi kuat** (kemudi pilih dari 200 tool, roadmap #2/#2B) + longgarin switch defer dari scoped-primary ke per-worker.
 
 ---
 
