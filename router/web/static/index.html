@@ -2968,6 +2968,7 @@ done &lt; my_knowledge.jsonl</pre>
     let animationId = null;
     let graphFrame = 0;       // counter frame buat auto-fit
     let graphAutoFitAt = 0;   // fit-to-view pas frame ini (di-set tiap load)
+    let graphCool = 0;        // sisa frame physics JALAN; 0 = BEKU (anti gerak-terus bikin mumet)
 
     function startGraphSimulation() {
       canvas = document.getElementById('graphCanvas');
@@ -3041,6 +3042,7 @@ done &lt; my_knowledge.jsonl</pre>
           draggedNode = node;
           node.fx = node.x;
           node.fy = node.y;
+          graphCool = 240; // idupin physics pas mulai drag (biar tetangga ngikut), nanti beku lagi
           showGraphNodeDetails(node);
         } else {
           const edge = findEdge(mx, my);
@@ -3066,6 +3068,7 @@ done &lt; my_knowledge.jsonl</pre>
           draggedNode.fy = worldPos.y;
           draggedNode.x = worldPos.x;
           draggedNode.y = worldPos.y;
+          if (graphCool < 30) graphCool = 30; // jaga physics nyala selama drag
         } else if (isPanning) {
           transform.x = e.clientX - panStart.x;
           transform.y = e.clientY - panStart.y;
@@ -3104,7 +3107,7 @@ done &lt; my_knowledge.jsonl</pre>
 
       if (animationId) cancelAnimationFrame(animationId);
       const tick = () => {
-        updatePhysics();
+        if (graphCool > 0) { updatePhysics(); graphCool--; } // BEKU pas cool habis = gak gerak2
         drawGraph();
         graphFrame++;
         if (graphAutoFitAt && graphFrame >= graphAutoFitAt) { graphAutoFitAt = 0; resetGraphView(); }
@@ -3437,7 +3440,8 @@ done &lt; my_knowledge.jsonl</pre>
 
             graphNodes = newNodes;
             graphEdges = newEdges;
-            graphAutoFitAt = graphFrame + 110; // auto fit-to-view setelah physics settle (~2dtk)
+            graphCool = 240;                   // physics jalan ~4dtk nyusun layout, lalu BEKU
+            graphAutoFitAt = graphFrame + 240; // fit-to-view pas physics berhenti (posisi final)
 
             if (!canvas) {
               startGraphSimulation();
