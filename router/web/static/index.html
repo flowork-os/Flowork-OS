@@ -388,7 +388,8 @@
           <h2 class="text-xl font-bold">🧬 <span data-i18n="brain.h.section">Brain</span></h2>
           <p class="text-sm text-slate-400 mt-0.5" data-i18n="brain.desc.section">Server-side knowledge brain.</p>
         </div>
-        <div>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn-secondary brain-subtab" data-sub="config" onclick="brainSub('config')" title="Config" data-i18n-tip="brain.sub.config" style="padding:8px 12px;font-size:1rem;line-height:1;border-radius:6px;"><span class="ic">⚙️</span></button>
           <button type="button" class="btn-primary" style="padding:8px 16px;font-size:0.85rem; background: linear-gradient(135deg, #a855f7, #6366f1); border-radius: 6px; box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);" onclick="triggerDreamCycle()">💫 Run Dream Mode (Cognitive Digestion)</button>
         </div>
       </div>
@@ -401,7 +402,6 @@
         <button type="button" class="btn-secondary brain-subtab" data-sub="constitution" onclick="brainSub('constitution')"><span class="ic">📜</span> <span data-i18n="brain.sub.constitution">Constitution</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="typed" onclick="brainSub('typed')"><span class="ic">🏷️</span> <span data-i18n="brain.sub.typed">Typed Memory</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="personas" onclick="brainSub('personas')"><span class="ic">🪪</span> <span data-i18n="brain.sub.personas">Personas</span></button>
-        <button type="button" class="btn-secondary brain-subtab" data-sub="config" onclick="brainSub('config')"><span class="ic">⚙️</span> <span data-i18n="brain.sub.config">Config</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="registry" onclick="brainSub('registry')"><span class="ic">🌐</span> <span data-i18n="brain.sub.registry">Registry</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="instincts" onclick="brainSub('instincts')"><span class="ic">🧠</span> <span>Instincts</span></button>
         <button type="button" class="btn-secondary brain-subtab" data-sub="graph" onclick="brainSub('graph')"><span class="ic">🕸️</span> <span>Knowledge Graph</span></button>
@@ -3924,16 +3924,20 @@ done &lt; my_knowledge.jsonl</pre>
       }
     }
 
+    // Dream Mode (Cognitive Digestion): cerna sumber brain (constitution/persona/skill/
+    // instinct/knowledge) → Cognitive Graph via /api/brain/graph/sync (additive, mirror-only,
+    // NO data-loss). On-demand trigger dari sync berkala (DreamGraph autosync). Refresh graf.
     async function triggerDreamCycle() {
-      uiToast('Running Cognitive Dream Cycle...', 'info');
+      uiToast('💫 Dream Mode — mencerna pengetahuan ke Cognitive Graph…', 'info');
       try {
-        const resp = await fetch('/api/brain/wing?wing=cognitive_graph_dream');
+        const resp = await fetch('/api/brain/graph/sync', { method: 'POST' });
         if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + (await resp.text()));
         const res = await resp.json();
-        uiToast(`Dream Cycle complete! Digested ${res.digested} active memories.`, 'success');
-        loadBrainGraph();
+        uiToast(`💫 Dream Mode selesai — sumber dicerna ke Cognitive Graph: ${res.nodes} node / ${res.edges} edge.`, 'success');
+        if (typeof loadBrainGraph === 'function') loadBrainGraph();
+        if (typeof brainSub === 'function') brainSub('graph');
       } catch (e) {
-        uiToast('Error running Dream Cycle: ' + e, 'error');
+        uiToast('Dream Mode error: ' + e, 'error');
       }
     }
 

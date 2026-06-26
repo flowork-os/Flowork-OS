@@ -56,6 +56,20 @@ di-hook 1 baris (`runExtraGraphProjectionsTx(ctx,tx)` sebelum RAG-mirror) → pr
   tab "🎛️ Switch Fitur".
 - `POST /api/brain/graph/sync` works. Build+vet+TestKernelFreeze PASS. Idempotent.
 
+## TOMBOL "💫 Run Dream Mode (Cognitive Digestion)" + Config di pojok (2026-06-26)
+Brain page (`web/static/index.html`, GUI non-frozen):
+- **Dream Mode button** (pojok kanan-atas Brain) → `triggerDreamCycle()` → `POST /api/brain/graph/sync`
+  (= `dreamGraphSyncOnce`/`SyncGraphExtended`: cerna sumber constitution/persona/skill/instinct/
+  knowledge → Cognitive Graph, ADDITIVE + mirror-only, NO data-loss). On-demand trigger dari autosync
+  berkala. Hasil toast `{nodes,edges}` + refresh graf (`loadBrainGraph` + buka tab graph).
+  - DULU salah-wire ke `/api/brain/wing?wing=cognitive_graph_dream` (cuma list drawer → `res.digested`
+    undefined = placeholder rusak). SEKARANG ke endpoint digestion REAL.
+  - ⚠️ BUKAN legacy `RunDreamCycle` (dream_cycle.go) — itu DISABLED (mock 3-topik + bug data-loss,
+    fence `FLOWORK_LEGACY_DREAM`, query tabel `memories` router yg kosong). Sengaja gak dipakai.
+- **Config** (⚙️) dipindah dari baris sub-tab → **pojok kanan-atas** (sebelah Dream), tetap
+  `brain-subtab data-sub=config` (active-state + `brainSub('config')` jalan). Sub-tab row tinggal 9.
+- Live butuh **rebuild+restart router** (HTML di-`//go:embed`). Backend (`/api/brain/graph/sync`) udah ada.
+
 ## GUI CANVAS (router dashboard, `web/static/index.html`)
 Node banyak (325) bikin 3 masalah → fix (verified via headless screenshot):
 - Label numpuk/smear → label cuma render pas HOVER / node HUB kalau graph padat (>40). Full di panel.
