@@ -8,6 +8,8 @@ package agentmgr
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -55,9 +57,10 @@ func CodemapEnrichHandler(summarize SemanticSummarizer) http.HandlerFunc {
 			httpx.WriteJSON(w, map[string]any{"error": "self-map kosong — jalanin /api/codemap/reindex dulu"})
 			return
 		}
-		done := map[string]bool{}
+		// M1: skip by-HASH (bukan by-path) → file BERUBAH = re-enrich, file sama = skip.
+		doneHash := map[string]string{}
 		if !force {
-			done, _ = store.CodemapSemanticPaths()
+			doneHash, _ = store.CodemapSemanticHashes()
 		}
 		root := codemapRoot()
 		ctx, cancel := context.WithTimeout(r.Context(), 290*time.Second)
@@ -72,10 +75,6 @@ func CodemapEnrichHandler(summarize SemanticSummarizer) http.HandlerFunc {
 			if path == "" {
 				continue
 			}
-			if !force && done[path] {
-				skipped++
-				continue
-			}
 			// baca file (anti-traversal + cap ukuran biar prompt kecil = ramah LLM lokal).
 			clean := filepath.Clean(filepath.Join(root, path))
 			if clean != root && !strings.HasPrefix(clean, root+string(os.PathSeparator)) {
@@ -86,6 +85,15 @@ func CodemapEnrichHandler(summarize SemanticSummarizer) http.HandlerFunc {
 			if rerr != nil {
 				failed++
 				continue
+			}
+			// M1: hash konten FULL → incremental by-content. Sama → skip; beda/baru → enrich.
+			hb := sha256.Sum256(data)
+			hash := hex.EncodeToString(hb[:])
+			if !force {
+				if h, ok := doneHash[path]; ok && h == hash {
+					skipped++
+					continue
+				}
 			}
 			const maxBytes = 24 * 1024
 			if len(data) > maxBytes {
@@ -100,7 +108,7 @@ func CodemapEnrichHandler(summarize SemanticSummarizer) http.HandlerFunc {
 				continue
 			}
 			if uerr := store.UpsertCodemapSemantic(agentdb.CodemapSemantic{
-				Path: path, Summary: sum, Domain: dom, Role: role, Model: used,
+				Path: path, Summary: sum, Domain: dom, Role: role, Model: used, Hash: hash,
 			}); uerr != nil {
 				failed++
 				continue

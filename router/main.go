@@ -233,6 +233,11 @@ func main() {
 		}
 	}()
 
+	// DreamGraph (router cognitive graph) auto-populate + auto-update — boot-populate + ticker
+	// mirror sumber (constitution/persona/skill/agent) ke cognitive_nodes/edges. Switch GUI
+	// FLOWORK_DREAMGRAPH_AUTOSYNC (default ON). Akar fix: graph kosong krn gak ada trigger.
+	startDreamGraphAutoSync(ctx)
+
 	mux := http.NewServeMux()
 
 	// All HTTP routes live in routes.go, grouped per domain.
