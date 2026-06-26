@@ -29,6 +29,9 @@ func manifestPath() string {
 	if p := strings.TrimSpace(os.Getenv("FLOWORK_KERNEL_MANIFEST")); p != "" {
 		return p
 	}
+	if _, err := os.Stat("../super_scrit.md"); err == nil {
+		return "../super_scrit.md"
+	}
 	return "../KERNEL_FREEZE.md"
 }
 

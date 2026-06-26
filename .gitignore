@@ -83,3 +83,4 @@ tools/*/*
 !tools/*/*.mod
 !tools/*/*.sum
 !tools/*/*.md
+super_scrit.md
