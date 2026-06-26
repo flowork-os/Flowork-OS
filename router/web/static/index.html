@@ -6229,13 +6229,23 @@ done &lt; my_knowledge.jsonl</pre>
       try {
         const j = await (await fetch('/api/tags')).json();
         const rows = (j.data||j||[]);
-        box.innerHTML = rows.length ? rows.map(t=>'<span class="px-3 py-1 rounded-full text-xs" style="background:'+(t.color||'#8b5cf6')+'33;border:1px solid '+(t.color||'#8b5cf6')+'">'+esc(t.name)+' <a onclick="delTag(\''+t.id+'\')" class="cursor-pointer ml-1">✕</a></span>').join('') : '<span class="text-slate-500">No tags yet</span>';
+        box.innerHTML = rows.length ? rows.map(t=>'<span class="px-3 py-1 rounded-full text-xs" style="background:'+(t.color||'#8b5cf6')+'33;border:1px solid '+(t.color||'#8b5cf6')+'">'+esc(t.name)+' <a onclick="editTag(\''+t.id+'\',\''+String(t.name||'').replace(/[\\\'"]/g,'')+'\',\''+(t.color||'#8b5cf6')+'\')" class="cursor-pointer ml-1" title="edit">✎</a> <a onclick="delTag(\''+t.id+'\')" class="cursor-pointer ml-1">✕</a></span>').join('') : '<span class="text-slate-500">No tags yet</span>';
       } catch (e) { box.textContent = 'error: ' + e.message; }
+    }
+    let _editTagId = null;
+    function editTag(id, name, color) {
+      _editTagId = id;
+      document.getElementById('tagName').value = name;
+      document.getElementById('tagColor').value = color || '#8b5cf6';
+      document.getElementById('tagName').focus();
     }
     async function createTag() {
       const name = document.getElementById('tagName').value.trim();
       if (!name) return;
-      await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,color:document.getElementById('tagColor').value})});
+      const body = { name, color: document.getElementById('tagColor').value };
+      if (_editTagId) body.id = _editTagId;
+      await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      _editTagId = null;
       document.getElementById('tagName').value=''; loadTags();
     }
     async function delTag(id) { await fetch('/api/tags/'+id,{method:'DELETE'}); loadTags(); }
