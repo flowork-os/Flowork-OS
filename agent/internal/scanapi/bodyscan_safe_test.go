@@ -19,7 +19,7 @@ func TestSafeBodyScanRoot(t *testing.T) {
 	}
 	// a project repo under home is allowed
 	if home != "" {
-		repo := filepath.Join(home, "Documents", "Flowork_Agent")
+		repo := filepath.Join(home, "Documents", "FLowork_os")
 		if !safeBodyScanRoot(repo) {
 			t.Errorf("%q (a repo) should be allowed", repo)
 		}

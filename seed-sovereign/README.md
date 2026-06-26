@@ -26,7 +26,7 @@ build/build-router.sh        # -> out/flowork-router (static, no libc/Docker/Pyt
 ```
 
 ## Relationship to the other repos
-- **Canonical engine:** `flowork-os/flowork_Router` (full upstream router).
+- **Canonical engine:** `flowork-os/Flowork-OS` (full upstream router, `router/`).
 - **This repo:** the personal/sovereign profile + appliance service + build, consumed by the
   OS builder. The build pulls the engine source (sibling checkout or GitHub) and produces the
   static binary; the OS image runs it co-located with the agent.

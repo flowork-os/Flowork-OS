@@ -1935,9 +1935,8 @@ There are no action buttons/forms — this panel is read-only.
 - **All 7 external links are `rel="noopener"`** → safe from tab-nabbing. ✅
 - **Zero JS/fetch/innerHTML/input** in the panel → **no XSS surface**. ✅
 - No secrets/tokens. ✅
-- ⚠️ **Honest note**: the links point to the repo `github.com/flowork-os/flowork_Router/blob/main/docs/handbook/…`
-  (consistent with the header of all code files). If that standalone repo has not been published yet, the links will
-  404 on GitHub — **but the files themselves are shipped** in `router/docs/handbook/` (readable locally/offline).
+- ⚠️ **Honest note**: the links point to the monorepo `github.com/flowork-os/Flowork-OS/blob/main/router/docs/handbook/…`.
+  **The files themselves are shipped** in `router/docs/handbook/` (readable locally/offline) regardless.
   Not a security bug; just a link target.
 
 ### 25.5 Usable by agents? / Portability
@@ -2612,9 +2611,8 @@ No action button/form — read-only.
 - **All links `target="_blank" rel="noopener"`** → safe from tab-nabbing. ✅
 - **`esc()` on url & label** + zero dynamic input/fetch → **no XSS**. ✅
 - Zero backend/DB/secret. ✅
-- ⚠️ **Honest note**: the links point to the repo `github.com/flowork-os/Flowork_Agent/blob/main/doc/handbook`
-  (standalone) — if not yet published, 404 on GitHub, **but the files ship along** in
-  `doc/handbook/` (read locally/offline). Not a security bug; merely a link target.
+- ⚠️ **Honest note**: the links point to the monorepo `github.com/flowork-os/Flowork-OS/blob/main/agent/doc/handbook`.
+  **The files ship along** in `agent/doc/handbook/` (read locally/offline). Not a security bug; merely a link target.
 
 ### 33.5 Usable by the agent? / Portability
 

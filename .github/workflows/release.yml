@@ -7,7 +7,7 @@
 # (flowork-os/Flowork-OS) so users + installed devices can download/auto-update. Source stays
 # in this private repo.
 #
-# One-time setup: add repo secret PUBLISH_TOKEN = a token with contents:write on Flowork_Agent.
+# One-time setup: add repo secret PUBLISH_TOKEN = a token with contents:write on flowork-os/flowork.
 name: release
 on:
   push:
