@@ -41,11 +41,7 @@ func RegisterCustomCLITool(t Tool) error {
 	if err != nil {
 		return err
 	}
-	if err := store.UpsertCustomCLITool(d, t.ID, string(b)); err != nil {
-		return err
-	}
-	RegisterCLITool(t)
-	return nil
+	return store.UpsertCustomCLITool(d, t.ID, string(b))
 }
 
 // DeleteCustomCLITool — hapus dari DB (drop penuh dari registry saat restart).
@@ -57,8 +53,4 @@ func DeleteCustomCLITool(id string) error {
 	return store.DeleteCustomCLITool(d, id)
 }
 
-func init() {
-	for _, t := range LoadCustomCLITools() {
-		RegisterCLITool(t)
-	}
-}
+func init() { cliDBSource = LoadCustomCLITools }

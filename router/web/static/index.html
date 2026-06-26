@@ -6324,6 +6324,7 @@ done &lt; my_knowledge.jsonl</pre>
                   <span class="text-xs text-slate-500 ml-2">${esc(m.transport)} · ${esc(m.command||m.url||'')}</span>
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
+                  <button class="btn-secondary text-xs py-1 px-2" onclick="editMcp('${esc(m.id)}','${String(m.name||m.id).replace(/['\\"]/g,'')}','${esc(m.transport)}','${String(m.command||m.url||'').replace(/['\\"]/g,'')}')">Edit</button>
                   <button class="btn-secondary text-xs py-1 px-2" onclick="mcpTools('${esc(m.id)}', this)">Tools</button>
                   <button class="btn-danger text-xs py-1 px-2" onclick="delMcp('${esc(m.id)}')">Delete</button>
                 </div>
@@ -6347,11 +6348,21 @@ done &lt; my_knowledge.jsonl</pre>
         toast('Registered ' + (c.name||c.id)); loadMCP();
       } catch (e) { toast('Failed: ' + e.message, 'error'); }
     }
+    let _editMcpId = null;
+    function editMcp(id, name, transport, cmdOrUrl) {
+      _editMcpId = id;
+      document.getElementById('mcpName').value = name;
+      const tEl = document.getElementById('mcpTransport'); if (tEl) tEl.value = transport;
+      const uEl = document.getElementById('mcpUrl'); if (uEl) uEl.classList.toggle('hidden', transport === 'stdio');
+      if (transport === 'stdio') { const c = document.getElementById('mcpCommand'); if (c) c.value = cmdOrUrl; }
+      else { if (uEl) uEl.value = cmdOrUrl; }
+      document.getElementById('mcpName').focus();
+    }
     async function addMcpServer() {
       const name = document.getElementById('mcpName').value.trim();
       const transport = document.getElementById('mcpTransport').value;
       if (!name) { toast('Name required', 'error'); return; }
-      const body = { id: name.toLowerCase().replace(/\s+/g,'-'), name, transport, enabled: true };
+      const body = { id: _editMcpId || name.toLowerCase().replace(/\s+/g,'-'), name, transport, enabled: true };
       if (transport === 'stdio') {
         const parts = document.getElementById('mcpCommand').value.trim().split(/\s+/);
         if (!parts[0]) { toast('Command required for stdio', 'error'); return; }
@@ -6361,7 +6372,7 @@ done &lt; my_knowledge.jsonl</pre>
         if (!body.url) { toast('URL required', 'error'); return; }
       }
       try { const r = await fetch('/api/mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok)throw new Error('HTTP '+r.status);
-        document.getElementById('mcpName').value=''; document.getElementById('mcpCommand').value=''; document.getElementById('mcpUrl').value=''; toast('Server added'); loadMCP(); }
+        _editMcpId = null; document.getElementById('mcpName').value=''; document.getElementById('mcpCommand').value=''; document.getElementById('mcpUrl').value=''; toast('MCP saved'); loadMCP(); }
       catch (e) { toast('Add failed: ' + e.message, 'error'); }
     }
     async function delMcp(id) { try{ await fetch('/api/mcp/'+encodeURIComponent(id),{method:'DELETE'}); toast('Removed'); loadMCP(); }catch(e){toast('Failed','error');} }

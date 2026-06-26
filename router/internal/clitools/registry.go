@@ -181,7 +181,7 @@ func All() []Tool {
 			EnvKeys:      []string{"mitmUrl", "interceptHosts"},
 			Notes:        "MITM only; no on-disk tool config — flow_router proxies traffic for Antigravity inline.",
 		},
-	}, extraCLITools...)
+	}, allCLIExtras()...)
 }
 
 func Get(id string) *Tool {
