@@ -102,9 +102,13 @@ pasangannya → model ga anchor ke jawaban-buruk.
 
 ## 5. SISA YANG BELUM KELAR (jujur — buat AI selanjutnya)
 
-1. **Layer-2 DIGEST filter (PRIORITAS).** Layer-1 cuma channel HISTORY (transient, rolling). Interaksi-GAGAL masih
-   bisa ke-digest jadi **node PERMANEN** di cognitive-graph (`DigestPendingInteractions`, `cognitive_dream.go` FROZEN).
-   TODO: skip/tandai interaksi `outcome=failed`/anchor-noise sebelum digest. → lindungi graph permanen.
+1. **Layer-2 DIGEST filter — ✅ SELESAI 2026-06-26.** `DigestPendingInteractions` (`cognitive_dream.go`,
+   re-frozen) SKIP interaksi-GAGAL sebelum jadi node PERMANEN: query +`json_extract(metadata,'$.outcome')
+   <>'failed'` + `NOT LIKE` 3 marker honest-fallback SISTEM (deterministik, BUKAN nebak frasa user):
+   `tool-nya ga kepanggil` (ghost-max), `router LLM lagi ga stabil` (router give-up), `ngebalikin jawaban
+   kosong` (empty). Additif → no-regression. Test `TestDigestPending_SkipsFailedInteractions` (3 skip, 1
+   digest) + idempotent ga regresi. Sisa OPSIONAL (hardening): outcome-TAGGING eksplisit di orchestrator
+   return-path biar tipe-gagal BARU auto-skip tanpa nambah marker (butuh refactor loop→logInteraction).
 2. **Deterministic outcome-tagging (root sejati, > phrase-match).** Tag reply di `logInteraction` metadata:
    `outcome=failed` kalau turn lewat failure-path (flail-eskalasi / ghost-max / auto-continue-give-up). Lalu
    `fetchHistory` + digest filter by `outcome` (bukan nebak frasa). Sentuh main.go + cognitive_dream (frozen, ceremony).

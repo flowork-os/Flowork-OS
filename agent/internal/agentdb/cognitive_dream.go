@@ -177,10 +177,19 @@ func (s *Store) DigestPendingInteractions(ctx context.Context, dep DigestDeps, l
 	}
 	s.mu.Lock()
 	s.ensureCognitiveGraphSchema()
+	// L2 ERROR-EDUKASI (#3): JANGAN digest interaksi-GAGAL ke graph PERMANEN (anti history-poisoning).
+	// Skip kalau (a) metadata.outcome='failed' (tag eksplisit, future-proof) ATAU (b) content =
+	// honest-fallback string SISTEM SENDIRI (deterministik, bukan nebak frasa user): ghost-max
+	// "tool-nya ga kepanggil", router give-up "router LLM lagi ga stabil", empty "ngebalikin jawaban
+	// kosong". Additif → kalau ga match = perilaku lama (no-regression). lock/ERROR_EDUKASI.md §5.
 	rows, err := s.db.Query(`
 		SELECT i.id, i.content FROM interactions i
 		LEFT JOIN cognitive_digest_log d ON d.interaction_id = i.id
 		WHERE d.interaction_id IS NULL AND i.deleted_at IS NULL AND TRIM(i.content) <> ''
+		  AND COALESCE(json_extract(i.metadata,'$.outcome'),'') <> 'failed'
+		  AND i.content NOT LIKE '%tool-nya ga kepanggil%'
+		  AND i.content NOT LIKE '%router LLM lagi ga stabil%'
+		  AND i.content NOT LIKE '%ngebalikin jawaban kosong%'
 		ORDER BY i.id ASC LIMIT ?`, limit)
 	if err != nil {
 		s.mu.Unlock()

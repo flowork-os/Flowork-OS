@@ -15,7 +15,11 @@
 
 ## ⏸️ DITUNDA (keputusan + alasan + plan)
 
-### #3 Error-edukasi Layer-2 (DIGEST filter) — TUNDA (owner-present)
+### #3 Error-edukasi Layer-2 (DIGEST filter) — ✅ SELESAI 2026-06-26 (owner bangun, dikerjain)
+**Dikerjain pendekatan PALING AMAN (1 edit frozen, bukan 3):** digest query skip interaksi-gagal
+(marker honest-fallback sistem + outcome=failed metadata). Re-frozen + test PASS. Detail: `ERROR_EDUKASI.md §5`.
+Sisa opsional = outcome-tagging orchestrator (hardening, butuh refactor return-path). Plan lama (di bawah)
+buat referensi kalau mau full-tagging:
 **Kenapa tunda:** butuh 3 edit di FROZEN brain-core sekaligus: (a) `cognitive_dream.go`
 `DigestPendingInteractions` query → skip `outcome=failed`; (b) `mr-flow/main.go` tag failure-path
 logInteraction `outcome=failed`; (c) `agentkit.go` idem buat worker. Tagging-path SUSAH di-unit-test

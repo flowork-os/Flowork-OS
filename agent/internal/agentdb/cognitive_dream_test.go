@@ -98,6 +98,37 @@ func TestDigestPending_NoDelete_Idempotent(t *testing.T) {
 	}
 }
 
+// L2 ERROR-EDUKASI (#3): interaksi-GAGAL (honest-fallback sistem / outcome=failed) JANGAN ke-digest
+// ke graph permanen (anti history-poisoning). Cuma yang BERSIH yang masuk.
+func TestDigestPending_SkipsFailedInteractions(t *testing.T) {
+	s := openTestStore(t)
+	// 1 bersih (harus di-digest)
+	if _, err := s.db.Exec(`INSERT INTO interactions (channel,direction,actor,content) VALUES ('cli','out','mr-flow',?)`,
+		"Jawaban valid soal arsitektur Go"); err != nil {
+		t.Fatal(err)
+	}
+	// 3 gagal (harus di-SKIP): 2 marker sistem + 1 outcome=failed metadata
+	fails := []struct{ content, meta string }{
+		{"Sori bro, gw kebanyakan muter rencana tapi tool-nya ga kepanggil (model lokal ngeyel).", "{}"},
+		{"Maaf, router LLM lagi ga stabil — udah gw coba ulang beberapa kali tapi belum nyambung.", "{}"},
+		{"Jawaban yang keliatan normal tapi turn-nya gagal", `{"outcome":"failed"}`},
+	}
+	for _, f := range fails {
+		if _, err := s.db.Exec(`INSERT INTO interactions (channel,direction,actor,content,metadata) VALUES ('cli','out','mr-flow',?,?)`,
+			f.content, f.meta); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, n, err := s.DigestPendingInteractions(context.Background(),
+		DigestDeps{LLM: fakeLLMAola, AgentScope: "agent:test", Tier: 2}, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("digested n=%d, want 1 (cuma yang BERSIH; 3 gagal di-skip)", n)
+	}
+}
+
 func TestDigestText_EntityResolutionMerge(t *testing.T) {
 	s := openTestStore(t)
 	// embedder: "mobil" and "kendaraan" → same vector (similar meaning); others differ
