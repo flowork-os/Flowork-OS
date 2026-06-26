@@ -34,6 +34,19 @@ sebelum L9) → lapis tambahan jalan dalam pipeline yg sama.
 \+ switch di agent `internal/fwswitch/registry.go` → muncul GUI. Reject 1 lapis = pipeline stop.
 **Test:** `TestRegisterMeshFilter`/`*SwitchAndReject`/`*FailsOpen` PASS. Re-freeze karma_toolshare_filter PASS.
 
+## PENGETAHUAN MESH → KNOWLEDGE GRAPH (2026-06-26, nutup gap)
+**Akar:** pengetahuan peer yg lolos filter cuma di-mark `mesh_knowledge_inbox.status='promoted'` —
+BERHENTI di situ, GAK nyambung ke Cognitive Graph (DreamGraph projeksi knowledge dari `drawers`,
+bukan inbox). Ilmu federasi diterima tapi gak ke-graph/gak ke-recall.
+**Fix (via seam RegisterGraphProjection, ZERO buka frozen):** `internal/brain/graph_proj_mesh.go`
+(**FROZEN**) daftar proyeksi `mesh-knowledge` → tiap `inbox(status='promoted')` jadi node
+type `knowledge` source `mesh_federated` + edge `member_of`→hub `flowork`. **Cross-DB**:
+`mesh_knowledge_inbox` di store-DB (data.sqlite), `cognitive_nodes` di brain-DB → proyeksi baca via
+`store.Open()` (singleton), tulis ke brain-tx. Idempotent (cleanup source dulu). Switch
+`FLOWORK_DREAMGRAPH_MESH` (default ON).
+**Verified:** sync 325→**326 node** / 324→325 edge (test001 promoted → node `mesh_know_test001`),
+re-sync tetap 326 (idempotent). graph_proj_mesh.go FROZEN, graph_extras_ext.go (registry) tetap open.
+
 ## SWITCH
 - **Per-lapis filter** = `MeshFilter.Switch` (switch-aware via registry.go) — tiap lapis baru bawa switch GUI.
 - **Master mesh on/off**: BELUM ada (discovery/gossip start di `main.go` FROZEN, unconditional). Nambah
