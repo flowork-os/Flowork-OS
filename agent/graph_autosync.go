@@ -166,6 +166,18 @@ func SyncSourcesToGraph(ctx context.Context, host *kernelhost.Host) int {
 		if n, _, e := store.LinkCodemapToGraph(scope); e == nil {
 			changed += n
 		}
+		// #2: nempelin MAKNA enrich (summary/domain/role) ke code-node → graph nyambung ke enrich.
+		if n, e := store.AttachCodemapSemanticToGraph(scope); e == nil {
+			changed += n
+		}
+	}
+
+	// #4: DEAD-LETTER task gagal (agent_runs.state='error') → CGM (type dead_letter) → agent sadar
+	// kegagalan + bisa graph_recall/belajar. Switch FLOWORK_CGM_DEADLETTER (default ON).
+	if cgmDeadLetterOn() {
+		if n, e := store.SyncDeadLettersToGraph(scope, 100); e == nil {
+			changed += n
+		}
 	}
 
 	// Bagian 4: backfill node ORPHAN (projeksi sumber tanpa relasi) → hub brain-root → graph
@@ -182,6 +194,15 @@ func SyncSourcesToGraph(ctx context.Context, host *kernelhost.Host) int {
 // cgmOrphanBackfillOn — switch FLOWORK_CGM_ORPHAN_BACKFILL (default ON): link node orphan → hub.
 func cgmOrphanBackfillOn() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_CGM_ORPHAN_BACKFILL"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
+}
+
+// cgmDeadLetterOn — switch FLOWORK_CGM_DEADLETTER (default ON): projeksi task gagal → CGM.
+func cgmDeadLetterOn() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_CGM_DEADLETTER"))) {
 	case "0", "false", "off", "no":
 		return false
 	}

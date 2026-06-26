@@ -24,3 +24,15 @@ Dipanggil di `graph_autosync` cycle. Verified: orphan **208 → 0** (total 1256 
 - `agent/internal/agentdb/cognitive_orphan.go` (FROZEN) — BackfillOrphansToHub.
 - `LinkCodemapToGraph` ada di `cognitive_codemap.go` (FROZEN brain-core, cuma DIPANGGIL).
 - Switch di `registry.go` (non-frozen extension point).
+
+## #2 — enrich (makna) → code-node (2026-06-26)
+`AttachCodemapSemanticToGraph(scope)` (`internal/agentdb/cognitive_codemap_semantic.go`, FROZEN):
+join `codemap_semantic`+`codemap_files` → re-upsert code-node `<scope>/codemap/<path>` dgn
+`Why`=summary + domain/role di properties. Dipanggil di graph_autosync (switch FLOWORK_CGM_CODEMAP).
+Hasil: `graph_recall` nyurfacing "file ini ngapain". Verified: code-node-with-summary 0→63 (= enrich rows).
+
+## #4 — dead-letter task → graph (2026-06-26)
+`SyncDeadLettersToGraph(scope,limit)` (`internal/agentdb/cognitive_deadletter.go`, FROZEN): task
+gagal permanen (`agent_runs.state='error'`) → node type `dead_letter` + Why=error + edge member_of
+→ brain-root. Switch FLOWORK_CGM_DEADLETTER. Agent jadi SADAR kegagalan & bisa graph_recall/belajar.
+Verified: inject error-row uji → node `dead_letter` ke-projeksi (label+why+edge), lalu artefak uji dibersihin.
