@@ -76,3 +76,13 @@ PASS. base = update terbaru; **public = utuh (rollback)**.
   brain_search/`graph_recall`") + **AOLA-004_SIKLUS_KOGNITIF** ("`graph_recall` utk konteks memori").
   Ada di LIVE DB + SEED (`doctrine_seed.json`) → install-baru dapet. TIDAK perlu edit (sudah ada +
   verified). Edit konstitusi sakral tanpa perlu = langgar paling-stabil.
+
+## ❄️ AGENT FREEZE 2026-06-26 (owner minta: codemap-enricher, mr-flow, dream-digester)
+Definisi 3 agent dikunci (chattr +i + KERNEL_FREEZE), TAPI `state.db` (model/prompt runtime) SENGAJA
+TIDAK frozen → model tetap GUI-adjustable (sesuai prinsip "model di GUI"):
+- mr-flow: `agents/mr-flow/main.go` + `mr-flow.fwagent/{manifest.json,agent.wasm}` (udah frozen).
+- codemap-enricher: `codemap_enricher_seed.go` (.go enforced) + deploy `~/.flowork/agents/
+  codemap-enricher.fwagent/{manifest.json,agent.wasm}` (chattr, manual-verify).
+- dream-digester: `dream_digester_seed.go` (udah) + deploy `~/.flowork/agents/dream-digester.fwagent/
+  {manifest.json,agent.wasm}` (chattr, manual-verify).
+Bukti immutable: append → "Operation not permitted". TestKernelFreeze PASS. Buka = chattr -i + izin.
