@@ -10,14 +10,14 @@ CACHE="$REPO_DIR/.cache"
 GH="https://github.com/flowork-os/Flowork-OS"
 SRC="${ROUTER_SRC:-}"
 if [ -z "$SRC" ]; then
-	for c in "$REPO_DIR/../flowork_Router"; do
+	for c in "$REPO_DIR/../router"; do
 		[ -f "$c/go.mod" ] && { SRC="$c"; break; }
 	done
 fi
 if [ -z "$SRC" ]; then
 	mkdir -p "$CACHE"
-	[ -d "$CACHE/flowork_Router/.git" ] || git clone --depth 1 "$GH" "$CACHE/flowork_Router"
-	SRC="$CACHE/flowork_Router"
+	[ -d "$CACHE/Flowork-OS/.git" ] || git clone --depth 1 "$GH" "$CACHE/Flowork-OS"
+	SRC="$CACHE/Flowork-OS/router"
 fi
 echo "[router] source: $SRC"
 

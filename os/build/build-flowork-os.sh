@@ -33,27 +33,26 @@ warn() { printf '\033[1;33m[warn]\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }
 
 # --- source resolution (env > sibling > clone) -------------------------------
-GH_BASE="https://github.com/flowork-os"
+GH_MONOREPO="https://github.com/flowork-os/Flowork-OS"
 resolve_src() {
-	# $1 = override var value, $2.. = candidate paths, last token = github repo name
+	# $1 = override var value, $2.. = candidate local paths, last token = monorepo subdir (agent|router)
 	local override="$1"; shift
-	local repo="${!#}"; set -- "${@:1:$(($#-1))}"
+	local sub="${!#}"; set -- "${@:1:$(($#-1))}"
 	if [ -n "$override" ]; then echo "$override"; return; fi
-	# Require a buildable Go module (go.mod). A bare .git (e.g. the router *profile*
-	# repo, which has no engine source) must NOT match.
+	# Require a buildable Go module (go.mod) so a bare/profile dir won't match.
 	local c
 	for c in "$@"; do [ -f "$c/go.mod" ] && { echo "$c"; return; }; done
 	mkdir -p "$CACHE"
-	if [ ! -d "$CACHE/$repo/.git" ]; then
-		log "cloning $GH_BASE/$repo (no local source found)"
-		git clone --depth 1 "$GH_BASE/$repo" "$CACHE/$repo" >/dev/null 2>&1 || die "clone $repo failed"
+	if [ ! -d "$CACHE/Flowork-OS/.git" ]; then
+		log "cloning $GH_MONOREPO (no local source found)"
+		git clone --depth 1 "$GH_MONOREPO" "$CACHE/Flowork-OS" >/dev/null 2>&1 || die "clone Flowork-OS failed"
 	fi
-	echo "$CACHE/$repo"
+	echo "$CACHE/Flowork-OS/$sub"
 }
 
-# Monorepo layout first (sibling dirs under FLowork_os/), then legacy standalone-repo fallbacks.
-AGENT_SRC="$(resolve_src "${AGENT_SRC:-}"  "$REPO_DIR/../agent" "$REPO_DIR/../Flowork_Agent" Flowork_Agent)"
-ROUTER_SRC="$(resolve_src "${ROUTER_SRC:-}" "$REPO_DIR/../router" "$REPO_DIR/../flowork_Router" flowork_Router)"
+# One repo: Flowork-OS. Use the local monorepo sibling dir if present, else clone the monorepo.
+AGENT_SRC="$(resolve_src "${AGENT_SRC:-}"  "$REPO_DIR/../agent"  agent)"
+ROUTER_SRC="$(resolve_src "${ROUTER_SRC:-}" "$REPO_DIR/../router" router)"
 log "agent  source : $AGENT_SRC"
 log "router source : $ROUTER_SRC"
 
