@@ -168,7 +168,24 @@ func SyncSourcesToGraph(ctx context.Context, host *kernelhost.Host) int {
 		}
 	}
 
+	// Bagian 4: backfill node ORPHAN (projeksi sumber tanpa relasi) → hub brain-root → graph
+	// nyambung penuh (anti node ngambang di viz). Switch FLOWORK_CGM_ORPHAN_BACKFILL (default ON).
+	if cgmOrphanBackfillOn() {
+		if n, e := store.BackfillOrphansToHub(scope); e == nil {
+			changed += n
+		}
+	}
+
 	return changed
+}
+
+// cgmOrphanBackfillOn — switch FLOWORK_CGM_ORPHAN_BACKFILL (default ON): link node orphan → hub.
+func cgmOrphanBackfillOn() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_CGM_ORPHAN_BACKFILL"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
 }
 
 // cgmCodemapOn — M2 switch FLOWORK_CGM_CODEMAP (default ON): projeksi struktur codemap ke CGM
