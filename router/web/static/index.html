@@ -1272,6 +1272,21 @@ done &lt; my_knowledge.jsonl</pre>
         </div>
       </div>
 
+      <!-- Share & Approve (mesh sharing policy) -->
+      <div class="glass p-5 mb-4">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="font-bold">🔄 Share &amp; Approve Pengetahuan Mesh</h3>
+            <p class="text-xs text-slate-400 mt-0.5">Atur ON/OFF &amp; manual/auto di tab <b>🎛️ Switch Fitur</b> (FLOWORK_MESH_SHARE / FLOWORK_MESH_APPROVE). Share OFF = otomatis tak nerima (adil).</p>
+          </div>
+          <div id="mc-policy" class="text-xs flex gap-1 items-center"></div>
+        </div>
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold">Antrian approve <span id="mc-pending-count" class="text-xs text-slate-400"></span></span>
+        </div>
+        <div id="mc-pending" class="space-y-2 max-h-72 overflow-y-auto"></div>
+      </div>
+
       <!-- 2-col grid for sections -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
@@ -6495,7 +6510,45 @@ done &lt; my_knowledge.jsonl</pre>
       return `<div class="grid grid-cols-${cols.length} gap-2 py-1 border-b border-slate-700/50 text-xs">${cols.map(c=>`<div>${c}</div>`).join('')}</div>`;
     }
 
+    async function loadMeshApprove() {
+      const pol = await mcGet('/api/mesh/policy');
+      const polEl = document.getElementById('mc-policy');
+      if (polEl && !pol.error) {
+        const on = pol.share;
+        const appr = pol.approve || 'manual';
+        polEl.innerHTML =
+          `<span class="px-2 py-0.5 rounded ${on?'bg-green-600/20 border border-green-500/30 text-green-300':'bg-red-600/20 border border-red-500/30 text-red-300'}">share: ${on?'ON':'OFF'}</span>`
+        + `<span class="px-2 py-0.5 rounded bg-purple-600/20 border border-purple-500/30 text-purple-200">approve: ${mcEsc(appr)}</span>`;
+      }
+      const pend = await mcGet('/api/mesh/knowledge/pending');
+      const items = pend.data || [];
+      const cEl = document.getElementById('mc-pending-count');
+      if (cEl) cEl.textContent = `(${items.length})`;
+      const el = document.getElementById('mc-pending');
+      if (!el) return;
+      if (!items.length) { el.innerHTML = '<div class="text-xs text-slate-500">Kosong — tak ada pengetahuan nunggu approve.</div>'; return; }
+      el.innerHTML = items.map(k => `
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-lg p-3">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <span class="font-mono text-xs text-purple-300">${mcEsc((k.origin_pubkey||'').slice(0,16))}…</span>
+            <span class="text-slate-500 text-xs">${mcEsc(k.arrived_at||'')}</span>
+          </div>
+          <div class="text-xs text-slate-300 mb-2 break-words">${mcEsc((k.drawer_content||'').slice(0,240))}</div>
+          <div class="flex gap-2">
+            <button class="text-xs btn-primary" onclick="meshApprove('${mcEsc(k.packet_id)}','approve')">✓ Approve</button>
+            <button class="text-xs px-2 py-1 rounded bg-red-600/20 border border-red-500/30 text-red-300" onclick="meshApprove('${mcEsc(k.packet_id)}','reject')">✕ Reject</button>
+          </div>
+        </div>`).join('');
+    }
+    async function meshApprove(packetId, action) {
+      try {
+        await fetch('/api/mesh/knowledge/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ packet_id: packetId }) });
+      } catch (e) {}
+      loadMeshApprove();
+    }
+
     async function loadMeshConsole() {
+      loadMeshApprove();
       // Section 13 — identity + peers
       const id = await mcGet('/api/mesh/identity');
       document.getElementById('mc-identity').innerHTML = id.error
