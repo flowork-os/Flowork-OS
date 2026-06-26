@@ -79,6 +79,9 @@ func (g *GossipEngine) loop(ctx context.Context) {
 }
 
 func (g *GossipEngine) tick(ctx context.Context) {
+	if !meshShareEnabled() {
+		return
+	}
 	peers, perr := selectRandomPeers(g.db, g.fanout)
 	if perr != nil || len(peers) == 0 {
 		return
