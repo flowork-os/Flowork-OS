@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -158,5 +159,24 @@ func SyncSourcesToGraph(ctx context.Context, host *kernelhost.Host) int {
 		rows.Close()
 	}
 
+	// M2: projeksi STRUKTUR codemap (file + import + layer) → CGM = agent SADAR peta kode-dirinya.
+	// Idempotent (LinkCodemapToGraph upsert). Switch FLOWORK_CGM_CODEMAP (default ON). Skip kalau
+	// codemap belum di-index (balik error → diabaikan).
+	if cgmCodemapOn() {
+		if n, _, e := store.LinkCodemapToGraph(scope); e == nil {
+			changed += n
+		}
+	}
+
 	return changed
+}
+
+// cgmCodemapOn — M2 switch FLOWORK_CGM_CODEMAP (default ON): projeksi struktur codemap ke CGM
+// agent → agent sadar peta kode-dirinya. OFF = skip.
+func cgmCodemapOn() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_CGM_CODEMAP"))) {
+	case "0", "false", "off", "no":
+		return false
+	}
+	return true
 }

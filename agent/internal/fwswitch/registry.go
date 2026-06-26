@@ -29,6 +29,7 @@ var Registry = []Switch{
 	{"FLOWORK_DREAMGRAPH_SYNC_MIN", "DreamGraph interval (menit)", "Tiap berapa menit DreamGraph di-refresh dari sumber (default 5). Kecil = lebih responsif tapi lebih sering kerja.", "int", "5", "Brain / Graph"},
 	{"FLOWORK_DREAMGRAPH_INSTINCTS", "DreamGraph: sambung Instincts", "Projeksi instinct (drawers room instinct_*) jadi node di DreamGraph. OFF = instinct gak masuk graph.", "bool", "true", "Brain / Graph"},
 	{"FLOWORK_DREAMGRAPH_KNOWLEDGE", "DreamGraph: sambung Knowledge", "Projeksi korpus knowledge jadi HUB per-wing (threat_intel/exploitdb/dst) di DreamGraph. OFF = knowledge gak masuk graph.", "bool", "true", "Brain / Graph"},
+	{"FLOWORK_CGM_CODEMAP", "CGM: sambung peta kode (self-aware)", "Projeksi struktur codemap (file+import) ke Cognitive Graph agent → agent sadar peta kode-dirinya. OFF = skip.", "bool", "true", "Brain / Graph"},
 	{"FLOWORK_BINARY_VECTOR", "Binary-vector recall (#5)", "Search korpus JUTAAN: coarse biner (popcount) + rerank int8. auto (default) = aktif otomatis >=1jt drawer; on=paksa; off=int8 biasa. Recall 1.0 (rerank exact).", "string", "auto", "Brain / Search"},
 	{"FLOWORK_BINARY_VECTOR_MIN", "Binary auto threshold", "Jumlah drawer minimum biar binary-vector auto-aktif (default 1000000 = 1 juta).", "int", "1000000", "Brain / Search"},
 	{"FLOWORK_TOOLCALL_RECOVER", "Pulihin <tool_call> bocor", "Parse teks <tool_call> yg bocor dari model lokal jadi tool-call asli (anti-bocor ke user).", "bool", "true", "Router / Tools"},
