@@ -44,15 +44,27 @@ Existing stable code = beku. Nambah fitur = **FILE BARU + mekanisme seam** yang 
 > baru + `init(){ RegisterExtraRoute(func(m){ m.HandleFunc(...) }) }`. Bukti: `TestRouteSeamWired`.
 > Status: **71/71 handler router frozen** (chat_learn, ssrf_guard, pentest, brain_wing ikut).
 
-### Router freeze-sweep 2026-06-26 — 396/510 .go frozen
+### Router freeze-sweep 2026-06-26 — FROZEN CORE SELF-SUFFICIENT
 Konversi 15 logic stabil (soft-LOCK→FREEZE): `cmd/brain-{buildindex,reembed,search}`,
 `localai_autostart`, `vecindex/{ann,builder,vecindex}`, `brain/{fresh_index,skill_provider}`,
 `providers/embedding/local`, `router/modellock`, `sidecar/sidecar`, `creds/{login,refresh,save}`.
-**SENGAJA non-frozen di router (JANGAN dibekuin — bukan lupa):**
-- `edition_gate.go`, `internal/router/instinctenrich_ext2.go` — GROWTH-POINT/switch (FREE↔CORPORATE, scoped-instinct).
-- `internal/brain/dream_cycle.go` — disabled, **under rebuild (Phase 0)**.
-- `internal/brain/{mem_type_registry,reclassify,reclassify_rules}.go` — Phase 2 typed-memory, Phase 3 (LLM) direncanakan → enum/rules tumbuh.
-- semua `*_ext.go` (seam), `routes_ext.go`, `fwswitch`, `*_test.go`.
+
+**+ Self-sufficiency fix (owner: "hapus non-frozen → router error = cacat arsitektur").**
+Uji empiris (worktree, hapus file 1-1) buktiin 12 file non-frozen **load-bearing**: frozen core
+manggil simbol yg didefinisikan di non-frozen → hapus = build patah. AKAR: file itu sebenarnya
+**MEKANISME seam (infra stabil), bukan ekstensi yg mau dihapus** — ekstensi = file SIBLING baru.
+Maka 11 di-FREEZE (mekanisme jadi immutable, evolusi tetap via sibling+switch):
+`mesh/filter_ext` (RegisterMeshFilter), `vecindex/binary_ext` (method), `brain/graph_extras_ext`
+(RegisterGraphProjection), `router/{toolcall_recover_ext,brain_constitution_ext,agentctx_ext,instinctenrich_ext2}`,
+`edition_gate`, `routes_ext` (RegisterExtraRoute), `brain/mem_type_registry` (type MemType dipakai
+frozen write/ingest), `brain/dream_cycle` (syncCoreEntities, audit-clean; legacy dream tetap di-fence env).
+**HASIL terverifikasi:** hapus SEMUA non-frozen non-test non-GUI → `go build ./...` **exit 0**.
+Sisa non-frozen sah: `brain/{reclassify,reclassify_rules}` (pair self-contained, frozen core tak
+butuh), `llm_idle_sleep_ext` (observer registry), semua sibling `*_ext` baru, GUI, `*_test.go`.
+
+> Evolusi pasca-freeze: edisi/scoped-instinct via SWITCH `FLOWORK_EDITION`/`FLOWORK_INSTINCT_SCOPED`
+> (GUI fwswitch, bukan edit kode). Lapis filter/route/proyeksi BARU via file sibling + `Register*`.
+> Rebuild dream-cycle (Phase 0) = satu-satunya yg perlu unfreeze `dream_cycle.go` saat dikerjakan.
 
 ## KALAU BENERAN HARUS UBAH FILE FROZEN (mis. migrasi schema baru)
 Arsitektur cacat = idealnya kasih seam. Kalau terpaksa: ikut CARAFREEZE.MD —
