@@ -193,6 +193,19 @@ func LocalAIModelsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		id, _ := res.LastInsertId()
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "id": id})
+	case http.MethodDelete:
+		name := strings.TrimSpace(r.URL.Query().Get("model_name"))
+		if name == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "model_name required"})
+			return
+		}
+		res, derr := db.Exec(`DELETE FROM localai_models WHERE model_name = ?`, name)
+		if derr != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]any{"error": derr.Error()})
+			return
+		}
+		n, _ := res.RowsAffected()
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": n})
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "method not allowed"})
 	}
