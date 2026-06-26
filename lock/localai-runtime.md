@@ -21,7 +21,8 @@ Autostart: checkbox "Auto-start local AI (flowork-brain) saat router boot".
 ## TABEL localai_models = DAFTAR DISPLAY (bukan sumber model jalan)
 - Registry `localai_models` cuma list buat panel (nama/path/size). Model BENERAN jalan via resolver
   (`ResolveFloworkBrain`), jadi flowork-brain tetap jalan walau registry kosong.
-- **Tidak ada DELETE endpoint** (cuma GET + POST upsert). Stale row = perlu cleanup manual/owner.
+- Endpoint `LocalAIModelsHandler`: **GET** (list) · **POST** (upsert) · **DELETE** `?model_name=X`
+  (hapus row, 2026-06-26). GUI: tombol **✕** per-baris (`deleteLocalaiModel`).
 
 ## FIX 2026-06-26 — registry nampilin qwen-7b basi → flowork-brain
 **Akar:** registry punya 1 row `qwen-7b` (checksum placeholder `sha256:abcd`, path `/var/lib/flowork/...`
@@ -30,9 +31,9 @@ gak ke-list (registry cuma display, model jalan via resolver).
 **Fix (GUI non-frozen + API):**
 1. flowork-brain di-register via `POST /api/localai/models` (id=2, path+size real). Idempotent upsert.
 2. GUI (`index.html`): registry **saring** baris demo-seed (`checksum === 'sha256:abcd'`) + input model
-   **pre-fill `flowork-brain`**. → panel nampilin flowork-brain doang.
-- ⚠️ qwen-7b row masih ada di DATA (gak ada DELETE API + tulis-DB-live diblok safety) — cuma
-  DISEMBUNYIIN di GUI. Hapus beneran = butuh endpoint DELETE (unfreeze handler) atau cleanup DB owner.
+   **pre-fill `flowork-brain`** + tombol **✕** hapus per-baris.
+3. **DELETE endpoint** ditambah (`case http.MethodDelete` di LocalAIModelsHandler, re-freeze) →
+   qwen-7b **dihapus beneran** dari DB (`{deleted:1}`). Registry tinggal flowork-brain.
 
 ## FROZEN (logic) vs SEAM (GUI)
 - **FROZEN**: `internal/localai/runtime.go` (resolver+spawn), `handlers_llm_policy.go` (LocalAIModelsHandler),
