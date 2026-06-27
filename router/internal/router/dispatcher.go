@@ -14,6 +14,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,7 +26,14 @@ import (
 	"github.com/flowork-os/flowork_Router/internal/store"
 )
 
-const httpTimeout = 300 * time.Second
+// httpTimeout — timeout request upstream LLM (dispatcher/proxy). SWITCH FLOWORK_ROUTER_HTTP_TIMEOUT
+// (detik), default 300s — di-baca saat boot (http.Client di-set sekali; ganti = restart).
+var httpTimeout = func() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_ROUTER_HTTP_TIMEOUT"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 300 * time.Second
+}()
 
 var httpClient = &http.Client{Timeout: httpTimeout}
 

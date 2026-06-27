@@ -40,10 +40,21 @@ func clientIPForLock(r *http.Request) string {
 
 func strconvItoa(n int) string { return strconv.Itoa(n) }
 
-const (
-	loginMaxFailsBeforeLock = 5
-	loginFailWindow         = 60 * time.Minute
-)
+// loginMaxFailsBeforeLock / loginFailWindow — kebijakan lockout brute-force login. SWITCH
+// FLOWORK_LOGIN_MAX_FAILS (default 5) + FLOWORK_LOGIN_FAIL_WINDOW (menit, default 60).
+func loginMaxFailsBeforeLock() int {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_LOGIN_MAX_FAILS"))); err == nil && n > 0 {
+		return n
+	}
+	return 5
+}
+
+func loginFailWindow() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_LOGIN_FAIL_WINDOW"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Minute
+	}
+	return 60 * time.Minute
+}
 
 var loginLockSteps = []time.Duration{
 	30 * time.Second,
@@ -73,7 +84,7 @@ func loginCheckLock(ip string) (bool, int) {
 	}
 	now := time.Now()
 
-	if !e.lastFailAt.IsZero() && now.Sub(e.lastFailAt) > loginFailWindow &&
+	if !e.lastFailAt.IsZero() && now.Sub(e.lastFailAt) > loginFailWindow() &&
 		(e.lockUntil.IsZero() || !now.Before(e.lockUntil)) {
 		delete(loginLocks, ip)
 		return false, 0
@@ -109,7 +120,7 @@ func loginRecordFail(ip string) (bool, int) {
 
 	e.fails++
 	e.lastFailAt = now
-	if e.fails >= loginMaxFailsBeforeLock {
+	if e.fails >= loginMaxFailsBeforeLock() {
 		idx := e.lockLevel
 		if idx >= len(loginLockSteps) {
 			idx = len(loginLockSteps) - 1

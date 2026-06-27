@@ -10,10 +10,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 )
 
 const DefaultEmbedModel = "bge-m3"
+
+// embedModel — model embedding aktif. SWITCH FLOWORK_EMBED_MODEL (GUI=truth, no-hardcode);
+// default = DefaultEmbedModel (bge-m3). Ganti embedder tanpa edit kode beku.
+func embedModel() string {
+	if v := strings.TrimSpace(os.Getenv("FLOWORK_EMBED_MODEL")); v != "" {
+		return v
+	}
+	return DefaultEmbedModel
+}
 
 type embedReq struct {
 	Model string `json:"model"`
@@ -38,7 +48,7 @@ func (c *Client) EmbedText(ctx context.Context, model, text string) ([]float32, 
 		return nil, fmt.Errorf("text kosong")
 	}
 	if model == "" {
-		model = DefaultEmbedModel
+		model = embedModel()
 	}
 
 	body, err := json.Marshal(embedReq{Model: model, Input: text})

@@ -64,6 +64,7 @@ FLOWORK_DYNAMIC_TOOLS_MINSCORE|0.30|Cosine min tool dianggap relevan
 FLOWORK_DYNAMIC_TOOLS|off|Intent-gated tools (prune schema)
 FLOWORK_DYNAMIC_TOOLS_TOPK|12|Max tool relevan dikirim
 FLOWORK_EDITION|public|Edisi: dev (evolusi penuh) / public
+FLOWORK_EMBED_MODEL|bge-m3|Model embedding (no-hardcode bge-m3)
 FLOWORK_ENGINE_DIR|auto|Folder engine
 FLOWORK_EXPOSE_ALL_TOOLS|off|Semua agent akses semua tool
 FLOWORK_FANOUT_BUDGET|—|Budget paralel task fanout
@@ -91,8 +92,12 @@ FLOWORK_LLM_MODEL|—|Model LLM default
 FLOWORK_LOCALAI_AUTOSTART|off|Auto-start LocalAI saat boot
 FLOWORK_LOCAL_EMBED_MODEL|—|Model local embedding
 FLOWORK_LOCAL_EMBED_URL|—|URL local embedding service
+FLOWORK_LOGIN_FAIL_WINDOW|60|Window hitung gagal login (menit)
+FLOWORK_LOGIN_MAX_FAILS|5|Gagal login sebelum lockout
+FLOWORK_LOKET_CALL_TIMEOUT|240|Cap timeout bus.request loket (detik)
 FLOWORK_LOOPBACK_SECRET|random|Secret loopback intra-process
 FLOWORK_MANDOR|off|Agent Mandor (supervisor idle)
+FLOWORK_MAX_CONCURRENT_TASKS|2|Batas background-task barengan (boot)
 FLOWORK_MAX_EXPOSED_TOOLS|∞|Batas tool per-agent
 FLOWORK_MCP_AGENT|—|Agent untuk MCP server
 FLOWORK_MESH_APPROVE|manual|Mode approve masuk: manual / auto
@@ -110,10 +115,14 @@ FLOWORK_REAP_ERRRATE|0.40|Error-rate ambang vonis Reaper (0..1)
 FLOWORK_REAP_MIN_SAMPLES|5|Min run selesai sebelum Reaper vonis
 FLOWORK_REASONING|—|Mode reasoning llama-cpp
 FLOWORK_RESILIENCE_OFF|off|Matiin agent resilience
+FLOWORK_RESOLVE_MINSCORE|0.86|Ambang entity-resolution dedup graph
 FLOWORK_RL_MAX_RETRY|6|Retry saat 429 sebelum fallback
+FLOWORK_ROUTER_HTTP_TIMEOUT|300|Timeout request upstream LLM (boot)
 FLOWORK_ROUTER_RETRY|off|Retry router transient backoff
+FLOWORK_ROUTER_TIMEOUT|30|Timeout HTTP router client (detik)
 FLOWORK_ROUTER_URL|settings|Router URL routerclient
 FLOWORK_SCANNER_AUTOSCAN|on|Auto-scan kode saat berubah
+FLOWORK_SCHED_EXEC_TIMEOUT_SEC|90|Timeout eksekusi per-job scheduler
 FLOWORK_SCHEME|http|Scheme HTTP (https/http)
 FLOWORK_SEARCH_MINSCORE|0.45|Lantai relevansi cosine search
 FLOWORK_SELF_HANDLE_PHRASES|—|Custom phrase self-response
@@ -135,6 +144,7 @@ FLOWORK_TOOL_GC_IDLE_DAYS|90|Hari idle sebelum prune tool
 FLOWORK_TOOL_GC_MAXERR|5|Error threshold prune tool
 FLOWORK_TOOL_GC_OFF|off|Matiin GC tools otomatis
 FLOWORK_TOOLS_DIR|auto|Folder sidecar-tools
+FLOWORK_TRIGGER_TIMEOUT_SEC|300|Timeout invoke action trigger
 FLOWORK_TRUST_PROXY|off|Trust X-Forwarded-* headers
 FLOWORK_TZ_LABEL|WIB|Label zona waktu
 FLOWORK_TZ_OFFSET_HOURS|7|Offset jam zona waktu

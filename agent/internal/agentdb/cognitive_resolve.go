@@ -3,9 +3,23 @@
 
 package agentdb
 
-import "math"
+import (
+	"math"
+	"os"
+	"strconv"
+	"strings"
+)
 
 const DefaultResolveThreshold = 0.86
+
+// resolveThreshold — ambang similaritas entity-resolution (dedup node graph). SWITCH
+// FLOWORK_RESOLVE_MINSCORE (0..1), default 0.86. Terlalu rendah → entitas beda ke-merge.
+func resolveThreshold() float64 {
+	if v, err := strconv.ParseFloat(strings.TrimSpace(os.Getenv("FLOWORK_RESOLVE_MINSCORE")), 64); err == nil && v > 0 && v <= 1 {
+		return v
+	}
+	return DefaultResolveThreshold
+}
 
 func Quantize(vec []float32) []byte {
 	var norm float64
@@ -45,7 +59,7 @@ func (s *Store) ResolveByEmbedding(typ string, queryEmb []byte, threshold float6
 		return "", 0, false
 	}
 	if threshold <= 0 {
-		threshold = DefaultResolveThreshold
+		threshold = resolveThreshold()
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

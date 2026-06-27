@@ -10,10 +10,22 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"flowork-gui/internal/floworkdb"
 )
+
+// triggerActionTimeout — timeout invoke action trigger. SWITCH FLOWORK_TRIGGER_TIMEOUT_SEC,
+// default 300s. Trigger yg manggil agent panjang bisa kepotong → naikin tanpa edit kode beku.
+func triggerActionTimeout() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_TRIGGER_TIMEOUT_SEC"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 300 * time.Second
+}
 
 type Engine struct {
 	Store  *floworkdb.Store
@@ -105,7 +117,7 @@ func (e *Engine) runAction(r floworkdb.Trigger, ev Event, trigger string) int64 
 	payloadJSON, _ := json.Marshal(ev.Payload)
 	runID, _ := e.Store.InsertTriggerRun(r.ID, trigger, string(payloadJSON))
 	prompt := renderTemplate(r.Prompt, ev.Payload)
-	cctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	cctx, cancel := context.WithTimeout(context.Background(), triggerActionTimeout())
 	defer cancel()
 	status, errText, reply := "ok", "", ""
 	if r.TargetKind == "system" {

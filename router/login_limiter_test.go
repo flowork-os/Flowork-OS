@@ -18,7 +18,7 @@ func TestLoginLimiter_LocksAfterThreshold(t *testing.T) {
 	ip := "test-ip-1"
 	loginRecordSuccess(ip) // reset state
 
-	for i := 0; i < loginMaxFailsBeforeLock-1; i++ {
+	for i := 0; i < loginMaxFailsBeforeLock()-1; i++ {
 		locked, _ := loginRecordFail(ip)
 		if locked {
 			t.Fatalf("locked too early at attempt %d", i+1)
@@ -61,7 +61,7 @@ func TestLoginLimiter_ProgressiveBackoff(t *testing.T) {
 	loginRecordSuccess(ip)
 
 	// Trigger first lock
-	for i := 0; i < loginMaxFailsBeforeLock; i++ {
+	for i := 0; i < loginMaxFailsBeforeLock(); i++ {
 		loginRecordFail(ip)
 	}
 	loginLockMu.Lock()
@@ -73,7 +73,7 @@ func TestLoginLimiter_ProgressiveBackoff(t *testing.T) {
 	loginLocks[ip].lockUntil = time.Now().Add(-time.Second)
 	loginLockMu.Unlock()
 
-	for i := 0; i < loginMaxFailsBeforeLock; i++ {
+	for i := 0; i < loginMaxFailsBeforeLock(); i++ {
 		loginRecordFail(ip)
 	}
 	loginLockMu.Lock()

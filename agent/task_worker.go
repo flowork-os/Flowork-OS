@@ -19,6 +19,8 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,8 +30,14 @@ import (
 
 // maxConcurrentTasks — batas task background yang jalan barengan. Kecil = aman (model
 // serialize, hindari resource contention). Try-acquire non-blocking: slot penuh →
-// task tetap 'queued', di-pick tick berikut.
-const maxConcurrentTasks = 2
+// task tetap 'queued', di-pick tick berikut. SWITCH FLOWORK_MAX_CONCURRENT_TASKS (>0),
+// default 2 — di-size saat boot (ganti = restart).
+var maxConcurrentTasks = func() int {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_MAX_CONCURRENT_TASKS"))); err == nil && n > 0 {
+		return n
+	}
+	return 2
+}()
 
 var taskSem = make(chan struct{}, maxConcurrentTasks)
 

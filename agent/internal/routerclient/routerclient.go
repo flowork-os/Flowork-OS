@@ -13,6 +13,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -20,6 +22,15 @@ import (
 const DefaultRouterURL = "http://127.0.0.1:2402"
 
 const DefaultTimeout = 30 * time.Second
+
+// routerTimeout — timeout HTTP router client. SWITCH FLOWORK_ROUTER_TIMEOUT (detik), default 30s.
+// Model lokal lambat / jaringan jelek → naikin tanpa edit kode beku.
+func routerTimeout() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_ROUTER_TIMEOUT"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return DefaultTimeout
+}
 
 type Client struct {
 	BaseURL string
@@ -44,7 +55,7 @@ func New(baseURL string) *Client {
 	}
 	return &Client{
 		BaseURL: baseURL,
-		HTTP:    &http.Client{Timeout: DefaultTimeout},
+		HTTP:    &http.Client{Timeout: routerTimeout()},
 	}
 }
 

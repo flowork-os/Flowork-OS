@@ -15,10 +15,20 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 )
+
+// loketCallTimeout — cap timeout bus.request loket. SWITCH FLOWORK_LOKET_CALL_TIMEOUT (detik),
+// default 240s (owner-tuned 2026-06-16 buat crew model lokal lambat). Cap, bukan wait tetap.
+func loketCallTimeout() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_LOKET_CALL_TIMEOUT"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 240 * time.Second
+}
 
 // Service is the loket's HTTP face: the single endpoint where a module makes a
 // call(). It wraps the Kernel and resolves the VERIFIED caller id from the
@@ -215,7 +225,7 @@ func (s *Service) CallHandler(w http.ResponseWriter, r *http.Request) {
 	// orchestrator delegates to a multi-agent crew on the LOCAL model (slow, ~25 tok/s, many
 	// serial LLM calls) needs >120s — else the kernel cuts the call off → channel "loket: no
 	// response" (silent fail on Telegram). Cap, not fixed wait: fast calls still return fast.
-	ctx, cancel := context.WithTimeout(r.Context(), 240*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), loketCallTimeout())
 	defer cancel()
 	writeResult(w, s.Kernel.Call(ctx, module, body.Cap, body.Args))
 }

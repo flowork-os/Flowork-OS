@@ -221,6 +221,20 @@ Tipe: bool(on/off) · int · float · str · path · csv · json.
 | FLOWORK_TZ_OFFSET_HOURS | Offset jam zona waktu | 7 | int |
 | FLOWORK_TZ_LABEL | Label zona waktu | WIB | str |
 
+### Orphan-switched — F1 NOL-yatim non-mesh (2026-06-27, owner-approved unfreeze)
+| Saklar | Kontrol | Default | Tipe |
+|---|---|---|---|
+| FLOWORK_EMBED_MODEL | Model embedding (no-hardcode bge-m3) | bge-m3 | str |
+| FLOWORK_ROUTER_TIMEOUT | Timeout HTTP router client (detik) | 30 | int |
+| FLOWORK_LOKET_CALL_TIMEOUT | Cap timeout bus.request loket (detik) | 240 | int |
+| FLOWORK_SCHED_EXEC_TIMEOUT_SEC | Timeout eksekusi per-job scheduler | 90 | int |
+| FLOWORK_TRIGGER_TIMEOUT_SEC | Timeout invoke action trigger | 300 | int |
+| FLOWORK_RESOLVE_MINSCORE | Ambang entity-resolution dedup graph | 0.86 | float |
+| FLOWORK_MAX_CONCURRENT_TASKS | Batas background-task barengan (boot) | 2 | int |
+| FLOWORK_LOGIN_MAX_FAILS | Gagal login sebelum lockout | 5 | int |
+| FLOWORK_LOGIN_FAIL_WINDOW | Window hitung gagal login (menit) | 60 | int |
+| FLOWORK_ROUTER_HTTP_TIMEOUT | Timeout request upstream LLM (boot) | 300 | int |
+
 > Test-only (bukan saklar produksi): FLOWORK_TEST_DG_X, FLOWORK_TEST_MESH_X, FLOWORK_TEST_PROJ_X,
 > FLOWORK_X, FLOWORK_CGM_XXX, FLOWORK_CLOAK_ (prefix). FLOWORK_LIVE_DIGEST & FLOWORK_LIVE_* = internal.
 
@@ -302,11 +316,14 @@ unfreeze sadar, §6.3) · `belum-beku` = boleh pasang saklar SEKARANG (low-risk,
 | Mesh packet hop limit | router/internal/mesh/packet.go:44 | HopMax=7 | FLOWORK_MESH_HOP_MAX | rendah | beku |
 | Retention soft/hard delete windows | agent/internal/agentdb/retention.go:23-27 | 30/90/90/180/90 | FLOWORK_RETAIN_*_DAYS | rendah | beku |
 
-### Aturan tindak-lanjut audit
-- **Temuan kunci:** mayoritas yatim ada di file yang SUDAH terproteksi (hash-lock atau header FROZEN/LOCKED).
-  Cuma `reaper.go` (header bersih) yang aman dipasang otonom → **udah dikerjain** (2 saklar, build/vet/freeze PASS).
-- **Sisa ±24 perilaku (beku):** pasang saklar = keputusan SADAR/izin owner (§6.3: unfreeze → seam → re-hash →
-  re-freeze). Ini batch owner-gated sebelum F5. Urut prioritas: knob keamanan mesh (consensus/karma/sim) +
-  no-hardcode (embed model `bge-m3`, model-alias MITM) + timeout yang pernah bikin mentok (loket/router) dulu.
-- Sesudah saklar terpasang → perilaku pindah ke tabel A/B + dicoret dari sini. **NOL yatim** (gerbang F1 lulus)
-  butuh batch owner-gated itu kelar. Sampai itu: F1 = peta lengkap + audit jelas; eksekusi saklar-beku nunggu owner.
+### Aturan tindak-lanjut audit — PROGRESS
+- ✅ **reaper.go** (2 saklar) + **batch NON-MESH (10 saklar, 2026-06-27, owner-approved unfreeze):**
+  embed.go, routerclient.go, loket/service.go, scheduler, triggers, cognitive_resolve, task_worker,
+  login_limiter, dispatcher → **TERPASANG** (unfreeze→seam→re-hash→re-freeze chattr, TestKernelFreeze PASS,
+  default identik = nol efek sampai env di-set). Lihat tabel "Orphan-switched" di section A. _(stall_reader
+  di-DROP: `DefaultStallTimeout` dead const, ga dipakai.)_
+- ⏳ **Sisa = MESH super-kramat (super_scrit, ~6 knob):** consensus_phase3.go (consensusN/fastpath-karma),
+  karma_gate.go (KarmaFloor), similarity.go (SimilarityThreshold), policy.go, packet.go (HopMax) +
+  no-hardcode model-alias MITM config.go. **OWNER-GATED MUTLAK** — ngedit = update master flashdisk
+  super_scrit, salah = mesh-trust putus. JANGAN sentuh tanpa owner pegang kendali penuh.
+- **NOL yatim non-mesh = TERCAPAI.** Sisa mesh nunggu sesi khusus owner.

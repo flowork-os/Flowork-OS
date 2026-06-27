@@ -9,11 +9,23 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"flowork-gui/internal/agentdb"
 )
+
+// schedExecTimeout — timeout eksekusi per-job scheduler. SWITCH FLOWORK_SCHED_EXEC_TIMEOUT_SEC,
+// default 90s. Job berat (LLM/agent) bisa >90s → naikin tanpa edit kode beku.
+func schedExecTimeout() time.Duration {
+	if n, err := strconv.Atoi(strings.TrimSpace(os.Getenv("FLOWORK_SCHED_EXEC_TIMEOUT_SEC"))); err == nil && n > 0 {
+		return time.Duration(n) * time.Second
+	}
+	return 90 * time.Second
+}
 
 type AgentEnumerator func() []string
 
@@ -195,7 +207,7 @@ func (e *Engine) execute(ctx context.Context, agentID string, sched agentdb.Sche
 		Status:     "pending",
 	})
 
-	execCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	execCtx, cancel := context.WithTimeout(ctx, schedExecTimeout())
 	defer cancel()
 
 	result, err := e.executor(execCtx, agentID, sched.ID, sched.Task)
