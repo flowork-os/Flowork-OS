@@ -34,10 +34,8 @@ func Init() {
 
 	tools.Register(&webFetchTool{})
 
-	tools.Register(&webSearchTool{})
-	tools.Register(&webArchiveTool{})
-	tools.Register(&htmlExtractTool{})
-	tools.Register(&pdfReadTool{})
+	// web_search/archive/html_extract/pdf_read → SELF-REGISTER di web_research.go init()
+	// (file itu sengaja non-frozen biar scraper bisa di-maintain tanpa unlock).
 
 	tools.Register(&taskListTool{})
 	tools.Register(&taskRunTool{})

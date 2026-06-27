@@ -40,11 +40,21 @@ import (
 	"flowork-gui/internal/tools"
 )
 
+// init — SELF-REGISTER tools riset. Dipindah dari builtins.go (frozen) ke sini biar file ini
+// tetep bisa di-maintain TANPA unlock (scraper Mojeek bisa berubah) + inti beku self-sufficient
+// (hapus file ini → tools ga ke-daftar, build TETEP OK; delete-test §6.4 lulus).
+func init() {
+	tools.Register(&webSearchTool{})
+	tools.Register(&webArchiveTool{})
+	tools.Register(&htmlExtractTool{})
+	tools.Register(&pdfReadTool{})
+}
+
 const (
 	researchTimeout    = 20 * time.Second
-	researchMaxBytes   = 2 * 1024 * 1024 // 2MB cap fetch HTML
-	webSearchMaxResult = 8               // anti over-prompt: cap hasil
-	htmlExtractMaxText = 12000           // cap teks hasil extract (char)
+	researchMaxBytes   = 2 * 1024 * 1024  // 2MB cap fetch HTML
+	webSearchMaxResult = 8                // anti over-prompt: cap hasil
+	htmlExtractMaxText = 12000            // cap teks hasil extract (char)
 	pdfMaxBytes        = 15 * 1024 * 1024 // 15MB cap download PDF
 	pdfMaxText         = 20000            // cap teks hasil ekstrak PDF (char)
 	// Browser-like UA — sebagian mesin search nolak UA non-browser.
