@@ -9,9 +9,14 @@
 //
 // SWITCH/PERLUASAN: mau nambah/ubah pelajaran error? CUKUP tambah entri di ExtraEduErrors() di bawah —
 // JANGAN sentuh edu_errors_seed.go. Entri di sini MENANG (override) kalau code-nya sama.
+//
+// MEKANISME (method SeedEduErrorsExt + hook) ADA di edu_errors_seam.go (BEKU). File ini = DATA
+// override doang, di-pasang ke hook lewat init(). Hapus file ini → hook balik default (nol extra)
+// → inti TETEP jalan (delete-test §6.4 lulus).
 package agentdb
 
-import "time"
+// init — pasang DATA override ke hook beku (edu_errors_seam.go).
+func init() { extraEduErrors = ExtraEduErrors }
 
 // ExtraEduErrors — edu-errors TAMBAHAN/REFRESH (override yg di seed frozen kalau code sama).
 // Self-evolving era (owner 2026-06-23): agent ga lagi "lapor owner & nunggu" pas tool ga ada —
@@ -28,31 +33,4 @@ func ExtraEduErrors() []EduError {
 			Explanation: "Tool yang lo cari DULU ada tapi udah otomatis dihapus: kebanyakan error (mungkin API-nya berubah/mati) atau berbulan-bulan ga kepake. Ini wajar — Flowork buang tool basi biar sehat.",
 			Remediation: "Jangan maksa manggil tool yang udah mati — hasilnya ga bakal balik. Kalau fungsinya masih lo butuh, BIKIN versi baru via `tool_create` (sesuaiin sama API/keadaan terkini). Kalau cuma sekali pakai, cari jalan lain via `tool_search`."},
 	}
-}
-
-// SeedEduErrorsExt — UPSERT ExtraEduErrors (DO UPDATE = override entri basi by code). Idempotent.
-// Return jumlah baris ke-insert/-update. Dipanggil ProvisionAgentDNA SETELAH SeedEduErrors.
-func (s *Store) SeedEduErrorsExt() (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ts := time.Now().UTC().Format(time.RFC3339)
-	n := 0
-	for _, e := range ExtraEduErrors() {
-		res, err := s.db.Exec(
-			`INSERT INTO educational_errors_cache(code, category, title, explanation, remediation, synced_at)
-			 VALUES(?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(code) DO UPDATE SET
-			   category=excluded.category, title=excluded.title,
-			   explanation=excluded.explanation, remediation=excluded.remediation,
-			   synced_at=excluded.synced_at, deleted_at=NULL`,
-			e.Code, e.Category, e.Title, e.Explanation, e.Remediation, ts,
-		)
-		if err != nil {
-			return n, err
-		}
-		if c, _ := res.RowsAffected(); c > 0 {
-			n++
-		}
-	}
-	return n, nil
 }
