@@ -6,6 +6,7 @@
   },
   "sidebar": {
     "agents": "🤖 AI Agent|Upload .fwagent.zip, hot-reload, manage router/prompt/tools/schedule per agent.||Alt+1",
-    "settings": "⚙️ Settings|Owner sign-in and API keys. Global flowork.db (agents stay isolated).||Alt+0"
+    "settings": "⚙️ Settings|Owner sign-in and API keys. Global flowork.db (agents stay isolated).||Alt+0",
+    "otonomi": "Autonomy — work board + experience journal"
   }
 }

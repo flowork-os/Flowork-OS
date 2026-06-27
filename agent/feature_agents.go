@@ -58,11 +58,7 @@ func init() {
 		m.HandleFunc("/api/agents/mesh/identity", agentmgr.MeshIdentityHandler)
 		m.HandleFunc("/api/agents/mesh/peers", agentmgr.MeshPeersHandler)
 		m.HandleFunc("/api/agents/watchdog/tick", agentmgr.WatchdogTickHandler)
-		// Finance + protector + scanner (per-agent).
-		m.HandleFunc("/api/agents/finance/ledger", agentmgr.FinanceLedgerHandler)
-		m.HandleFunc("/api/agents/finance/summary", agentmgr.FinanceSummaryHandler)
-		m.HandleFunc("/api/agents/finance/budget", agentmgr.FinanceBudgetHandler)
-		m.HandleFunc("/api/agents/finance/check_budget", agentmgr.FinanceCheckBudgetHandler)
+		// Finance per-agent DICABUT akar 2026-06-27 (owner: crypto basi).
 		m.HandleFunc("/api/agents/protector/rules", agentmgr.ProtectorRulesHandler)
 		m.HandleFunc("/api/agents/protector/test", agentmgr.ProtectorTestHandler)
 		m.HandleFunc("/api/agents/protector/audit", agentmgr.ProtectorAuditHandler)

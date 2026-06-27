@@ -6,6 +6,7 @@
   },
   "sidebar": {
     "agents": "🤖 AI Agent|Upload .fwagent.zip, hot-reload, atur router/prompt/tools/jadwal per agent.||Alt+1",
-    "settings": "⚙️ Pengaturan|Login owner dan API key. flowork.db global (warga tetap terisolasi).||Alt+0"
+    "settings": "⚙️ Pengaturan|Login owner dan API key. flowork.db global (warga tetap terisolasi).||Alt+0",
+    "otonomi": "Otonomi — papan kerja + jurnal pengalaman"
   }
 }

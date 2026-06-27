@@ -47,11 +47,7 @@ func init() {
 		d.Mux.HandleFunc("/api/settings/notify", d.SettingsAPI.NotifyHandler)
 		settingsapi.TestNotifyFunc = notifyOwnerTelegram
 		d.Mux.HandleFunc("/api/notify", notifyHubHandler)
-		d.Mux.HandleFunc("/api/settings/youtube", d.SettingsAPI.YouTubeStatusHandler)
-		d.Mux.HandleFunc("/api/settings/youtube/credentials", d.SettingsAPI.YouTubeCredentialsHandler)
-		d.Mux.HandleFunc("/api/settings/youtube/connect", d.SettingsAPI.YouTubeConnectHandler)
-		d.Mux.HandleFunc("/api/settings/youtube/disconnect", d.SettingsAPI.YouTubeDisconnectHandler)
-		d.Mux.HandleFunc("/api/settings/youtube/config", d.SettingsAPI.YouTubeConfigHandler)
+		// YouTube integration DICABUT akar 2026-06-27 (owner: basi). Kelak via integration-registry.
 
 		// Kernel introspection + loket (single-endpoint microkernel).
 		d.Mux.HandleFunc("/api/kernel/status", d.Host.StatusHandler)

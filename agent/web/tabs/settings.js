@@ -127,22 +127,16 @@ const KEY_PRESETS = [
 const SEGMENTS = [
   { key: 'account', label: () => t('menu.tab.settings.seg_account'), render: renderAccount },
   { key: 'keys', label: () => t('menu.tab.settings.seg_keys'), render: renderKeys },
-  { key: 'switches', label: () => '🎛️ Switch Fitur', render: renderSwitches },
+  { key: 'switches', label: () => t('menu.tab.settings.seg_switches'), render: renderSwitches },
   { key: 'router', label: () => t('menu.tab.settings.seg_router'), render: renderRouterDefault },
   { key: 'notify', label: () => t('menu.tab.settings.seg_notify'), render: renderNotify },
-  { key: 'finance', label: () => t('menu.tab.settings.seg_finance'), render: renderFinance },
-  { key: 'youtube', label: () => t('menu.tab.settings.seg_youtube'), render: renderYouTube },
   { key: 'guardian', label: () => t('menu.tab.settings.seg_guardian'), render: renderGuardian },
-  { key: 'evolve', label: () => '🧬 Auto-Push', render: renderEvolvePush },
-  { key: 'compact', label: () => '🧠 Auto-Compact', render: renderCompact },
+  { key: 'evolve', label: () => t('menu.tab.settings.seg_evolve'), render: renderEvolvePush },
+  { key: 'compact', label: () => t('menu.tab.settings.seg_compact'), render: renderCompact },
 ];
-
-// The YouTube OAuth flow polls /api/settings/youtube every 2s while the owner
-// authorizes in another tab. Tracked at module scope so switching segments (or
-// re-rendering YouTube) cancels it — otherwise the interval kept firing in the
-// background and could re-render YouTube over whatever segment was open.
-let ytPoll = null;
-function stopYtPoll() { if (ytPoll) { clearInterval(ytPoll); ytPoll = null; } }
+// 2026-06-27: YouTube DICABUT sampai akar (handler + route + watcher + GUI) — owner: basi.
+// Finance/wallet (crypto) dicopot dari UI; backend keujet di kernel FROZEN (loket ABI + tools +
+// evolve-pillars) → dibiarin dormant (nyabut = langgar invariant "ABI cuma tumbuh"). Kelak: integration-registry.
 
 export async function render(mainEl) {
   loadStyle('settings', CSS);
@@ -161,7 +155,6 @@ export async function render(mainEl) {
   const btns = mainEl.querySelectorAll('.set-btn');
   async function open(key) {
     const seg = SEGMENTS.find(s => s.key === key) || SEGMENTS[0];
-    stopYtPoll(); // leaving/switching segment: cancel any in-flight YouTube OAuth poll
     btns.forEach(b => b.classList.toggle('active', b.getAttribute('data-key') === seg.key));
     panel.innerHTML = `<div class="set-empty">${esc(t('common.loading_label').replace('{label}', seg.label()))}</div>`;
     try {
@@ -330,8 +323,8 @@ async function renderKeys(panel) {
 // :2402 + host :1987). Presedensi: GUI menang > ENV > default. Sumber tiap switch di-badge.
 async function renderSwitches(panel) {
   panel.innerHTML = `<div class="set-card"><h3>🎛️ Switch Fitur</h3>
-    <div class="sub">Toggle perilaku Flowork — ganti edit <code>flowork.local.env</code> manual.
-    Berlaku ke router & host (live ≤3 dtk). Badge: <b>gui</b>=dari sini · <b>env</b>=dari ENV · <b>default</b>=bawaan.</div>
+    <div class="sub">Toggle Flowork behavior — no more manual <code>flowork.local.env</code> edits.
+    Applies to router &amp; host (live ≤3s). Badge: <b>gui</b>=set here · <b>env</b>=from ENV · <b>default</b>=built-in.</div>
     <div id="swList" class="sub">Loading…</div></div>`;
   const list = panel.querySelector('#swList');
   const badge = (src) => {
@@ -370,14 +363,14 @@ async function renderSwitches(panel) {
         const cur = el.dataset.type === 'bool' ? (el.checked ? '1' : '0') : el.value.trim();
         if (cur !== (el.dataset.orig || '')) values[el.dataset.key] = cur; // cuma yg BERUBAH → gui-pin
       });
-      if (!Object.keys(values).length) { msg.className = 'set-msg'; msg.textContent = 'Ga ada perubahan'; return; }
+      if (!Object.keys(values).length) { msg.className = 'set-msg'; msg.textContent = 'No changes'; return; }
       msg.className = 'set-msg'; msg.textContent = 'Menyimpan…';
       try {
         await fetchJSON('/api/settings/switches', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ values }),
         });
-        msg.className = 'set-msg ok'; msg.textContent = '✓ tersimpan (live ≤3 dtk ke router)';
+        msg.className = 'set-msg ok'; msg.textContent = '✓ saved (live ≤3s to router)';
         await reload();
       } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
     });
@@ -435,12 +428,12 @@ async function renderRouterDefault(panel) {
 async function renderEvolvePush(panel) {
   panel.innerHTML = `
     <div class="set-card">
-      <h3>🧬 Evolusi — Auto-Push GitHub</h3>
-      <div class="sub">Pas organisme evolusi auto-commit core (mode AUTO + lolos semua gate), hasilnya
-        di-push ke GitHub biar Flowork tetep abadi walau owner ga ada. Token disimpan lokal
-        (ga ke-commit), ga pernah ditampilin balik. Manual core-apply tetep STAGE (ga ke-push).</div>
+      <h3>🧬 Evolution — Auto-Push to GitHub</h3>
+      <div class="sub">When the evolving organism auto-commits the core (AUTO mode + all gates passed), the result is
+        pushed to GitHub so Flowork stays immortal even without the owner. The token is stored locally
+        (never committed) and never shown again. Manual core-apply stays STAGE (not pushed).</div>
       <label class="set-row" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="epEnabled" style="width:auto"> <span>Aktifkan auto-push</span>
+        <input type="checkbox" id="epEnabled" style="width:auto"> <span>Enable auto-push</span>
       </label>
       <div class="set-row">
         <input type="password" id="epToken" placeholder="GitHub token (ghp_… / fine-grained)" autocomplete="new-password">
@@ -450,10 +443,10 @@ async function renderEvolvePush(panel) {
         <input type="text" id="epRemote" placeholder="remote (default: origin)">
       </div>
       <div class="set-row">
-        <input type="text" id="epBranch" placeholder="branch (kosong = branch aktif repo)">
+        <input type="text" id="epBranch" placeholder="branch (blank = repo's active branch)">
       </div>
-      <div class="set-hint">⚠️ Push pakai HTTPS http.extraHeader (token ga ke-tulis ke git config). Disaranin
-        token fine-grained scope minimal (contents:write) ke repo Flowork aja, jangan token full-akses.</div>
+      <div class="set-hint">⚠️ Push uses HTTPS http.extraHeader (token never written to git config). A fine-grained
+        token with minimal scope (contents:write) on just the Flowork repo is recommended — not a full-access token.</div>
       <div class="set-row"><button class="set-btn-primary" id="epSave">${esc(t('common.btn.save'))}</button></div>
       <div class="set-msg" id="epMsg"></div>
     </div>
@@ -466,8 +459,8 @@ async function renderEvolvePush(panel) {
     panel.querySelector('#epRemote').value = d.remote || '';
     panel.querySelector('#epBranch').value = d.branch || '';
     tokenHint.textContent = d.has_token
-      ? '✅ Token tersimpan. Kosongin field = biarin token lama; isi baru = ganti.'
-      : '⚠️ Belum ada token — auto-push ga bakal jalan sampai diisi.';
+      ? '✅ Token saved. Leave a field blank = keep the current token; fill it = replace.'
+      : "⚠️ No token yet — auto-push won't run until you set it.";
   } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   panel.querySelector('#epSave').addEventListener('click', async () => {
     const enabled = panel.querySelector('#epEnabled').checked;
@@ -484,11 +477,11 @@ async function renderEvolvePush(panel) {
         body: JSON.stringify(body),
       });
       panel.querySelector('#epToken').value = '';
-      msg.className = 'set-msg ok'; msg.textContent = 'Tersimpan ✓';
+      msg.className = 'set-msg ok'; msg.textContent = 'Saved ✓';
       const d = await fetchJSON('/api/evolve/push-config');
       tokenHint.textContent = d.has_token
-        ? '✅ Token tersimpan. Kosongin field = biarin token lama; isi baru = ganti.'
-        : '⚠️ Belum ada token — auto-push ga bakal jalan sampai diisi.';
+        ? '✅ Token saved. Leave a field blank = keep the current token; fill it = replace.'
+        : "⚠️ No token yet — auto-push won't run until you set it.";
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   });
 }
@@ -557,29 +550,29 @@ function cleanErr(e) {
 async function renderCompact(panel) {
   panel.innerHTML = `
     <div class="set-card">
-      <h3>🧠 Auto-Compact Konteks (anti-halu)</h3>
-      <div class="sub">Kalau interaksi agent numpuk, AI bisa halu pas konteks kepanjangan. Tiap 15 menit,
-        agent yang interaksinya lewat ambang otomatis: <b>digest pengalaman ke brain</b> (kayak dream) →
-        <b>trim</b> interaksi lama (sisain yang terbaru). Pengalaman TIDAK hilang — pindah ke brain,
-        bisa di-recall. Aman: cuma yang sudah masuk brain yang di-trim.</div>
+      <h3>🧠 Auto-Compact Context (anti-hallucination)</h3>
+      <div class="sub">When an agent's interactions pile up, the AI can hallucinate once the context gets too long. Every 15 minutes,
+        agents past the threshold auto: <b>digest experience into the brain</b> (like dreaming) →
+        <b>trim</b> old interactions (keep the most recent). Experience is NOT lost — it moves to the brain,
+        still recallable. Safe: only what's already in the brain gets trimmed.</div>
       <label class="set-row" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="cmpEnabled" style="width:auto"> <span>Aktifkan auto-compact</span>
+        <input type="checkbox" id="cmpEnabled" style="width:auto"> <span>Enable auto-compact</span>
       </label>
       <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Ambang (jumlah interaksi):</label>
+        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Threshold (interaction count):</label>
         <input type="number" id="cmpMax" min="20" step="20" style="width:110px">
       </div>
-      <div class="set-hint">Agent yang interaksi non-deleted-nya > angka ini bakal di-compact. Default 400.</div>
+      <div class="set-hint">Agents whose non-deleted interactions exceed this number get compacted. Default 400.</div>
       <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Sisain terbaru (keep):</label>
+        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Keep most recent:</label>
         <input type="number" id="cmpKeep" min="0" step="10" style="width:110px">
       </div>
-      <div class="set-hint">Berapa interaksi TERBARU yang tetap utuh di konteks (tidak di-trim). Default 60.</div>
+      <div class="set-hint">How many of the most RECENT interactions stay intact in context (not trimmed). Default 60.</div>
       <div class="set-row">
-        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Model digest (opsional):</label>
-        <input type="text" id="cmpModel" placeholder="kosong = pakai model LOKAL (flowork-brain)" style="flex:1;min-width:240px" autocomplete="off">
+        <label style="font-size:0.85rem;min-width:180px;display:inline-block">Digest model (optional):</label>
+        <input type="text" id="cmpModel" placeholder="blank = use the LOCAL model (flowork-brain)" style="flex:1;min-width:240px" autocomplete="off">
       </div>
-      <div class="set-hint">Model buat digest pengalaman ke brain saat compact (auto, Compact All, maupun per-agent). <b>Kosongkan = pakai model LOKAL (flowork-brain)</b> — gratis &amp; tetap jalan tanpa langganan. Isi nama model cloud kapabel kalau mau digest lebih andal pas konteks besar (selama masih ada langganan).</div>
+      <div class="set-hint">Model used to digest experience into the brain on compact (auto, Compact All, or per-agent). <b>Leave blank = use the LOCAL model (flowork-brain)</b> — free &amp; works without a subscription. Enter a capable cloud model for more reliable digests on large context (while a subscription lasts).</div>
       <div class="set-row"><button class="set-btn-primary" id="cmpSave">${esc(t('common.btn.save'))}</button></div>
       <div class="set-msg" id="cmpMsg"></div>
     </div>
@@ -599,14 +592,14 @@ async function renderCompact(panel) {
     const model = panel.querySelector('#cmpModel').value.trim();
     msg.className = 'set-msg'; msg.textContent = '';
     if (keep_recent >= max_interactions) {
-      msg.className = 'set-msg err'; msg.textContent = 'keep_recent harus < ambang (kalau ga, ga ada yg di-trim)'; return;
+      msg.className = 'set-msg err'; msg.textContent = 'keep_recent must be < threshold (otherwise nothing gets trimmed)'; return;
     }
     try {
       await fetchJSON('/api/compact/config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled, max_interactions, keep_recent: isNaN(keep_recent) ? 60 : keep_recent, model }),
       });
-      msg.className = 'set-msg ok'; msg.textContent = 'Tersimpan ✓';
+      msg.className = 'set-msg ok'; msg.textContent = 'Saved ✓';
     } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
   });
 }
@@ -683,120 +676,6 @@ async function renderFinance(panel) {
   });
 }
 
-// ── YouTube ────────────────────────────────────────────────────────────────
-async function renderYouTube(panel) {
-  const tk = (k) => t('menu.tab.settings.' + k);
-  stopYtPoll(); // any prior OAuth poll is stale once we re-render
-  let st;
-  try { st = await fetchJSON('/api/settings/youtube'); }
-  catch (e) { panel.innerHTML = `<div class="set-msg err">${esc(cleanErr(e))}</div>`; return; }
-  const ch = st.channel || null;
-
-  let accountHTML;
-  if (st.connected && ch) {
-    accountHTML = `
-      <div class="set-card">
-        <h3>✅ ${esc(tk('yt_connected'))} — ${esc(ch.title || '')}</h3>
-        <div class="sub">${esc(ch.handle || '')} · ${esc(ch.video_count || '0')} ${esc(tk('yt_videos'))} · ${esc(ch.sub_count || '0')} ${esc(tk('yt_subs'))}</div>
-        <div class="sub">${esc(tk('yt_long_uploads'))}: <span class="mono">${esc(ch.long_uploads_status || '?')}</span></div>
-        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytDisc" style="background:linear-gradient(135deg,#ef4444,#b91c1c);">${esc(tk('yt_disconnect_btn'))}</button></div>
-      </div>`;
-  } else if (st.has_credentials) {
-    accountHTML = `
-      <div class="set-card">
-        <h3>${esc(tk('yt_not_connected'))}</h3>
-        <div class="sub">${esc(tk('yt_connect_hint'))}</div>
-        <div class="set-row" style="margin-top:8px;"><button class="set-btn-primary" id="ytConnect">${esc(tk('yt_connect_btn'))}</button></div>
-        <div class="set-msg" id="ytConnMsg"></div>
-      </div>`;
-  } else {
-    accountHTML = `<div class="set-card"><div class="set-empty">${esc(tk('yt_no_creds'))}</div></div>`;
-  }
-
-  panel.innerHTML = `
-    <div class="set-card">
-      <h3>🎷 ${esc(tk('yt_h'))}</h3>
-      <div class="sub">${esc(tk('yt_sub'))}</div>
-    </div>
-    <details class="set-card">
-      <summary style="cursor:pointer;font-weight:600;">${esc(tk('yt_guide_title'))}</summary>
-      <div class="sub" style="white-space:pre-line;margin-top:8px;">${esc(tk('yt_guide_body'))}</div>
-      <a href="https://console.cloud.google.com/" target="_blank" rel="noopener" class="set-tag" style="display:inline-block;margin-top:8px;">${esc(tk('yt_console_link'))}</a>
-    </details>
-    <div class="set-card">
-      <h3>OAuth Client JSON</h3>
-      <div class="set-row"><textarea id="ytJson" rows="4" placeholder="${escAttr(tk('yt_paste_ph'))}" style="width:100%;font-family:monospace;font-size:0.78rem;"></textarea></div>
-      <div class="set-row"><button class="set-btn-primary" id="ytSaveCreds">${esc(tk('yt_save_creds'))}</button> ${st.has_credentials ? `<span class="set-tag">${esc(tk('yt_creds_saved'))}</span>` : ''}</div>
-      <div class="set-msg" id="ytCredMsg"></div>
-    </div>
-    ${accountHTML}
-    <div class="set-card">
-      <h3>⚙️ ${esc(tk('yt_save_config'))}</h3>
-      <div class="set-row">
-        <label class="sub" style="min-width:170px;">${esc(tk('yt_privacy_label'))}</label>
-        <select id="ytPrivacy">
-          <option value="private"${st.privacy === 'private' ? ' selected' : ''}>private</option>
-          <option value="unlisted"${st.privacy === 'unlisted' ? ' selected' : ''}>unlisted</option>
-          <option value="public"${st.privacy === 'public' ? ' selected' : ''}>public</option>
-        </select>
-      </div>
-      <div class="set-row">
-        <label class="sub" style="min-width:170px;">${esc(tk('yt_inbox_label'))}</label>
-        <input type="text" id="ytInbox" value="${escAttr(st.inbox || '')}" style="flex:1;">
-      </div>
-      <div class="set-row">
-        <label class="sub"><input type="checkbox" id="ytWatcher"${st.watcher_enabled ? ' checked' : ''}> ${esc(tk('yt_watcher_label'))}</label>
-      </div>
-      <div class="set-row"><button class="set-btn-primary" id="ytSaveCfg">${esc(tk('yt_save_config'))}</button></div>
-      <div class="set-msg" id="ytCfgMsg"></div>
-    </div>
-  `;
-
-  panel.querySelector('#ytSaveCreds').addEventListener('click', async () => {
-    const msg = panel.querySelector('#ytCredMsg'); msg.className = 'set-msg';
-    const cj = panel.querySelector('#ytJson').value.trim();
-    if (!cj) { msg.className = 'set-msg err'; msg.textContent = 'JSON is empty'; return; }
-    try {
-      await fetchJSON('/api/settings/youtube/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_json: cj }) });
-      renderYouTube(panel);
-    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
-  });
-
-  const connectBtn = panel.querySelector('#ytConnect');
-  if (connectBtn) connectBtn.addEventListener('click', async () => {
-    const msg = panel.querySelector('#ytConnMsg'); msg.className = 'set-msg';
-    try {
-      const d = await fetchJSON('/api/settings/youtube/connect', { method: 'POST' });
-      window.open(d.auth_url, '_blank');
-      msg.innerHTML = '⏳ ' + esc(tk('yt_connect_hint')) + ' <a href="' + escAttr(d.auth_url) + '" target="_blank" rel="noopener">' + esc(tk('yt_open_auth')) + '</a>';
-      let tries = 0;
-      stopYtPoll(); // never stack two polls (e.g. repeated Connect clicks)
-      ytPoll = setInterval(async () => {
-        tries++;
-        try { const s = await fetchJSON('/api/settings/youtube'); if (s.connected) { stopYtPoll(); renderYouTube(panel); } } catch {}
-        if (tries > 90) stopYtPoll();
-      }, 2000);
-    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
-  });
-
-  const discBtn = panel.querySelector('#ytDisc');
-  if (discBtn) discBtn.addEventListener('click', async () => {
-    if (!confirm(tk('yt_disconnect_btn') + '?')) return;
-    try { await fetchJSON('/api/settings/youtube/disconnect', { method: 'POST' }); renderYouTube(panel); } catch {}
-  });
-
-  panel.querySelector('#ytSaveCfg').addEventListener('click', async () => {
-    const msg = panel.querySelector('#ytCfgMsg'); msg.className = 'set-msg';
-    try {
-      await fetchJSON('/api/settings/youtube/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        privacy: panel.querySelector('#ytPrivacy').value,
-        inbox: panel.querySelector('#ytInbox').value.trim(),
-        watcher_enabled: panel.querySelector('#ytWatcher').checked,
-      }) });
-      msg.className = 'set-msg ok'; msg.textContent = '✓';
-    } catch (e) { msg.className = 'set-msg err'; msg.textContent = cleanErr(e); }
-  });
-}
 
 // ── Guardian (integritas kernel) ─────────────────────────────────────────────
 async function renderGuardian(panel) {

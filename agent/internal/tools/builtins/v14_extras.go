@@ -17,7 +17,7 @@ import (
 func init() {
 	tools.Register(&protectorRuleDeleteTool{})
 	tools.Register(&deathLetterSealTool{})
-	tools.Register(&financeBudgetSetTool{})
+	// finance_budget_set UN-REGISTERED 2026-06-27 (owner: crypto basi). Struct inert.
 	tools.Register(&skillAddTool{})
 	tools.Register(&skillRemoveTool{})
 	tools.Register(&secretSetTool{})

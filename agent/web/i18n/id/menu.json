@@ -1,7 +1,8 @@
 {
   "sidebar": {
     "agents": "AI Agent",
-    "settings": "Pengaturan"
+    "settings": "Pengaturan",
+    "otonomi": "Otonomi"
   },
   "header": {
     "brand": "Flowork",
@@ -222,7 +223,10 @@
       "grd_pw_ph": "Password buat matikan",
       "grd_arm_confirm": "Rekam binary + kernel sekarang sebagai baseline tepercaya & mulai verifikasi tiap boot?",
       "grd_seal_os": "OS-immutable (tersegel)",
-      "grd_seal_detect": "Deteksi saja — jalankan `sudo flowork --arm` buat immutability OS"
+      "grd_seal_detect": "Deteksi saja — jalankan `sudo flowork --arm` buat immutability OS",
+      "seg_switches": "🎛️ Switch Fitur",
+      "seg_evolve": "🧬 Auto-Push",
+      "seg_compact": "🧠 Auto-Compact"
     }
   }
 }

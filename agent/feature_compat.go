@@ -10,10 +10,7 @@ import (
 
 func init() {
 	RegisterFeature(Feature{Name: "compat", Phase: PhaseRoute, Apply: func(d *Deps) {
-		// Legacy reference GUI compat shim → agent-scoped (default mr-flow).
-		d.Mux.HandleFunc("/api/finance/snapshot", agentmgr.FinanceSnapshotCompatHandler)
-		// R8 self-finance fase-1: wallet EVM (privkey lokal terenkripsi).
-		d.Mux.HandleFunc("/api/finance/wallet", financeWalletHandler())
+		// Finance/wallet DICABUT akar 2026-06-27 (owner: crypto basi).
 		d.Mux.HandleFunc("/api/brain/prompt-templates", func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodPost {
 				agentmgr.PromptTemplatesUpsertCompatHandler(w, r)

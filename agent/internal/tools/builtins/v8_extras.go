@@ -17,7 +17,7 @@ func init() {
 	tools.Register(&selfPromptRenderTool{})
 	tools.Register(&selfPromptSetTool{})
 	tools.Register(&codemapSearchAdvancedTool{})
-	tools.Register(&ledgerListTool{})
+	// ledger_list (finance) UN-REGISTERED 2026-06-27 (owner: crypto basi). Struct inert.
 }
 
 type selfPromptRenderTool struct{}

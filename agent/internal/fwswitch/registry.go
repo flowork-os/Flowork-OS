@@ -59,6 +59,15 @@ var Registry = []Switch{
 	{"FLOWORK_CACHE_REUSE", "KV cache-reuse (#8)", "Reuse prefix prompt statik (konstitusi+tool-schema) lintas-call via KV-shift → skip re-prefill. Isi N (mis. 256). Kosong/0=off. Berlaku saat LLM reload.", "int", "0", "Engine / KV-cache"},
 	{"FLOWORK_PARALLEL_SLOTS", "Parallel slots (#8)", "-np N: N slot server biar multi-semut share 1 engine barengan. ⚠️ ctx kebagi N → naikin FLOWORK_CTX. Kosong/0=off (auto). Berlaku saat LLM reload.", "int", "0", "Engine / KV-cache"},
 	{"FLOWORK_SLOT_SAVE_PATH", "Slot KV persist (#8)", "--slot-save-path dir: simpan KV slot ke disk → warm-restore lintas-restart (skip re-prefill). Kosong=off. Berlaku saat LLM reload.", "string", "", "Engine / KV-cache"},
+	{"FLOWORK_WORKLOG", "Papan kerja bersama (Mandor)", "Aggregator READ-only: scan agent_runs SEMUA agent → 1 papan kerja lintas-agent (siapa ngerjain apa, mana nyangkut) buat supervisor idle. Endpoint /api/worklog. OFF = endpoint balik kosong.", "bool", "true", "Autonomy / Orchestration"},
+	{"FLOWORK_WORKLOG_STALE_MIN", "Worklog: ambang nyangkut (menit)", "Task running/paused yang ga di-update lebih lama dari ini = ditandai NYANGKUT (default 60).", "int", "60", "Autonomy / Orchestration"},
+	{"FLOWORK_MANDOR", "Mandor (kepala organ idle)", "ON = seed + aktifin agent MANDOR: pas PC idle, cek papan kerja → suruh agent yg tugasnya nyangkut/prioritas-tinggi lanjut. Default OFF (nyalain kalau wiring operasional udah lengkap).", "bool", "false", "Autonomy / Orchestration"},
+	{"FLOWORK_DEADAIR", "Dead-air detector", "Deteksi anomali: ada tugas AKTIF tapi semua beku > ambang (kemungkinan token habis/provider down/error) → alert owner via Telegram. Idle tanpa tugas = normal (ga alert). Default ON.", "bool", "true", "Autonomy / Orchestration"},
+	{"FLOWORK_DEADAIR_MIN", "Dead-air: ambang diem (menit)", "Kalau tugas aktif ga ada yang ke-update selama ini = anomali (default 60).", "int", "60", "Autonomy / Orchestration"},
+	{"FLOWORK_BUSY_ALERT", "Reflex beban-tinggi (tawari)", "Pas PC load tinggi → KASIH KESADARAN + TAWARI owner (jeda/standby?) via Telegram. JANGAN auto-matiin. Host-side murni (no LLM, no nambah beban). Default ON.", "bool", "true", "Autonomy / Orchestration"},
+	{"FLOWORK_BUSY_PCT", "Beban-tinggi: ambang (load %)", "Load CPU % di ATAS ini = berat → tawari owner (default 90).", "int", "90", "Autonomy / Orchestration"},
+	{"FLOWORK_URGENCY", "Mode urgensi (cost-of-thought)", "hemat = kerja ringkas/hemat token · normal (default) · deadly = buka kapasitas penuh. Di-surface tool `preflight` biar agent self-moderate. (Model per-agent + fallback default udah ada terpisah.)", "string", "normal", "Autonomy / Orchestration"},
+	{"FLOWORK_JOURNAL", "Jurnal pengalaman (surface)", "Endpoint /api/journal + tool `journal`: ringkas apa yang tiap agent UDAH pelajari (pelajaran kegagalan/eureka/antibody/skill/insting). Read-only, no token. Default ON.", "bool", "true", "Autonomy / Orchestration"},
 }
 
 // Resolved — nilai efektif 1 switch + dari mana asalnya.

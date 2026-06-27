@@ -39,5 +39,12 @@ UNITEOF
 systemctl --user daemon-reload
 systemctl --user enable flowork-docktor >/dev/null 2>&1 || true
 systemctl --user restart flowork-docktor
-echo "✅ flowork-docktor terpasang → $WD"
+
+# LINGER — biar docktor (+ stack Flowork) auto-start saat BOOT, BUKAN cuma pas login.
+# Owner ide #2: "pas PC nyala dia HARUS auto nyala". Tanpa ini, systemd-user unit nunggu login.
+# Idempotent + best-effort (butuh polkit/root; ga fatal kalau gagal).
+loginctl enable-linger "$USER" >/dev/null 2>&1 || sudo loginctl enable-linger "$USER" >/dev/null 2>&1 || \
+  echo "  (warn: enable-linger gagal — stack nyala pas login, bukan boot. Jalanin: loginctl enable-linger $USER)"
+
+echo "✅ flowork-docktor terpasang → $WD (linger=$(loginctl show-user "$USER" --property=Linger 2>/dev/null | cut -d= -f2))"
 systemctl --user is-active flowork-docktor

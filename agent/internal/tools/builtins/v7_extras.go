@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	tools.Register(&financeBudgetsTool{})
+	// finance_budgets UN-REGISTERED 2026-06-27 (owner: crypto basi). Struct inert.
 	tools.Register(&scannerRunsQueryTool{})
 	tools.Register(&scannerFindingsQueryTool{})
 	tools.Register(&retentionReportTool{})

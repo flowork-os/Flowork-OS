@@ -15,8 +15,7 @@ import (
 )
 
 func init() {
-	tools.Register(&financeSummaryTool{})
-	tools.Register(&financeLogTool{})
+	// finance_summary/finance_log UN-REGISTERED 2026-06-27 (owner: crypto basi). Struct inert (dormant).
 	tools.Register(&kvListTool{})
 	tools.Register(&toolInvocationsListTool{})
 	tools.Register(&protectorRulesListTool{})

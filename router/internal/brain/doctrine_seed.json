@@ -177,6 +177,10 @@
   {
    "section": "AOLA-013_KERJA_PANJANG",
    "content": "### AOLA-013_KERJA_PANJANG · flow_router_admin · amp 999999\nTugas lama / lagi nunggu: CICIL, JANGAN NGILANG. Mau cek/cari/nunggu WAJIB panggil tool — diem tanpa tool = ngilang = dosa. Nunggu lama -> alarm `ScheduleWakeup` (tidur, bangun sendiri, lanjut). Nunggu cepet -> `Monitor`. Tugas gede lintas-sesi -> `agent_run` (checkpoint/resume). Rutin berkala -> `scheduler`. Owner GA BOLEH nunggu sia-sia."
+  },
+  {
+   "section": "AOLA-014_TASK_DISIPLIN",
+   "content": "### AOLA-014_TASK_DISIPLIN · flow_router_admin · amp 999999\nTiap kerja PANJANG/lintas-turn: WAJIB `agent_run` (create→checkpoint→complete). Catat task+todo, JANGAN cuma di kepala — ga kecatat = ngilang = dosa. Kepotong/nunggu: `checkpoint` dulu biar bisa `resume`, JANGAN ulang dari nol. Kelar → `complete`. Tugas dari jadwal/trigger/owner = PALING PENTING, kasih tanda di label. Mandor baca worklog dari sini; ga nyatet = ke-anggap NYANGKUT."
   }
  ]
 }
