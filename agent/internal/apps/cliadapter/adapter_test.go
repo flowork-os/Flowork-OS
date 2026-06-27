@@ -137,6 +137,25 @@ func TestNonzeroExitCaptured(t *testing.T) {
 	}
 }
 
+// regresi: program relatif ber-separator (./x) WAJIB di-resolve ke workdir, bukan $PATH.
+// (Bug ketauan dari E2E adopt Go: exec nyari "app" di PATH.)
+func TestRelativeProgramResolvedToWorkdir(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "run.sh")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho RELOK\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Workdir: ".", Ops: map[string]OpSpec{"go": {Cmd: []string{"./run.sh"}}}}
+	raw, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(filepath.Join(dir, ConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	resps := runOps(t, dir, `{"op":"go","args":{}}`)
+	if got := resultField(t, resps[0], "stdout").(string); !strings.Contains(got, "RELOK") {
+		t.Fatalf("stdout = %q, mau 'RELOK' (program relatif ke workdir)", got)
+	}
+}
+
 func TestBadConfig(t *testing.T) {
 	dir := t.TempDir() // no adapter.json
 	var out bytes.Buffer

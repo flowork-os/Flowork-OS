@@ -187,7 +187,7 @@ func detectGo(dir string) Detection {
 		Marker:     "go.mod",
 		Entry:      bin,
 		InstallCmd: [][]string{{"go", "build", "-o", bin, "."}},
-		RunCmd:     []string{filepath.Join(".", bin)},
+		RunCmd:     []string{"./" + bin}, // ber-separator → adapter resolve ke workdir (bukan PATH)
 	}
 }
 
@@ -206,7 +206,7 @@ func detectRust(dir string) Detection {
 		Marker:     "Cargo.toml",
 		Entry:      name,
 		InstallCmd: [][]string{{"cargo", "build", "--release"}},
-		RunCmd:     []string{filepath.Join("target", "release", binName)},
+		RunCmd:     []string{"./target/release/" + binName}, // ber-separator → resolve ke workdir
 	}
 }
 

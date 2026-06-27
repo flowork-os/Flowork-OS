@@ -178,7 +178,15 @@ func execOp(baseDir string, cfg *Config, spec OpSpec, args map[string]any) (map[
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec — argv (no shell), command dari adapter.json owner-installed
+	// Resolve program: kalau argv[0] relatif TAPI ber-separator (mis ./app, .venv/bin/python,
+	// target/release/x) → join ke workdir. Sebab exec GA otomatis pakai cmd.Dir buat path program
+	// (relatif di-resolve ke cwd parent). Bare command (echo/node/python3, no separator) dibiarin →
+	// lookup PATH normal. Cabut-akar bug "executable not found in $PATH".
+	prog := argv[0]
+	if !filepath.IsAbs(prog) && strings.ContainsAny(prog, `/\`) {
+		prog = filepath.Join(full, filepath.FromSlash(prog))
+	}
+	cmd := exec.CommandContext(ctx, prog, argv[1:]...) // #nosec — argv (no shell), command dari adapter.json owner-installed
 	cmd.Dir = full
 	cmd.Env = buildEnv(cfg.Env)
 	if stdinData != nil {
