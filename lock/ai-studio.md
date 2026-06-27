@@ -73,3 +73,23 @@ depan ga ngubah TANPA SADAR. 2 file CORE frozen, masing-masing self-contained (l
 NON-frozen (tetap growth surface): `verifier.go` (agent verify + LLM-judge), `plugin_handler.go` (dispatch 6-jenis
 yang tumbuh), `coder.go`/`architect.go`/`reaper.go`/`plugin_admin.go` (call-site gerbang), `studio_lifecycle.js`
 (GUI). Scanner `scan.go` cuma di-REUSE (udah frozen sejak apps-adopt).
+
+## 🎨 GUI redesign (2026-06-27 — clean glass-3D, full-width, nano-modular)
+- **Design-system share `fw-*` di `web/js/glass.js`** (NON-frozen): card/header/btn/tag/input/grid glass-3D pakai
+  design-token (`--accent`/`--glass-border`/`--text-main`, `color-mix` tema-aware). Tab tinggal `ensureGlass()` +
+  pakai kelas — **nol duplikat CSS**, konsisten. Dipakai AI Studio + 7 tab (tools/connections/schedule/triggers/
+  evolution/commits/settings) — buang tema-cyber per-tab lama.
+- **AI Studio**: `coder.js` orchestrator tipis — chat FULL (fixed-height) + **drawer Siklus Hidup 3D** slide dari
+  kanan (`top:58px` biar ga nutup header), isi = `studio_lifecycle.js`. Kesehatan (reaper = smoke-test LLM = mahal)
+  **on-demand** (tombol), biar buka drawer instan + nol bakar token.
+- **Chat (`chatui.js`)**: sidebar history collapsible (☰), new-chat + clear (🧹 ikon) 1 baris, box-shadow 3D.
+- Aturan: SEMUA copy lewat kamus i18n (English default + id), nol hardcode. Web di-`go:embed` → ubah GUI WAJIB
+  rebuild agent.
+
+## 🛟 Toolcall-recover (jalur build model lokal)
+Pas provider 429 → fallback ke model LOKAL yg sering "muntah" tool-call jadi teks. `toolcall_recover_ext.go`
+(FROZEN, router) + registry `RegisterToolcallExtractor` (POLA A) + sibling `toolcall_recover_more_ext.go` nangkep
+format: `<tool_call>` tag · ```json fence · JSON telanjang · `func({...})`. → build dari model lokal tetep jalan
+(jalur gratis solid). Test 10 kasus (5 positif + 5 negatif anti-false-positive) PASS.
+
+## 🔋 Sadar-kuota (anti nabrak limit) → lihat `lock/ratelimit-aware.md`
