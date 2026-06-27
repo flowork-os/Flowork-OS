@@ -76,6 +76,24 @@ const CSS = `
   color:#cbd5e1; font-size:0.9rem; line-height:1.65; }
 .al-store code { color:#67e8f9; background:rgba(14,165,233,0.1); padding:1px 6px; border-radius:4px; }
 .al-msg { font-size:0.84rem; margin-left:10px; }
+/* ── adopt repo panel ── */
+.ad-wrap { background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.18); border-radius:12px; padding:18px 20px; color:#cbd5e1; }
+.ad-row { display:flex; gap:9px; margin-bottom:4px; }
+.ad-in { flex:1; background:rgba(2,6,18,0.5); border:1px solid rgba(148,163,184,0.22); border-radius:8px; color:#e2e8f0; padding:9px 12px; font:inherit; font-size:0.86rem; }
+.ad-btn { padding:9px 16px; border-radius:8px; background:rgba(124,58,237,0.2); border:1px solid rgba(167,139,250,0.5); color:#c4b5fd; cursor:pointer; font:inherit; font-size:0.85rem; white-space:nowrap; }
+.ad-btn:hover { background:rgba(124,58,237,0.32); }
+.ad-btn.go { background:rgba(16,185,129,0.18); border-color:rgba(52,211,153,0.5); color:#6ee7b7; }
+.ad-btn:disabled { opacity:.45; cursor:not-allowed; }
+.ad-hint { font-size:0.74rem; color:#64748b; margin:2px 2px 14px; }
+.ad-box { border-radius:10px; padding:13px 15px; margin-top:14px; font-size:0.85rem; line-height:1.6; }
+.ad-ok { background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); }
+.ad-warn { background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.35); color:#fde68a; }
+.ad-crit { background:rgba(248,113,113,0.12); border:1px solid rgba(248,113,113,0.45); color:#fca5a5; }
+.ad-find { font-family:ui-monospace,monospace; font-size:0.76rem; margin:5px 0 0; opacity:.9; }
+.ad-badge { display:inline-block; background:rgba(14,165,233,0.14); color:#67e8f9; border-radius:5px; padding:1px 8px; font-size:0.76rem; margin-right:6px; }
+.ad-lab { display:block; font-size:0.76rem; color:#94a3b8; margin:11px 0 4px; }
+.ad-ct { display:flex; gap:14px; margin:8px 0; font-size:0.85rem; }
+.ad-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
 `;
 
 function topTab() { return (location.hash || '').replace(/^#\/?/, '').split('/')[0] || ''; }
@@ -159,6 +177,8 @@ function closeTab(key) {
 
 // ── open an app in a tab (sandboxed iframe + bridge + state poll) ──────────────
 function openApp(a) {
+  // app SERVER (kontrak HTTP, punya op _url) → buka beda: start server + buka URL, BUKAN iframe folder.
+  if ((a.operations || []).some((o) => o.name === '_url')) { openServerApp(a); return; }
   const key = 'app:' + a.id;
   if (S.tabs.find((tb) => tb.key === key)) { activate(key); return; }
 
@@ -191,6 +211,133 @@ function openApp(a) {
 
   S.tabs.push({ key, app: a, pane, frame, bridge, poll });
   activate(key);
+}
+
+// ── open a SERVER app (kontrak HTTP): start server → buka URL (F5/F4) ──────────
+function openServerApp(a) {
+  const key = 'app:' + a.id;
+  if (S.tabs.find((tb) => tb.key === key)) { activate(key); return; }
+  const pane = document.createElement('div');
+  pane.className = 'as-pane';
+  pane.style.cssText = 'padding:28px; overflow:auto';
+  pane.innerHTML = `<div class="ad-wrap"><b>${esc(a.name || a.id)}</b> — app server (web)
+    <div id="srvMsg" class="ad-find" style="margin-top:9px">⟳ Menyalakan server… (boot + tunggu port siap)</div>
+    <div id="srvAct" style="margin-top:14px"></div></div>`;
+  S.shell.querySelector('#asBody').appendChild(pane);
+  S.tabs.push({ key, app: a, pane });
+  activate(key);
+  (async () => {
+    const msg = pane.querySelector('#srvMsg'), act = pane.querySelector('#srvAct');
+    const call = (op) => fetchJSON('/api/apps/op', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ app: a.id, op, args: {} }) });
+    try {
+      await call('_alive');                       // start server + tunggu ready
+      const u = await call('_url');               // alamat UI
+      const url = (u.result && u.result.url) || '';
+      msg.textContent = '✓ Server jalan — ' + url;
+      act.innerHTML = `<button class="ad-btn go" id="srvOpen">↗ Buka UI di tab baru</button>
+        <span class="ad-hint" style="display:block;margin-top:8px">Streamlit/web app jalan paling baik di tab terpisah.</span>`;
+      pane.querySelector('#srvOpen').onclick = () => window.open(url, '_blank', 'noopener');
+      const f = document.createElement('iframe');
+      f.src = url; f.style.cssText = 'width:100%;height:68vh;border:1px solid rgba(148,163,184,0.2);border-radius:10px;margin-top:14px;background:#fff';
+      pane.querySelector('.ad-wrap').appendChild(f);
+    } catch (e) { msg.textContent = '✕ Server gagal start: ' + String(e.message || e); }
+  })();
+}
+
+// ── adopt repo → app (F4): paste URL → deteksi+scan → kontrak → jalan ──────────
+function renderAdopt(body) {
+  const A = S.adopt || (S.adopt = {});
+  body.innerHTML = `<div class="ad-wrap">
+    <div class="ad-row">
+      <input class="ad-in" id="adSrc" placeholder="https://github.com/owner/repo   ·   atau /path/folder" value="${escAttr(A.src || '')}">
+      <button class="ad-btn" id="adDetect">🔍 Deteksi</button>
+    </div>
+    <div class="ad-hint">Clone repo → deteksi runtime → scan keamanan → jadi app (manusia + AI bisa jalanin). Owner approve sebelum jalan.</div>
+    <div id="adRes"></div>
+  </div>`;
+  const src = body.querySelector('#adSrc');
+  const go = () => { A.src = src.value.trim(); doDetect(body); };
+  body.querySelector('#adDetect').onclick = go;
+  src.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+  if (A.det) renderAdoptResult(body);
+}
+
+async function doDetect(body) {
+  const A = S.adopt, res = body.querySelector('#adRes');
+  if (!A.src) { res.innerHTML = `<div class="ad-box ad-warn">Isi URL/path repo dulu.</div>`; return; }
+  res.innerHTML = `<div class="ad-box ad-ok">⟳ Mendeteksi + scan… (clone shallow, bisa beberapa detik)</div>`;
+  try {
+    const r = await fetchJSON('/api/apps/detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: A.src }) });
+    A.det = r.detection || {}; A.scan = r.scan || {}; A.suggestedId = r.suggested_id || '';
+    A.contract = A.contract || 'cli'; A.accept = false;
+    renderAdoptResult(body);
+  } catch (e) { res.innerHTML = `<div class="ad-box ad-crit">✕ Deteksi gagal: ${esc(String(e.message || e))}</div>`; }
+}
+
+function renderAdoptResult(body) {
+  const A = S.adopt, res = body.querySelector('#adRes'); if (!res) return;
+  const d = A.det || {}, sc = A.scan || {};
+  const crit = sc.critical || 0, warn = sc.warn || 0;
+  const findHTML = (sc.findings || []).slice(0, 12).map((f) =>
+    `<div class="ad-find">[${esc(f.severity)}] ${esc(f.file)}:${f.line} — ${esc(f.pattern)}</div>`).join('');
+  let scanBox;
+  if (crit > 0) scanBox = `<div class="ad-box ad-crit"><b>⚠ ${crit} pola BERBAHAYA (critical)</b> di kode repo — adopt diblok demi keamanan.${findHTML}
+    <label class="ad-lab"><input type="checkbox" id="adAccept" ${A.accept ? 'checked' : ''}> Saya paham risiko & tetap lanjut (accept_risk)</label></div>`;
+  else if (warn > 0) scanBox = `<div class="ad-box ad-warn"><b>${warn} peringatan</b> — cek dulu:${findHTML}</div>`;
+  else scanBox = `<div class="ad-box ad-ok">✓ Scan bersih — nol pola berbahaya.</div>`;
+  const inst = (d.install_cmd || []).map((c) => '$ ' + c.join(' ')).join('   ·   ');
+  const isHTTP = A.contract === 'http';
+  res.innerHTML = `
+    <div class="ad-box ad-ok">
+      <span class="ad-badge">runtime: ${esc(d.runtime || '?')}</span>
+      ${d.entry ? `<span class="ad-badge">entry: ${esc(d.entry)}</span>` : ''}
+      ${inst ? `<div class="ad-find" style="margin-top:6px">install: ${esc(inst)}</div>` : ''}
+      ${(d.notes || []).map((n) => `<div class="ad-find" style="opacity:.8">• ${esc(n)}</div>`).join('')}
+    </div>
+    ${scanBox}
+    <label class="ad-lab">Jenis app</label>
+    <div class="ad-ct">
+      <label><input type="radio" name="adCt" value="cli" ${!isHTTP ? 'checked' : ''}> CLI / tool (op "run")</label>
+      <label><input type="radio" name="adCt" value="http" ${isHTTP ? 'checked' : ''}> Server / web app (HTTP)</label>
+    </div>
+    <div id="adHttp" style="display:${isHTTP ? 'block' : 'none'}">
+      <div class="ad-grid2">
+        <div><label class="ad-lab">Perintah start server</label><input class="ad-in" id="adStart" placeholder="python main.py" value="${escAttr(A.startCmd || '')}"></div>
+        <div><label class="ad-lab">Port</label><input class="ad-in" id="adPort" placeholder="8080" value="${escAttr(A.port || '')}"></div>
+        <div><label class="ad-lab">Ready path (opsional)</label><input class="ad-in" id="adReady" placeholder="/" value="${escAttr(A.ready || '')}"></div>
+        <div><label class="ad-lab">URL path UI (opsional)</label><input class="ad-in" id="adUrl" placeholder="/" value="${escAttr(A.urlPath || '')}"></div>
+      </div>
+    </div>
+    <label class="ad-lab">App ID</label>
+    <input class="ad-in" id="adId" value="${escAttr(A.id || A.suggestedId || '')}">
+    <div style="margin-top:15px"><button class="ad-btn go" id="adGo">＋ Adopt & Jalankan</button><span class="al-msg" id="adMsg"></span></div>`;
+  res.querySelectorAll('[name=adCt]').forEach((r) => r.onchange = () => { A.contract = r.value; renderAdoptResult(body); });
+  const acc = res.querySelector('#adAccept'); if (acc) acc.onchange = () => { A.accept = acc.checked; };
+  const cap = (sel, key) => { const el = res.querySelector(sel); if (el) el.oninput = () => A[key] = el.value; };
+  cap('#adStart', 'startCmd'); cap('#adPort', 'port'); cap('#adReady', 'ready'); cap('#adUrl', 'urlPath'); cap('#adId', 'id');
+  res.querySelector('#adGo').onclick = () => doAdopt(body);
+}
+
+async function doAdopt(body) {
+  const A = S.adopt, msg = body.querySelector('#adMsg'), go = body.querySelector('#adGo');
+  if (!A.src) return;
+  const payload = { source: A.src, id: (A.id || '').trim(), accept_risk: !!A.accept };
+  if (A.contract === 'http') {
+    const port = parseInt(A.port, 10);
+    if (!A.startCmd || !port) { msg.textContent = '✕ Server butuh perintah start + port'; return; }
+    payload.contract = 'http';
+    payload.http = { start_cmd: A.startCmd.trim().split(/\s+/), port, ready_path: (A.ready || '').trim(), url_path: (A.urlPath || '').trim(), ops: {} };
+  }
+  if (!confirm('Adopt repo ini? Flowork clone + install dependency + bikin app. Jalanin cuma kalau lo percaya sumbernya.')) return;
+  go.disabled = true; msg.textContent = '⟳ Clone + install + bikin app… (dep besar bisa beberapa menit)';
+  try {
+    const resp = await fetch('/api/apps/adopt?approve_exec=1', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const r = await resp.json();
+    if (!resp.ok || r.error) throw new Error(r.error || ('HTTP ' + resp.status));
+    msg.textContent = '✓ App LIVE: ' + ((r.result && r.result.id) || '');
+    S.adopt = {}; S.seg = 'installed';
+    await refreshApps();
+  } catch (e) { go.disabled = false; msg.textContent = '✕ ' + String(e.message || e); }
 }
 
 // ── persistence (survive refresh) ──────────────────────────────────────────────
@@ -229,6 +376,7 @@ function renderHome() {
     <div class="al-seg">
       <button class="al-segbtn ${S.seg === 'installed' ? 'on' : ''}" data-seg="installed">${esc(L.installed)}</button>
       <button class="al-segbtn ${S.seg === 'store' ? 'on' : ''}" data-seg="store">${esc(L.store)}</button>
+      <button class="al-segbtn ${S.seg === 'adopt' ? 'on' : ''}" data-seg="adopt">＋ Adopt repo</button>
     </div>
     <div id="alBody"></div>`;
   home.pane.querySelectorAll('[data-seg]').forEach((b) => b.onclick = () => { S.seg = b.dataset.seg; renderHome(); });
@@ -248,6 +396,7 @@ function renderHomeBody(body) {
     file.onchange = () => { if (file.files[0]) installPack(file.files[0]); };
     return;
   }
+  if (S.seg === 'adopt') { renderAdopt(body); return; }
   if (!S.apps.length) { body.innerHTML = `<div class="al-empty">${esc(L.empty)}</div>`; return; }
   body.innerHTML = `<div class="al-grid">${S.apps.map(cardHTML).join('')}</div>`;
   S.apps.forEach((a) => {
