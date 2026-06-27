@@ -10,9 +10,13 @@
 package apps
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -331,24 +335,98 @@ func writeManifestJSON(target string, man Manifest) error {
 	return writeJSONFile(filepath.Join(target, "manifest.json"), man)
 }
 
+// MCPContract — parameter kontrak MCP: cara start MCP server repo (command WAJIB di allowlist router:
+// node/python3/npx/uvx/bun/deno/pnpm/yarn). Entry relatif repo → di-absolut-in (router jalanin TANPA cwd).
+type MCPContract struct {
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+}
+
+// AdoptMCPRepo — adopt repo MCP-server: clone+install → DAFTARIN ke MCP-client ROUTER (bukan app sidecar).
+// Tool-nya muncul ke semua agent lewat router (tab MCP). Reuse store MCP router yg udah ada.
+func (m *Manager) AdoptMCPRepo(ctx context.Context, source, id string, mc MCPContract, approveExec, skipInstall, force, acceptRisk bool) (AdoptResult, error) {
+	if strings.TrimSpace(mc.Command) == "" {
+		return AdoptResult{}, errors.New("kontrak mcp butuh 'command' (node/python3/npx/uvx/dll — allowlist router)")
+	}
+	target, repoDir, _, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force, acceptRisk)
+	if err != nil {
+		return res, err
+	}
+	appID := filepath.Base(target)
+	// Router jalanin MCP server TANPA cwd → arg yg berupa file relatif di repo di-absolut-in.
+	args := make([]string, len(mc.Args))
+	for i, a := range mc.Args {
+		if !filepath.IsAbs(a) && fileExists(filepath.Join(repoDir, filepath.FromSlash(a))) {
+			args[i] = filepath.Join(repoDir, filepath.FromSlash(a))
+		} else {
+			args[i] = a
+		}
+	}
+	srv := map[string]any{
+		"id": appID, "name": appID, "transport": "stdio",
+		"command": mc.Command, "args": args, "env": mc.Env, "enabled": true,
+	}
+	if e := registerMCP(ctx, srv); e != nil {
+		_ = os.RemoveAll(target)
+		return res, fmt.Errorf("register MCP ke router: %w", e)
+	}
+	res.ID, res.Name, res.Live = appID, appID, true
+	res.Notes = append(res.Notes, "kontrak MCP — server didaftarin ke MCP-client router; tool-nya muncul ke agent (tab MCP, bukan tab App).")
+	return res, nil
+}
+
+// registerMCP — indirection biar test bisa nyuntik (default = registerMCPServer, POST ke router).
+var registerMCP = registerMCPServer
+
+// registerMCPServer — POST MCP server ke router (loopback, /api/mcp). No-hardcode: URL dari env / default.
+func registerMCPServer(ctx context.Context, srv map[string]any) error {
+	base := strings.TrimRight(os.Getenv("ROUTER_DEFAULT_URL"), "/")
+	if base == "" {
+		base = "http://127.0.0.1:2402"
+	}
+	body, _ := json.Marshal(srv)
+	cctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(cctx, http.MethodPost, base+"/api/mcp", bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("router HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	return nil
+}
+
 // DetectSource — PREVIEW (dry-run, NO install, NO go-live): deteksi runtime source.
 // Folder lokal → deteksi langsung. git-URL → shallow-clone ke temp → deteksi → buang.
 // Buat GUI "Deteksi" sebelum owner approve (bagian "setting dikit"). NOL efek samping permanen.
-func DetectSource(ctx context.Context, source string) (adopt.Detection, adopt.ScanReport, error) {
+func DetectSource(ctx context.Context, source string) (adopt.Detection, adopt.ScanReport, adopt.Suggestion, error) {
+	preview := func(dir string) (adopt.Detection, adopt.ScanReport, adopt.Suggestion, error) {
+		det := adopt.Detect(dir)
+		return det, adopt.ScanRepo(dir), adopt.SuggestContract(dir, det), nil
+	}
 	source = strings.TrimSpace(source)
 	if source == "" {
-		return adopt.Detection{}, adopt.ScanReport{}, errors.New("source kosong")
+		return adopt.Detection{}, adopt.ScanReport{}, adopt.Suggestion{}, errors.New("source kosong")
 	}
 	if !isGitURL(source) {
 		abs, e := filepath.Abs(source)
 		if e != nil || !dirExists(abs) {
-			return adopt.Detection{}, adopt.ScanReport{}, errors.New("folder source ga ada: " + source)
+			return adopt.Detection{}, adopt.ScanReport{}, adopt.Suggestion{}, errors.New("folder source ga ada: " + source)
 		}
-		return adopt.Detect(abs), adopt.ScanRepo(abs), nil
+		return preview(abs)
 	}
 	tmp, e := os.MkdirTemp("", "fw-detect-*")
 	if e != nil {
-		return adopt.Detection{}, adopt.ScanReport{}, e
+		return adopt.Detection{}, adopt.ScanReport{}, adopt.Suggestion{}, e
 	}
 	defer os.RemoveAll(tmp)
 	repo := filepath.Join(tmp, "repo")
@@ -356,7 +434,7 @@ func DetectSource(ctx context.Context, source string) (adopt.Detection, adopt.Sc
 	defer cancel()
 	out, cerr := exec.CommandContext(cctx, "git", "clone", "--depth", "1", source, repo).CombinedOutput()
 	if cerr != nil {
-		return adopt.Detection{}, adopt.ScanReport{}, fmt.Errorf("clone preview gagal: %v\n%s", cerr, trimTail(string(out), 600))
+		return adopt.Detection{}, adopt.ScanReport{}, adopt.Suggestion{}, fmt.Errorf("clone preview gagal: %v\n%s", cerr, trimTail(string(out), 600))
 	}
-	return adopt.Detect(repo), adopt.ScanRepo(repo), nil
+	return preview(repo)
 }

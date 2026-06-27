@@ -22,6 +22,11 @@ func dirExists(p string) bool {
 	return err == nil && st.IsDir()
 }
 
+func fileExists(p string) bool {
+	st, err := os.Stat(p)
+	return err == nil && !st.IsDir()
+}
+
 // writeJSONFile — tulis v sbg JSON indented ke path.
 func writeJSONFile(path string, v any) error {
 	raw, err := json.MarshalIndent(v, "", "  ")

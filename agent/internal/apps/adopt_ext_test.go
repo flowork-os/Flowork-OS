@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"flowork-gui/internal/apps/cliadapter"
@@ -117,6 +118,42 @@ func TestAdoptRejectExisting(t *testing.T) {
 	}
 	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, true /*force*/, false); err != nil {
 		t.Fatalf("adopt force mestinya sukses: %v", err)
+	}
+}
+
+// F5-MCP: register ke router (override), entry relatif → di-absolut-in.
+func TestAdoptMCPRepo(t *testing.T) {
+	fakeAdapter(t)
+	var captured map[string]any
+	old := registerMCP
+	registerMCP = func(_ context.Context, srv map[string]any) error { captured = srv; return nil }
+	t.Cleanup(func() { registerMCP = old })
+
+	src := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(src, "dist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(src, "dist", "index.js"), []byte("// mcp\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(src, "package.json"), []byte(`{"name":"x"}`), 0o644)
+
+	m := NewManager(t.TempDir())
+	mc := MCPContract{Command: "node", Args: []string{"dist/index.js", "--flag"}}
+	res, err := m.AdoptMCPRepo(context.Background(), src, "mcptool", mc, true, true, false, false)
+	if err != nil {
+		t.Fatalf("AdoptMCPRepo: %v", err)
+	}
+	if !res.Live || captured == nil {
+		t.Fatalf("ga keregister: %+v", res)
+	}
+	if captured["command"] != "node" || captured["transport"] != "stdio" || captured["enabled"] != true {
+		t.Fatalf("srv ga sesuai: %+v", captured)
+	}
+	args, _ := captured["args"].([]string)
+	if len(args) != 2 || !filepath.IsAbs(args[0]) || !strings.HasSuffix(args[0], filepath.Join("dist", "index.js")) {
+		t.Fatalf("args[0] mestinya absolut ke dist/index.js: %v", args)
+	}
+	if args[1] != "--flag" {
+		t.Fatalf("flag mestinya ga diubah: %v", args)
 	}
 }
 

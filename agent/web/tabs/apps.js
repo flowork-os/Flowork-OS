@@ -66,6 +66,7 @@ const CSS = `
   padding:18px 12px; text-align:center; cursor:pointer; transition:all .15s; }
 .al-card:hover { border-color:rgba(167,139,250,0.5); transform:translateY(-2px); box-shadow:0 14px 34px -24px rgba(124,58,237,0.5); }
 .al-card img { width:46px; height:46px; }
+.al-glyph { font-size:40px; line-height:46px; height:46px; width:46px; margin:0 auto; text-align:center; }
 .al-card .nm { font-size:0.86rem; color:#f1f5f9; margin-top:9px; word-break:break-word; }
 .al-card .rt { font-size:0.66rem; letter-spacing:0.06em; color:#94a3b8; margin-top:4px; }
 .al-card .x { position:absolute; top:5px; right:8px; color:#f87171; opacity:0; font-size:0.85rem; transition:opacity .15s; }
@@ -268,8 +269,15 @@ async function doDetect(body) {
   res.innerHTML = `<div class="ad-box ad-ok">⟳ Mendeteksi + scan… (clone shallow, bisa beberapa detik)</div>`;
   try {
     const r = await fetchJSON('/api/apps/detect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: A.src }) });
-    A.det = r.detection || {}; A.scan = r.scan || {}; A.suggestedId = r.suggested_id || '';
-    A.contract = A.contract || 'cli'; A.accept = false;
+    A.det = r.detection || {}; A.scan = r.scan || {}; A.suggestedId = r.suggested_id || ''; A.accept = false;
+    // auto-saran kontrak: kalau framework server kedeteksi → pre-pilih HTTP + isi start_cmd/port.
+    const sg = r.suggest || {};
+    if (sg.contract === 'http') {
+      A.contract = 'http';
+      if (!A.startCmd && (sg.start_cmd || []).length) A.startCmd = sg.start_cmd.join(' ');
+      if (!A.port && sg.port) A.port = String(sg.port);
+      A.suggestReason = sg.reason || '';
+    } else { A.contract = A.contract || 'cli'; A.suggestReason = ''; }
     renderAdoptResult(body);
   } catch (e) { res.innerHTML = `<div class="ad-box ad-crit">✕ Deteksi gagal: ${esc(String(e.message || e))}</div>`; }
 }
@@ -286,7 +294,7 @@ function renderAdoptResult(body) {
   else if (warn > 0) scanBox = `<div class="ad-box ad-warn"><b>${warn} peringatan</b> — cek dulu:${findHTML}</div>`;
   else scanBox = `<div class="ad-box ad-ok">✓ Scan bersih — nol pola berbahaya.</div>`;
   const inst = (d.install_cmd || []).map((c) => '$ ' + c.join(' ')).join('   ·   ');
-  const isHTTP = A.contract === 'http';
+  const isHTTP = A.contract === 'http', isMCP = A.contract === 'mcp';
   res.innerHTML = `
     <div class="ad-box ad-ok">
       <span class="ad-badge">runtime: ${esc(d.runtime || '?')}</span>
@@ -295,10 +303,11 @@ function renderAdoptResult(body) {
       ${(d.notes || []).map((n) => `<div class="ad-find" style="opacity:.8">• ${esc(n)}</div>`).join('')}
     </div>
     ${scanBox}
-    <label class="ad-lab">Jenis app</label>
+    <label class="ad-lab">Jenis app${A.suggestReason ? ` <span style="color:#6ee7b7">· saran: ${esc(A.suggestReason)}</span>` : ''}</label>
     <div class="ad-ct">
-      <label><input type="radio" name="adCt" value="cli" ${!isHTTP ? 'checked' : ''}> CLI / tool (op "run")</label>
+      <label><input type="radio" name="adCt" value="cli" ${!isHTTP && !isMCP ? 'checked' : ''}> CLI / tool</label>
       <label><input type="radio" name="adCt" value="http" ${isHTTP ? 'checked' : ''}> Server / web app (HTTP)</label>
+      <label><input type="radio" name="adCt" value="mcp" ${isMCP ? 'checked' : ''}> MCP server (tool AI)</label>
     </div>
     <div id="adHttp" style="display:${isHTTP ? 'block' : 'none'}">
       <div class="ad-grid2">
@@ -308,6 +317,12 @@ function renderAdoptResult(body) {
         <div><label class="ad-lab">URL path UI (opsional)</label><input class="ad-in" id="adUrl" placeholder="/" value="${escAttr(A.urlPath || '')}"></div>
       </div>
     </div>
+    <div id="adMcp" style="display:${isMCP ? 'block' : 'none'}">
+      <div class="ad-grid2">
+        <div><label class="ad-lab">Command (allowlist: node/python3/npx/uvx…)</label><input class="ad-in" id="adCmd" placeholder="node" value="${escAttr(A.mcpCmd || '')}"></div>
+        <div><label class="ad-lab">Args (entry repo + flag)</label><input class="ad-in" id="adArgs" placeholder="dist/index.js" value="${escAttr(A.mcpArgs || '')}"></div>
+      </div>
+    </div>
     <label class="ad-lab">App ID</label>
     <input class="ad-in" id="adId" value="${escAttr(A.id || A.suggestedId || '')}">
     <div style="margin-top:15px"><button class="ad-btn go" id="adGo">＋ Adopt & Jalankan</button><span class="al-msg" id="adMsg"></span></div>`;
@@ -315,6 +330,7 @@ function renderAdoptResult(body) {
   const acc = res.querySelector('#adAccept'); if (acc) acc.onchange = () => { A.accept = acc.checked; };
   const cap = (sel, key) => { const el = res.querySelector(sel); if (el) el.oninput = () => A[key] = el.value; };
   cap('#adStart', 'startCmd'); cap('#adPort', 'port'); cap('#adReady', 'ready'); cap('#adUrl', 'urlPath'); cap('#adId', 'id');
+  cap('#adCmd', 'mcpCmd'); cap('#adArgs', 'mcpArgs');
   res.querySelector('#adGo').onclick = () => doAdopt(body);
 }
 
@@ -327,6 +343,11 @@ async function doAdopt(body) {
     if (!A.startCmd || !port) { msg.textContent = '✕ Server butuh perintah start + port'; return; }
     payload.contract = 'http';
     payload.http = { start_cmd: A.startCmd.trim().split(/\s+/), port, ready_path: (A.ready || '').trim(), url_path: (A.urlPath || '').trim(), ops: {} };
+  }
+  if (A.contract === 'mcp') {
+    if (!A.mcpCmd) { msg.textContent = '✕ MCP butuh command (node/python3/npx/uvx…)'; return; }
+    payload.contract = 'mcp';
+    payload.mcp = { command: A.mcpCmd.trim(), args: (A.mcpArgs || '').trim() ? A.mcpArgs.trim().split(/\s+/) : [] };
   }
   if (!confirm('Adopt repo ini? Flowork clone + install dependency + bikin app. Jalanin cuma kalau lo percaya sumbernya.')) return;
   go.disabled = true; msg.textContent = '⟳ Clone + install + bikin app… (dep besar bisa beberapa menit)';
@@ -405,11 +426,19 @@ function renderHomeBody(body) {
   });
 }
 
+// app hasil-adopt ga punya file icon → kasih glyph emoji per-runtime (bukan gambar broken).
+function appGlyph(a) {
+  if ((a.operations || []).some((o) => o.name === '_url')) return '🌐'; // server/web app
+  return ({ python: '🐍', node: '🟢', go: '🐹', rust: '🦀', process: '📦', http: '🌐' })[a.runtime] || '📦';
+}
 function cardHTML(a) {
   const native = a.runtime === 'process' || a.runtime === 'http';
+  const iconHTML = a.icon
+    ? `<img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'al-glyph',textContent:'${appGlyph(a)}'}))">`
+    : `<div class="al-glyph">${appGlyph(a)}</div>`;
   return `<div class="al-card" data-app="${escAttr(a.id)}">
     <span class="x" title="${escAttr(L.uninstall)}">✕</span>
-    <img src="/api/apps/${escAttr(a.id)}/${escAttr(a.icon || 'ui/icon.svg')}" alt="" onerror="this.style.opacity=.3">
+    ${iconHTML}
     <div class="nm">${esc(a.name || a.id)}</div>
     <div class="rt">${native ? '🔓 native' : '🔒 sandbox'} · ${esc(a.runtime || 'wasm')}</div>
   </div>`;

@@ -40,13 +40,13 @@ func appsDetectHandler() http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 6*time.Minute)
 		defer cancel()
-		det, scan, err := apps.DetectSource(ctx, b.Source)
+		det, scan, suggest, err := apps.DetectSource(ctx, b.Source)
 		if err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
 		tfWriteJSON(w, 0, map[string]any{
-			"ok": true, "suggested_id": apps.SlugID(b.Source), "detection": det, "scan": scan,
+			"ok": true, "suggested_id": apps.SlugID(b.Source), "detection": det, "scan": scan, "suggest": suggest,
 		})
 	}
 }
@@ -63,8 +63,9 @@ func appsAdoptHandler(mgr *apps.Manager) http.HandlerFunc {
 			ID          string            `json:"id"`
 			Force       bool              `json:"force"`
 			SkipInstall bool              `json:"skip_install"`
-			Contract    string            `json:"contract"`    // ""/"cli" = CLI · "http" = server (web app/API)
+			Contract    string            `json:"contract"`    // ""/"cli" · "http" = server · "mcp" = MCP server
 			HTTP        apps.HTTPContract `json:"http"`        // dipakai kalau contract=http
+			MCP         apps.MCPContract  `json:"mcp"`         // dipakai kalau contract=mcp
 			AcceptRisk  bool              `json:"accept_risk"` // true = lanjut walau scan nemu pola critical
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&b); err != nil {
@@ -85,9 +86,12 @@ func appsAdoptHandler(mgr *apps.Manager) http.HandlerFunc {
 		defer cancel()
 		var res apps.AdoptResult
 		var err error
-		if b.Contract == "http" {
+		switch b.Contract {
+		case "http":
 			res, err = mgr.AdoptHTTPRepo(ctx, b.Source, strings.TrimSpace(b.ID), b.HTTP, true, b.SkipInstall, b.Force, b.AcceptRisk)
-		} else {
+		case "mcp":
+			res, err = mgr.AdoptMCPRepo(ctx, b.Source, strings.TrimSpace(b.ID), b.MCP, true, b.SkipInstall, b.Force, b.AcceptRisk)
+		default:
 			res, err = mgr.AdoptRepo(ctx, b.Source, strings.TrimSpace(b.ID), true, b.SkipInstall, b.Force, b.AcceptRisk)
 		}
 		if err != nil {
@@ -97,6 +101,8 @@ func appsAdoptHandler(mgr *apps.Manager) http.HandlerFunc {
 		next := "app LIVE — buka di tab App / panggil tool app_" + res.ID + "_run"
 		if b.Contract == "http" {
 			next = "app SERVER LIVE — buka UI via op _url (tab App), atau panggil op HTTP-nya"
+		} else if b.Contract == "mcp" {
+			next = "MCP server didaftarin ke router — tool-nya muncul ke agent (tab MCP)"
 		}
 		tfWriteJSON(w, 0, map[string]any{"ok": true, "result": res, "next": next})
 	}
