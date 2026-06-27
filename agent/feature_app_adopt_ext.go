@@ -40,13 +40,13 @@ func appsDetectHandler() http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 6*time.Minute)
 		defer cancel()
-		det, err := apps.DetectSource(ctx, b.Source)
+		det, scan, err := apps.DetectSource(ctx, b.Source)
 		if err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": err.Error()})
 			return
 		}
 		tfWriteJSON(w, 0, map[string]any{
-			"ok": true, "suggested_id": apps.SlugID(b.Source), "detection": det,
+			"ok": true, "suggested_id": apps.SlugID(b.Source), "detection": det, "scan": scan,
 		})
 	}
 }
@@ -63,8 +63,9 @@ func appsAdoptHandler(mgr *apps.Manager) http.HandlerFunc {
 			ID          string            `json:"id"`
 			Force       bool              `json:"force"`
 			SkipInstall bool              `json:"skip_install"`
-			Contract    string            `json:"contract"` // ""/"cli" = CLI · "http" = server (web app/API)
-			HTTP        apps.HTTPContract `json:"http"`     // dipakai kalau contract=http
+			Contract    string            `json:"contract"`    // ""/"cli" = CLI · "http" = server (web app/API)
+			HTTP        apps.HTTPContract `json:"http"`        // dipakai kalau contract=http
+			AcceptRisk  bool              `json:"accept_risk"` // true = lanjut walau scan nemu pola critical
 		}
 		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&b); err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid json"})
@@ -85,9 +86,9 @@ func appsAdoptHandler(mgr *apps.Manager) http.HandlerFunc {
 		var res apps.AdoptResult
 		var err error
 		if b.Contract == "http" {
-			res, err = mgr.AdoptHTTPRepo(ctx, b.Source, strings.TrimSpace(b.ID), b.HTTP, true, b.SkipInstall, b.Force)
+			res, err = mgr.AdoptHTTPRepo(ctx, b.Source, strings.TrimSpace(b.ID), b.HTTP, true, b.SkipInstall, b.Force, b.AcceptRisk)
 		} else {
-			res, err = mgr.AdoptRepo(ctx, b.Source, strings.TrimSpace(b.ID), true, b.SkipInstall, b.Force)
+			res, err = mgr.AdoptRepo(ctx, b.Source, strings.TrimSpace(b.ID), true, b.SkipInstall, b.Force, b.AcceptRisk)
 		}
 		if err != nil {
 			tfWriteJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error(), "partial": res})

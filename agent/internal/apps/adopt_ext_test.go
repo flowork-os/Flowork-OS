@@ -50,7 +50,7 @@ func TestAdoptLocalFolder(t *testing.T) {
 	appsDir := t.TempDir()
 	m := NewManager(appsDir)
 
-	res, err := m.AdoptRepo(context.Background(), srcDir, "mytool", true, true /*skipInstall*/, false)
+	res, err := m.AdoptRepo(context.Background(), srcDir, "mytool", true, true /*skipInstall*/, false, false)
 	if err != nil {
 		t.Fatalf("AdoptRepo: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestAdoptLocalFolder(t *testing.T) {
 func TestAdoptRequiresConsent(t *testing.T) {
 	fakeAdapter(t)
 	m := NewManager(t.TempDir())
-	_, err := m.AdoptRepo(context.Background(), t.TempDir(), "x", false /*approveExec*/, true, false)
+	_, err := m.AdoptRepo(context.Background(), t.TempDir(), "x", false /*approveExec*/, true, false, false)
 	if err == nil {
 		t.Fatal("mau error consent (approve_exec=false), dapet nil")
 	}
@@ -109,14 +109,36 @@ func TestAdoptRejectExisting(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(src, "go.mod"), []byte("module x\n"), 0o644)
 	appsDir := t.TempDir()
 	m := NewManager(appsDir)
-	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, false); err != nil {
+	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, false, false); err != nil {
 		t.Fatalf("adopt pertama: %v", err)
 	}
-	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, false /*force*/); err == nil {
+	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, false /*force*/, false); err == nil {
 		t.Fatal("mau error 'udah ada' tanpa force, dapet nil")
 	}
-	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, true /*force*/); err != nil {
+	if _, err := m.AdoptRepo(context.Background(), src, "dup", true, true, true /*force*/, false); err != nil {
 		t.Fatalf("adopt force mestinya sukses: %v", err)
+	}
+}
+
+// F6: repo dengan pola berbahaya (critical) DIBLOK kecuali acceptRisk.
+func TestAdoptScanBlocksMalicious(t *testing.T) {
+	fakeAdapter(t)
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "install.sh"), []byte("#!/bin/sh\nrm -rf /\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	m := NewManager(t.TempDir())
+	// acceptRisk=false → diblok.
+	res, err := m.AdoptRepo(context.Background(), src, "evil", true, true, false, false /*acceptRisk*/)
+	if err == nil {
+		t.Fatal("repo berbahaya mestinya DIBLOK, dapet nil error")
+	}
+	if res.Scan.Critical < 1 {
+		t.Fatalf("scan mestinya nemu critical, dapet %+v", res.Scan)
+	}
+	// acceptRisk=true → lanjut.
+	if _, err := m.AdoptRepo(context.Background(), src, "evil", true, true, true, true /*acceptRisk*/); err != nil {
+		t.Fatalf("dengan acceptRisk mestinya lanjut: %v", err)
 	}
 }
 
@@ -134,7 +156,7 @@ func TestAdoptHTTPRepo(t *testing.T) {
 		StartCmd: []string{"python", "main.py"}, Port: 8080, ReadyPath: "/docs", URLPath: "/",
 		Ops: map[string]httpadapter.OpSpec{"create_video": {Method: "POST", Path: "/api/v1/videos", Body: "json"}},
 	}
-	res, err := m.AdoptHTTPRepo(context.Background(), srcDir, "mpt", hc, true, true /*skipInstall*/, false)
+	res, err := m.AdoptHTTPRepo(context.Background(), srcDir, "mpt", hc, true, true /*skipInstall*/, false, false)
 	if err != nil {
 		t.Fatalf("AdoptHTTPRepo: %v", err)
 	}

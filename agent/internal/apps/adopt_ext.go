@@ -28,14 +28,15 @@ import (
 
 // AdoptResult — ringkasan hasil adopt buat owner (GUI / agent).
 type AdoptResult struct {
-	ID         string          `json:"id"`
-	Name       string          `json:"name"`
-	Runtime    string          `json:"runtime"`
-	Detection  adopt.Detection `json:"detection"`
-	Installed  bool            `json:"installed"`
-	InstallLog string          `json:"install_log,omitempty"`
-	Live       bool            `json:"live"`
-	Notes      []string        `json:"notes,omitempty"`
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	Runtime    string           `json:"runtime"`
+	Detection  adopt.Detection  `json:"detection"`
+	Scan       adopt.ScanReport `json:"scan"` // pre-flight: pola berbahaya di kode repo
+	Installed  bool             `json:"installed"`
+	InstallLog string           `json:"install_log,omitempty"`
+	Live       bool             `json:"live"`
+	Notes      []string         `json:"notes,omitempty"`
 }
 
 const adoptInstallTimeout = 10 * time.Minute
@@ -97,7 +98,7 @@ func binPath(name string) (string, error) {
 // prepareAdopt — langkah BARENG semua kontrak: validasi + clone/copy + deteksi + install dep ke folder.
 // Balik target dir, repoDir, hasil deteksi, dan AdoptResult terisi (Detection/Runtime/Install/Notes).
 // Rollback target kalau gagal di tengah.
-func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveExec, skipInstall, force bool) (string, string, adopt.Detection, AdoptResult, error) {
+func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveExec, skipInstall, force, acceptRisk bool) (string, string, adopt.Detection, AdoptResult, error) {
 	var det adopt.Detection
 	var res AdoptResult
 	source = strings.TrimSpace(source)
@@ -151,6 +152,17 @@ func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveEx
 	res.Runtime = string(det.Runtime)
 	res.Notes = det.Notes
 
+	// pre-flight scan (F6): pola berbahaya di kode repo. Critical → BLOCK (rollback) kecuali owner
+	// accept sadar (acceptRisk). Install dep BELUM jalan → kode jahat ga ke-eksekusi pas diblok.
+	res.Scan = adopt.ScanRepo(repoDir)
+	if res.Scan.Critical > 0 && !acceptRisk {
+		_ = os.RemoveAll(target)
+		return "", "", det, res, fmt.Errorf("pre-flight scan nemu %d pola BERBAHAYA (critical) di repo — adopt DIBLOKIR. Cek scan.findings; kalau lo yakin aman, ulang dengan accept_risk=1", res.Scan.Critical)
+	}
+	if res.Scan.Warn > 0 {
+		res.Notes = append(res.Notes, fmt.Sprintf("scan: %d peringatan (warn) — cek scan.findings", res.Scan.Warn))
+	}
+
 	if !skipInstall && len(det.InstallCmd) > 0 {
 		log, ierr := runInstall(ctx, repoDir, det.InstallCmd)
 		res.InstallLog = log
@@ -164,7 +176,7 @@ func (m *Manager) prepareAdopt(ctx context.Context, source, id string, approveEx
 }
 
 // AdoptRepo — adopt repo jadi app kontrak CLI (op "run" → command repo). source = git-URL / folder lokal.
-func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec, skipInstall, force bool) (AdoptResult, error) {
+func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec, skipInstall, force, acceptRisk bool) (AdoptResult, error) {
 	adapterBin, err := resolveBin("fw-app-adapter")
 	if err != nil {
 		return AdoptResult{}, err
@@ -172,7 +184,7 @@ func (m *Manager) AdoptRepo(ctx context.Context, source, id string, approveExec,
 	if strings.ContainsAny(adapterBin, " ") {
 		return AdoptResult{}, errors.New("path adapter mengandung spasi (core_entry split by-space): " + adapterBin)
 	}
-	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force)
+	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force, acceptRisk)
 	if err != nil {
 		return res, err
 	}
@@ -223,7 +235,7 @@ type HTTPContract struct {
 
 // AdoptHTTPRepo — adopt repo SERVER (web app/API) jadi app kontrak HTTP. Server start saat op pertama;
 // manusia buka UI via op "_url", agent panggil op HTTP. Buat MoneyPrinterTurbo dkk (streamlit/fastapi).
-func (m *Manager) AdoptHTTPRepo(ctx context.Context, source, id string, hc HTTPContract, approveExec, skipInstall, force bool) (AdoptResult, error) {
+func (m *Manager) AdoptHTTPRepo(ctx context.Context, source, id string, hc HTTPContract, approveExec, skipInstall, force, acceptRisk bool) (AdoptResult, error) {
 	if len(hc.StartCmd) == 0 || strings.TrimSpace(hc.StartCmd[0]) == "" {
 		return AdoptResult{}, errors.New("kontrak http butuh start_cmd (cara jalanin server)")
 	}
@@ -237,7 +249,7 @@ func (m *Manager) AdoptHTTPRepo(ctx context.Context, source, id string, hc HTTPC
 	if strings.ContainsAny(adapterBin, " ") {
 		return AdoptResult{}, errors.New("path adapter mengandung spasi: " + adapterBin)
 	}
-	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force)
+	target, _, det, res, err := m.prepareAdopt(ctx, source, id, approveExec, skipInstall, force, acceptRisk)
 	if err != nil {
 		return res, err
 	}
@@ -319,21 +331,21 @@ func writeManifestJSON(target string, man Manifest) error {
 // DetectSource — PREVIEW (dry-run, NO install, NO go-live): deteksi runtime source.
 // Folder lokal → deteksi langsung. git-URL → shallow-clone ke temp → deteksi → buang.
 // Buat GUI "Deteksi" sebelum owner approve (bagian "setting dikit"). NOL efek samping permanen.
-func DetectSource(ctx context.Context, source string) (adopt.Detection, error) {
+func DetectSource(ctx context.Context, source string) (adopt.Detection, adopt.ScanReport, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
-		return adopt.Detection{}, errors.New("source kosong")
+		return adopt.Detection{}, adopt.ScanReport{}, errors.New("source kosong")
 	}
 	if !isGitURL(source) {
 		abs, e := filepath.Abs(source)
 		if e != nil || !dirExists(abs) {
-			return adopt.Detection{}, errors.New("folder source ga ada: " + source)
+			return adopt.Detection{}, adopt.ScanReport{}, errors.New("folder source ga ada: " + source)
 		}
-		return adopt.Detect(abs), nil
+		return adopt.Detect(abs), adopt.ScanRepo(abs), nil
 	}
 	tmp, e := os.MkdirTemp("", "fw-detect-*")
 	if e != nil {
-		return adopt.Detection{}, e
+		return adopt.Detection{}, adopt.ScanReport{}, e
 	}
 	defer os.RemoveAll(tmp)
 	repo := filepath.Join(tmp, "repo")
@@ -341,7 +353,7 @@ func DetectSource(ctx context.Context, source string) (adopt.Detection, error) {
 	defer cancel()
 	out, cerr := exec.CommandContext(cctx, "git", "clone", "--depth", "1", source, repo).CombinedOutput()
 	if cerr != nil {
-		return adopt.Detection{}, fmt.Errorf("clone preview gagal: %v\n%s", cerr, trimTail(string(out), 600))
+		return adopt.Detection{}, adopt.ScanReport{}, fmt.Errorf("clone preview gagal: %v\n%s", cerr, trimTail(string(out), 600))
 	}
-	return adopt.Detect(repo), nil
+	return adopt.Detect(repo), adopt.ScanRepo(repo), nil
 }

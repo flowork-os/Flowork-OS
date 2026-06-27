@@ -18,34 +18,55 @@ clone/copy repo → deteksi runtime → install dep KE FOLDER → tulis manifest
 ## File (semua SEAM — nol file frozen lama disentuh)
 | File | Peran | Status |
 |---|---|---|
-| `internal/apps/cliadapter/adapter.go` | **CORE** adapter: loop stdio + exec argv (no shell) + placeholder/flags/args_list/json_stdin + resolve program relatif ke workdir + timeout | **LOCKED** (hash) |
-| `cmd/fw-app-adapter/main.go` | binary core_entry (cwd=folder app) | **LOCKED** (hash) |
-| `internal/apps/adopt/detect.go` | **CORE** deteksi runtime (python/node/go/rust) + **registry switch** `RegisterDetector` (POLA A: runtime baru via sibling, NOL unfreeze) | **LOCKED** (hash) |
-| `internal/apps/adopt_ext.go` | orchestration `AdoptRepo`/`DetectSource` (sibling apps; panggil reloadOne) | non-frozen (growth) |
+| `internal/apps/cliadapter/adapter.go` | **CORE** adapter CLI: loop stdio + exec argv (no shell) + placeholder/flags/args_list/json_stdin + resolve program relatif ke workdir + timeout | **LOCKED** (hash+chattr) |
+| `cmd/fw-app-adapter/main.go` | binary core_entry CLI (cwd=folder app) | **LOCKED** (hash+chattr) |
+| `internal/apps/adopt/detect.go` | **CORE** deteksi runtime (python/node/go/rust) + **registry switch** `RegisterDetector` (POLA A: runtime baru via sibling, NOL unfreeze) | **LOCKED** (hash+chattr) |
+| `internal/apps/httpadapter/adapter.go` | **CORE** adapter HTTP (F5): spawn server repo + tunggu port + op→HTTP proxy + `_url`/`_alive` | LOCKED-candidate |
+| `cmd/fw-http-adapter/main.go` | binary core_entry HTTP (web app/API) | LOCKED-candidate |
+| `internal/apps/adopt/scan.go` | **CORE** pre-flight scanner (F6): pola berbahaya (rm-rf/pipe-shell/reverse-shell/SSRF) → `ScanRepo` | LOCKED-candidate |
+| `internal/apps/adopt_ext.go` | orchestration `AdoptRepo`/`AdoptHTTPRepo`/`DetectSource`/`prepareAdopt` (sibling; panggil reloadOne) | non-frozen (growth) |
 | `internal/apps/adopt_fsutil_ext.go` | util fs/json (copyTree, writeJSON) | non-frozen |
 | `feature_app_adopt_ext.go` | SEAM route `/api/apps/adopt` + `/api/apps/detect` (init→RegisterFeature) | non-frozen (deletable) |
 
+## Kontrak (cara repo dijembatani)
+| Kontrak | Buat | Adapter | Alur op |
+|---|---|---|---|
+| **CLI** | script/CLI (yt-dlp dll) | `fw-app-adapter` | op "run" → exec command repo → stdout |
+| **HTTP** (F5) | server (streamlit/fastapi/express) | `fw-http-adapter` | spawn server → tunggu port → op→HTTP; `_url` buat GUI iframe |
+| MCP (F5, belum) | MCP server | — | register ke MCP client router (reuse) |
+
+`AdoptHTTPRepo` → `httpadapter.json` {workdir, start_cmd, port, ready_path, url_path, ops} + manifest op
+`_url`(gui)+ops(tool). Kontrak dipilih owner di adopt (`contract:"http"`+`http:{...}`) = bagian "setting dikit".
+
 ## Switch / evolusi (Rule #7)
-- **Runtime baru** (ruby/php/deno/dotnet…) → sibling `init(){ adopt.RegisterDetector(...) }`, ga sentuh `detect.go`.
-- **Kontrak baru** (HTTP/MCP, roadmap F5) → adapter/contract BARU (binary/sibling), bukan edit CLI-adapter.
+- **Runtime baru** (ruby/php/deno…) → sibling `init(){ adopt.RegisterDetector(...) }`, ga sentuh `detect.go` (beku).
+- **Kontrak baru** (MCP dll) → adapter/binary BARU (cliadapter & httpadapter beku) — bukan edit yang ada.
 - Hapus `feature_app_adopt_ext.go` → fitur adopt mati mulus, core utuh (self-sufficient).
 
 ## Keamanan
-Consent exec WAJIB (`?approve_exec=1`) — clone+install = perintah OS, owner buka gerbang (bukan AI). Dep di folder
-(isolasi). Path adapter di-resolve runtime (no-hardcode, multi-OS). White-label (nol identitas corporate). Scanner
-pre-flight + tier-isolasi per-OS = roadmap F6.
+- **Consent exec WAJIB** (`?approve_exec=1`) — clone+install = perintah OS, owner buka gerbang (bukan AI).
+- **Pre-flight scan (F6)** `adopt.ScanRepo`: scan kode repo (sebelum install/run) buat pola berbahaya
+  (rm-rf destruktif, pipe-ke-shell, reverse-shell, cloud-metadata SSRF, fork-bomb, dll). **Critical → adopt
+  DIBLOK** (rollback) kecuali `accept_risk=1` (consent sadar). Warn → catat di notes. Findings tampil di `detect` preview.
+- Dep di folder (isolasi: hapus folder = bersih). Path adapter di-resolve runtime (no-hardcode). White-label.
+
+## Tier isolasi (JUJUR — beda per-OS, jangan janji rata)
+- **OS-appliance (Linux):** bubblewrap (`os/rootfs-overlay/.../flowork-app-run`) → isolasi proses KUAT (no-net default, ga bisa baca `~/.flowork`).
+- **Portable Win/Mac/Linux:** **NOL sandbox proses** — cuma isolasi DEP (folder). Untrusted = akses home user.
+  Mitigasi: pre-flight scan + consent. Web app port = relax (server denger port).
+- Implikasi ditulis terang biar owner sadar saat approve repo untrusted.
 
 ## Verifikasi (litmus LULUS 2026-06-27)
-HTTP `detect`→`adopt` → app LIVE · `/api/apps/op run` (manusia) → `LIVE-ADOPT-OK` · mr-flow (bahasa-manusia) →
-"Outputnya: `LIVE-ADOPT-OK`". E2E deterministik (adopt repo Go → build → InvokeOp + args) PASS. `TestKernelFreeze` PASS.
+CLI: `detect`→`adopt` app LIVE · op run (manusia) `LIVE-ADOPT-OK` · mr-flow (bahasa-manusia) "Outputnya: `LIVE-ADOPT-OK`".
+HTTP: E2E spawn `python http.server` → ready → GET proxy 200. Scan: malicious repo (rm-rf) DIBLOK; clean PASS. `TestKernelFreeze` PASS.
 
-## Build wiring fw-app-adapter (wajib sebelah flowork-agent, resolve via adapterBinPath)
-- ✅ **portable** (`os/portable/make-portable.sh`): build per-OS + copy ke install bin + chmod.
-- ✅ **appliance** (`os/build/build-flowork-os.sh`): build static + install `/usr/local/bin/fw-app-adapter`.
-- ⏳ **dev** (`agent/start.sh`): DITUNDA — start.sh ada WIP owner. Edit yg perlu (idempotent, sebelah build flowork-gui):
-  `( cd "$ROOT" && CGO_ENABLED=0 go build -o "$ROOT/bin/fw-app-adapter" ./cmd/fw-app-adapter )`.
-  (Sementara: dev jalan krn binary udah di-build manual ke agent/bin/.)
+## Build wiring adapter (wajib sebelah flowork-agent, resolve via binPath)
+fw-app-adapter (CLI) + fw-http-adapter (HTTP), KEDUANYA di 3 jalur:
+- ✅ **dev** (`agent/start.sh`): loop build dua adapter (idempotent, non-fatal).
+- ✅ **portable** (`os/portable/make-portable.sh`): build per-OS + copy+chmod ke install bin.
+- ✅ **appliance** (`os/build/build-flowork-os.sh`): build static + install `/usr/local/bin/`.
 
 ## Belum (roadmap)
-- `chattr +i` 3 file LOCKED (OS-immutable layer-2) — butuh sudo dev.
-- F4 GUI panel Adopt · F5 kontrak HTTP+MCP · F6 scanner+tier-isolasi.
+- LOCK+freeze httpadapter+fw-http-adapter+scan.go (setelah live-test F5/F6 via mr-flow).
+- F4 GUI panel Adopt (URL→deteksi+scan preview→approve→jalan; iframe `_url` buat web app).
+- F5-MCP (deteksi repo MCP → register MCP client router) — deprioritas.
