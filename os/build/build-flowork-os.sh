@@ -125,9 +125,16 @@ chmod 0755 "$ROOTFS"/etc/init.d/flowork-* "$ROOTFS"/usr/local/bin/flowork-* 2>/d
 # into the live state dir (DATA volume or tmpfs) at boot — the live /root/.flowork is a
 # mount point, so seeding it directly would be masked.
 if [ -d "$AGENT_SRC/agents" ]; then
+	# agent.wasm GITIGNORED → WAJIB build dari source dulu, kalau ga img dapet agents TANPA wasm
+	# (mr-flow dkk MATI di img). build-all-agents.sh = Go-standar wasip1 (no tinygo). Sama kayak dev/portable.
+	if [ -x "$AGENT_SRC/scripts/build-all-agents.sh" ]; then
+		log "  building all agent + template wasm (wasip1)…"
+		"$AGENT_SRC/scripts/build-all-agents.sh" "$AGENT_SRC" 2>&1 | sed 's/^/    /' || warn "  sebagian agent wasm gagal"
+	fi
 	mkdir -p "$ROOTFS/usr/share/flowork/agents-seed"
 	cp -a "$AGENT_SRC/agents/." "$ROOTFS/usr/share/flowork/agents-seed/"
-	log "  seeded $(find "$ROOTFS/usr/share/flowork/agents-seed" -maxdepth 1 -name '*.fwagent' | wc -l) agent definitions (template)"
+	cp -a "$AGENT_SRC/templates" "$ROOTFS/usr/share/flowork/" 2>/dev/null || true   # template wasm buat AI Studio bikin agent baru
+	log "  seeded $(find "$ROOTFS/usr/share/flowork/agents-seed" -maxdepth 1 -type d | wc -l) agent dirs + templates"
 fi
 
 # DEV-builder only: bake the owner's live state (flowork.db + config) so a DEV stick boots

@@ -50,18 +50,22 @@ echo
 
 mkdir -p "$TARGET_DIR"
 
-# Build WASM (WASI target, no scheduler — agent is event-driven, no goroutines)
-(
-  cd "$SRC_DIR"
-  "$TINYGO" build \
-    -target=wasi \
-    -scheduler=none \
-    -opt=z \
-    -no-debug \
-    -o "$TARGET_DIR/agent.wasm" \
-    .
-)
-echo "✓ compiled $(stat -c%s "$TARGET_DIR/agent.wasm") bytes"
+# Build WASM. Prefer tinygo (wasm kecil), TAPI tinygo nempel Go ≤1.23 → di Go 1.25+ GAGAL.
+# Jadi FALLBACK ke Go-standar wasip1 (selalu jalan, agak gede). Konsisten sama build-all-agents.sh.
+# Biar GA "dev jalan, build agent baru gagal" pas toolchain beda.
+built=0
+if [ -x "$TINYGO" ] && ( cd "$SRC_DIR" && "$TINYGO" build -target=wasi -scheduler=none -opt=z -no-debug -o "$TARGET_DIR/agent.wasm" . ) 2>/dev/null; then
+  echo "✓ compiled via tinygo ($(stat -c%s "$TARGET_DIR/agent.wasm") bytes)"
+  built=1
+fi
+if [ "$built" = 0 ]; then
+  echo "→ tinygo ga jalan (cek versi Go) → fallback Go-standar wasip1"
+  if ( cd "$SRC_DIR" && GOWORK=off GOOS=wasip1 GOARCH=wasm go build -o "$TARGET_DIR/agent.wasm" . ); then
+    echo "✓ compiled via go wasip1 ($(stat -c%s "$TARGET_DIR/agent.wasm") bytes)"
+  else
+    echo "✗ build GAGAL (tinygo + go wasip1 dua-duanya)"; exit 1
+  fi
+fi
 
 cp "$SRC_DIR/manifest.json" "$TARGET_DIR/manifest.json"
 echo "✓ manifest copied"

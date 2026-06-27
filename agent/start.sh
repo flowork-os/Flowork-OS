@@ -117,13 +117,17 @@ if command -v go >/dev/null 2>&1; then
   done
 fi
 
+# ── SEMUA agent + template wasm (repo→agent: konsisten dev/portable/img) ────
+# agent.wasm GITIGNORED → kalau ga di-build, "dev jalan, portable/img GAGAL" (wasm ilang).
+# build-all-agents.sh = SATU mekanisme (Go-standar wasip1, no tinygo) buat SEMUA agent
+# (mr-flow dkk) + template. Idempotent + non-fatal. WAJIB sebelum seed agent ke ~/.flowork.
+if [ -x "$ROOT/scripts/build-all-agents.sh" ]; then
+  c_info "Build semua agent + template wasm…"
+  "$ROOT/scripts/build-all-agents.sh" "$ROOT" || c_warn "sebagian agent wasm gagal ke-build"
+fi
+
 # ── GROUP template wasm ───────────────────────────────────────────────────
-# /api/groups/create copies templates/group-template/agent.wasm to spawn a new
-# group. Every agent wasm is gitignored (built from source, not committed), so a
-# FRESH CHECKOUT has no template wasm → Group create would fail with "template
-# group wasm ga ketemu". Build it here (standard Go wasip1 — multi-OS, no tinygo;
-# matches how the template was built). Idempotent: only (re)build when missing or a
-# source .go is newer. Non-fatal — a failure just warns; the rest of the app runs.
+# (Ditangani build-all-agents.sh di atas; blok ini fallback idempotent — skip kalau udah fresh.)
 GROUP_TPL="$ROOT/templates/group-template"
 GROUP_WASM="$GROUP_TPL/agent.wasm"
 if [ -f "$GROUP_TPL/main.go" ] && command -v go >/dev/null 2>&1; then

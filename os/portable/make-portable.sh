@@ -37,6 +37,14 @@ build() { # $1 GOOS  $2 GOARCH  $3 subdir  $4 ext
 	( cd "$REPO/router" && GOWORK=off CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
 		go build -ldflags '-s -w' -o "$OUT/bin/$sub/flowork-router$ext" . )
 }
+# SEMUA agent + template wasm (Go-standar wasip1, no tinygo) — biar agents/ punya wasm
+# sebelum di-bake. agent.wasm gitignored → tanpa ini "dev jalan, portable GAGAL" (wasm ilang).
+# Sama mekanisme dgn dev (start.sh) + img → KONSISTEN.
+if [ -x "$REPO/agent/scripts/build-all-agents.sh" ]; then
+	echo "[portable] build semua agent + template wasm…"
+	"$REPO/agent/scripts/build-all-agents.sh" "$REPO/agent" || echo "[portable] WARN: sebagian agent wasm gagal"
+fi
+
 build windows amd64 windows .exe
 build linux   amd64 linux
 build darwin  amd64 macos-intel
