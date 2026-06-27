@@ -1,4 +1,5 @@
 // adopt — DETEKSI runtime repo + rencana isolasi dep (ROADMAP_REPO_TO_APP F2).
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // Murni logika (no Manager, no HTTP) → gampang di-test. Sibling apps/adopt_ext.go yang
 // nyambungin ke Manager (clone → Detect → tulis manifest+adapter.json → reloadOne).
 //

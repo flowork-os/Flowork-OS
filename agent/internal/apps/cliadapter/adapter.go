@@ -1,4 +1,5 @@
 // cliadapter — CLI-Adapter Core GENERIK (ROADMAP_REPO_TO_APP F1). Satu binary dikirim sekali:
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // dia yang ngomong protokol core Flowork (stdio baris-JSON, lihat internal/apps/proc.go) lalu
 // nerjemahin tiap `op` jadi panggilan command repo yang dipetakan di `adapter.json`.
 //

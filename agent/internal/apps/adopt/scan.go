@@ -1,4 +1,5 @@
 // scan.go — PRE-FLIGHT SCANNER repo untrusted (ROADMAP_REPO_TO_APP F6). Sebelum jalanin kode
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // eksternal pertama kali, scan pola berbahaya (destruktif / exfil / reverse-shell / SSRF-metadata).
 // Bukan anti-malware lengkap — lapis kewaspadaan: owner liat red-flag sebelum approve (consent sadar).
 //

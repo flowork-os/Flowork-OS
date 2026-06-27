@@ -1,4 +1,5 @@
 // fw-http-adapter — binary HTTP-Adapter Core (ROADMAP_REPO_TO_APP F5, kontrak HTTP).
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // core_entry app buat repo SERVER (streamlit/fastapi/express/dll): spawn server → tunggu port →
 // jembatani op ke HTTP. cwd = folder app (proc.go set cmd.Dir). Lihat internal/apps/httpadapter.
 package main

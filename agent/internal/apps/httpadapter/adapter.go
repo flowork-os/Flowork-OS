@@ -1,4 +1,5 @@
 // httpadapter — HTTP-Adapter Core (ROADMAP_REPO_TO_APP F5, kontrak HTTP).
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // Buat repo yang = SERVER (web app / API: streamlit, fastapi, express, dll) — bukan CLI request-response.
 // Adapter ini: spawn server repo (proses panjang) → tunggu port ready → jembatani tiap op ke HTTP call.
 // Ngomong protokol core Flowork yang SAMA (stdio baris-JSON, lihat proc.go) biar engine ga usah tau apa-apa.

@@ -1,4 +1,5 @@
 // fw-app-adapter — binary CLI-Adapter Core generik (ROADMAP_REPO_TO_APP F1).
+// 📄 Dok arsitektur lengkap: FLowork_os/lock/apps-adopt.md (frozen — JANGAN edit tanpa unfreeze sadar).
 // Dipanggil engine app sbg core_entry (runtime:process). cwd = folder app (proc.go set cmd.Dir),
 // tempat adapter.json + kode repo berada. Baca stdio baris-JSON, jembatani ke command repo.
 //
