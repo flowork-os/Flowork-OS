@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -147,7 +148,15 @@ func (webFetchTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	if err != nil {
 		return tools.Result{}, fmt.Errorf("build request: %w", err)
 	}
-	httpReq.Header.Set("User-Agent", "Flowork-Mr.Flow/1.0 (webfetch tool)")
+	// Header gaya browser realistis biar ga keblokir anti-bot (banyak situs nolak UA bot →403).
+	// Contek Claude WebFetch: Accept markdown/html + UA wajar + Accept-Language. Override-able via env.
+	ua := strings.TrimSpace(os.Getenv("FLOWORK_WEBFETCH_UA"))
+	if ua == "" {
+		ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+	}
+	httpReq.Header.Set("User-Agent", ua)
+	httpReq.Header.Set("Accept", "text/markdown, text/html, application/xhtml+xml, */*")
+	httpReq.Header.Set("Accept-Language", "id-ID, id;q=0.9, en;q=0.8")
 
 	resp, derr := client.Do(httpReq)
 	if derr != nil {
