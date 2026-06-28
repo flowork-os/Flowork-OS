@@ -9,6 +9,7 @@ package main
 // diganti owner di Settings GUI. Pola codemap-enricher/dream-digester (otak di agent).
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 
@@ -20,21 +21,35 @@ import (
 // utilityAgentDefaultModel — model default agent utilitas baru (owner 2026-06-21).
 const utilityAgentDefaultModel = "claude-haiku-4-5"
 
+// UtilityAgentWasmSource — 🔌 SWITCH (POLA B, 📄 lock/worklog.md): sumber wasm engine utility-agent.
+// DEFAULT = engine full-agent (mr-flow: punya tool-loop + flail-guard + fix terbaru) → utility-agent
+// yg nge-loop (mandor) dapet anti-loop. Override via sibling `*_ext.go` NON-frozen (geser saklar)
+// tanpa buka file beku ini. Default aman: kalau path ga ada, seedUtilityAgent skip (ga ngerusak).
+var UtilityAgentWasmSource = func() string {
+	return filepath.Join("agents", "mr-flow", "agent.wasm")
+}
+
 // seedUtilityAgent — bikin agent utilitas (idempoten). Model default haiku (GUI-overridable).
 // Dipanggil boot SETELAH template wasm ke-build, deket seedCodemapEnricher().
 func seedUtilityAgent(id, display, persona string) {
 	dir := filepath.Join(loader.AgentsDir(), id+".fwagent")
-	if _, e := os.Stat(dir); e != nil {
-		tplWasm, err := os.ReadFile(filepath.Join("templates", "agent-template", "agent.wasm"))
-		if err != nil || len(tplWasm) == 0 {
-			return // template belum ke-build → skip (start.sh build dulu)
+	dstWasm := filepath.Join(dir, "agent.wasm")
+	srcWasm, _ := os.ReadFile(UtilityAgentWasmSource()) // switch: engine full-agent (flail-guard)
+	_, dirErr := os.Stat(dir)
+	if dirErr != nil { // CREATE
+		if len(srcWasm) == 0 {
+			return // engine wasm belum ke-build → skip (start.sh build dulu)
 		}
 		if mk := os.MkdirAll(filepath.Join(dir, "workspace"), 0o755); mk != nil {
 			return
 		}
 		_ = os.WriteFile(filepath.Join(dir, "manifest.json"), evoMemberManifest(id, display), 0o644)
-		_ = os.WriteFile(filepath.Join(dir, "agent.wasm"), tplWasm, 0o644)
+		_ = os.WriteFile(dstWasm, srcWasm, 0o644)
 		_ = os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("agent.wasm\nworkspace/*.db\nworkspace/*.db-*\n"), 0o644)
+	} else if len(srcWasm) > 0 { // SELF-HEAL: refresh wasm STALE → engine current (anti stale-tanpa-flail-guard)
+		if cur, _ := os.ReadFile(dstWasm); !bytes.Equal(cur, srcWasm) {
+			_ = os.WriteFile(dstWasm, srcWasm, 0o644)
+		}
 	}
 	if st, e := agentdb.Open(agentdb.Resolve(id, dir)); e == nil {
 		_ = st.SetPrompt(persona)
