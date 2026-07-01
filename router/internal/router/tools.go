@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -85,7 +87,9 @@ func streamAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, 
 			} `json:"content_block"`
 			Message struct {
 				Usage struct {
-					InputTokens int `json:"input_tokens"`
+					InputTokens              int `json:"input_tokens"`
+					CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+					CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 				} `json:"usage"`
 			} `json:"message"`
 			Usage struct {
@@ -97,7 +101,11 @@ func streamAnthropicWithTools(ctx context.Context, p *store.ProviderConnection, 
 		}
 		switch ev.Type {
 		case "message_start":
-			usage.PromptTokens = ev.Message.Usage.InputTokens
+			usage.PromptTokens = ev.Message.Usage.InputTokens + ev.Message.Usage.CacheReadInputTokens + ev.Message.Usage.CacheCreationInputTokens
+			if ev.Message.Usage.CacheReadInputTokens > 0 || ev.Message.Usage.CacheCreationInputTokens > 0 {
+				log.Printf("flow_router anthropic cache (stream): read=%d create=%d fresh_input=%d",
+					ev.Message.Usage.CacheReadInputTokens, ev.Message.Usage.CacheCreationInputTokens, ev.Message.Usage.InputTokens)
+			}
 		case "content_block_start":
 			if ev.ContentBlock.Type == "tool_use" {
 				toolIdx++
@@ -286,10 +294,25 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 			messages = append(messages, map[string]any{"role": "user", "content": m.Content})
 		}
 	}
+	cacheOn := promptCacheEnabled()
 	if len(sysParts) > 0 {
-		body["system"] = strings.Join(sysParts, "\n\n")
+		sysText := strings.Join(sysParts, "\n\n")
+		if cacheOn {
+			// System prompt (persona/konstitusi/tool-doktrin) = bagian STATIS paling
+			// gede & sama tiap turn → breakpoint cache di sini = hemat paling banyak.
+			body["system"] = []map[string]any{{
+				"type": "text", "text": sysText,
+				"cache_control": map[string]any{"type": "ephemeral"},
+			}}
+		} else {
+			body["system"] = sysText
+		}
 	}
-	body["messages"] = messages
+	msgs := mergeConsecutiveAnthropic(messages)
+	if cacheOn {
+		markLastBlockCache(msgs) // cache prefix percakapan (history) inkremental tiap turn
+	}
+	body["messages"] = msgs
 
 	if len(req.Tools) > 0 && string(req.Tools) != "null" {
 		var oaTools []openAIToolFn
@@ -310,6 +333,11 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 				})
 			}
 			if len(anthTools) > 0 {
+				if cacheOn {
+					// Breakpoint di tool TERAKHIR → cache seluruh array tool-schema
+					// (stabil lintas-turn). Anthropic cache prefix s/d breakpoint ini.
+					anthTools[len(anthTools)-1]["cache_control"] = map[string]any{"type": "ephemeral"}
+				}
 				body["tools"] = anthTools
 			}
 		}
@@ -319,6 +347,64 @@ func buildAnthropicToolBody(req OpenAIRequest) ([]byte, error) {
 		}
 	}
 	return json.Marshal(body)
+}
+
+// mergeConsecutiveAnthropic menggabung pesan berurutan dengan role sama menjadi
+// SATU pesan berisi array content-block. AKAR fix: Anthropic mewajibkan role
+// user/assistant selang-seling; beberapa tool_result beruntun (parallel tool calls)
+// atau teks-user setelah tool_result = 2 pesan same-role beruntun → HTTP 400
+// "messages: roles must alternate". Dulu disiasati paksa 1 tool/turn (sequential,
+// lambat, gampang timeout). Sekarang hasil parallel dikemas bener → banyak
+// tool_result boleh dalam 1 user message, model bisa minta banyak tool sekaligus.
+func mergeConsecutiveAnthropic(in []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(in))
+	for _, m := range in {
+		if n := len(out); n > 0 && out[n-1]["role"] == m["role"] {
+			out[n-1]["content"] = append(anthropicBlocks(out[n-1]["content"]), anthropicBlocks(m["content"])...)
+			continue
+		}
+		out = append(out, m)
+	}
+	return out
+}
+
+// anthropicBlocks menormalkan content (string ATAU []map[string]any) jadi block-array
+// biar bisa digabung lintas-pesan tanpa kehilangan tipe (text/tool_result/tool_use).
+func anthropicBlocks(content any) []map[string]any {
+	switch c := content.(type) {
+	case []map[string]any:
+		return c
+	case string:
+		if strings.TrimSpace(c) == "" {
+			return nil
+		}
+		return []map[string]any{{"type": "text", "text": c}}
+	}
+	return nil
+}
+
+// promptCacheEnabled — switch GUI FLOWORK_PROMPT_CACHE (default ON). Prompt caching
+// Anthropic udah GA: cukup `cache_control` di body (anthropic-version 2023-06-01),
+// TANPA header beta / tanpa nyentuh peniruan auth langganan. Set "0"/"false"/"off"
+// buat matiin kalau ada provider yg nolak cache_control.
+func promptCacheEnabled() bool {
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("FLOWORK_PROMPT_CACHE")))
+	return v != "0" && v != "false" && v != "off"
+}
+
+// markLastBlockCache naruh cache_control di block TERAKHIR pesan terakhir → Anthropic
+// cache prefix percakapan sepanjang mungkin (history statis di-reuse turn berikut).
+func markLastBlockCache(msgs []map[string]any) {
+	if len(msgs) == 0 {
+		return
+	}
+	last := msgs[len(msgs)-1]
+	blocks := anthropicBlocks(last["content"])
+	if len(blocks) == 0 {
+		return
+	}
+	blocks[len(blocks)-1]["cache_control"] = map[string]any{"type": "ephemeral"}
+	last["content"] = blocks
 }
 
 func convertToolChoice(raw json.RawMessage) map[string]any {
@@ -360,8 +446,10 @@ type anthropicRichResponse struct {
 	Model      string `json:"model"`
 	StopReason string `json:"stop_reason"`
 	Usage      struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens"`
 	} `json:"usage"`
 }
 
@@ -420,10 +508,19 @@ func parseAnthropicToolResponse(respBody []byte, reqModel string) (*OpenAIRespon
 			"finish_reason": finish,
 		}},
 		"usage": map[string]any{
-			"prompt_tokens":     ar.Usage.InputTokens,
+			"prompt_tokens":     ar.Usage.InputTokens + ar.Usage.CacheReadInputTokens + ar.Usage.CacheCreationInputTokens,
 			"completion_tokens": ar.Usage.OutputTokens,
-			"total_tokens":      ar.Usage.InputTokens + ar.Usage.OutputTokens,
+			"total_tokens":      ar.Usage.InputTokens + ar.Usage.CacheReadInputTokens + ar.Usage.CacheCreationInputTokens + ar.Usage.OutputTokens,
+			"prompt_tokens_details": map[string]any{
+				"cached_tokens":         ar.Usage.CacheReadInputTokens,
+				"cache_creation_tokens": ar.Usage.CacheCreationInputTokens,
+			},
 		},
+	}
+	// Observability: bukti caching kepakai (cache_read>0 = hemat token turn ini).
+	if ar.Usage.CacheReadInputTokens > 0 || ar.Usage.CacheCreationInputTokens > 0 {
+		log.Printf("flow_router anthropic cache: read=%d create=%d fresh_input=%d",
+			ar.Usage.CacheReadInputTokens, ar.Usage.CacheCreationInputTokens, ar.Usage.InputTokens)
 	}
 	raw, _ := json.Marshal(out)
 	var resp OpenAIResponse

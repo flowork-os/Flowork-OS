@@ -54,6 +54,8 @@ var Registry = []Switch{
 	{"FLOWORK_DYNAMIC_TOOLS_TOPK", "Intent-gated: top-K tool", "Max tool relevan yg dikirim (di luar escape-hatch + tool yg udah dipanggil). Default 12. Kecil = hemat tapi rawan starve.", "int", "12", "Router / Tools"},
 	{"FLOWORK_DYNAMIC_TOOLS_MINSCORE", "Intent-gated: lantai skor", "Cosine minimum tool dianggap relevan (0.30 default). Naikin = lebih ketat.", "float", "0.30", "Router / Tools"},
 	{"FLOWORK_EXPOSE_ALL_TOOLS", "Buka semua tool", "Semua agent boleh akses semua tool (subscription-gating udah dicabut).", "bool", "false", "Router / Tools"},
+	{"FLOWORK_PARALLEL_TOOLS", "Tool call paralel", "ON (default) = model boleh minta banyak tool sekaligus → 1 putaran LLM eksekusi banyak tool (cepat, ga gampang timeout). Router ngemas banyak tool_result dalam 1 pesan (anti-400). OFF = paksa 1 tool/putaran (sequential) kalau ada provider rewel.", "bool", "true", "Router / Tools"},
+	{"FLOWORK_PROMPT_CACHE", "Prompt caching (Claude)", "ON (default) = sisipin cache_control (ephemeral) di system+tool-schema+history saat lewat provider Claude → prefix statis di-cache Anthropic (baca ~90% lebih murah + latensi turun). GA, ga butuh header beta / ga nyentuh auth. OFF = kirim mentah tiap turn.", "bool", "true", "Router / Tools"},
 	{"FLOWORK_ROUTER_RETRY", "Retry router transient", "Coba ulang (exp-backoff) pas error sementara ke model lokal.", "bool", "false", "Router / Resilience"},
 	{"FLOWORK_ORCHESTRATOR", "Orkestrator default", "Agent yg jadi orkestrator utama (default mr-flow).", "string", "mr-flow", "Agent"},
 	{"FLOWORK_EDITION", "Edisi (FREE/CORPORATE)", "FREE (default) = identitas (persona/konstitusi) READ-ONLY, anti-rebrand. 'corporate' = unlock white-label/edit identitas.", "string", "free", "Bisnis / Edition"},

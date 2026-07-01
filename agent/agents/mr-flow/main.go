@@ -822,11 +822,17 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 		reqMap := map[string]any{"model": cfg.Router.Model, "messages": prepMessages(msgs)}
 		if len(toolSpecs) > 0 {
 			reqMap["tools"] = toolSpecs
-			// parallel_tool_calls:false — PAKSA model manggil tool 1-1 (sequential).
-			// Router subscription path salah translate parallel tool_results
-			// (>1 result/message) → anthropic 400 "multiple tool_result blocks".
-			// Sequential = aman + tetep jalan (cuma butuh iterasi lebih banyak).
-			reqMap["parallel_tool_calls"] = false
+			// parallel_tool_calls: AKAR fix — router subscription path SEKARANG ngemas
+			// banyak tool_result dalam 1 user message (mergeConsecutiveAnthropic di
+			// router/internal/router/tools.go) → ga 400 lagi. Default NYALA: model
+			// boleh minta banyak tool sekaligus → 1 putaran LLM eksekusi banyak tool
+			// (jauh lebih cepat + ga gampang timeout vs 1 tool/putaran). Switch GUI
+			// FLOWORK_PARALLEL_TOOLS=0 → balik sequential kalau ada provider rewel.
+			parallelTools := true
+			if v := strings.TrimSpace(os.Getenv("FLOWORK_PARALLEL_TOOLS")); v == "0" || strings.EqualFold(v, "false") {
+				parallelTools = false
+			}
+			reqMap["parallel_tool_calls"] = parallelTools
 			// GHOST-GUARD struktural: abis nudge, PAKSA model panggil tool turn ini
 			// (tool_choice=required) → ga bisa narasi-kosong ("scanning..." tanpa aksi).
 			if forceToolChoice {
@@ -918,63 +924,85 @@ func callLLM(cfg agentConfig, userText string, history []chatTurn, notifyChatID 
 			}
 			return m.Content // jawaban final (teks beneran, bukan ghost)
 		}
-		// SERIALIZE tool calls: proses CUMA tool_call PERTAMA per iterasi, walau
-		// model minta paralel (>1). Sebabnya: router subscription path SALAH
-		// translate parallel tool_results (>1/message) → anthropic 400 "multiple
-		// tool_result blocks with id X", dan `parallel_tool_calls:false` ga
-		// dihormati. Dgn 1 tool/message, SELALU 1 tool_result/message → router
-		// aman. Sisa tool_call yang model minta tinggal di-request ulang iterasi
-		// berikut (model lihat hasil call-1 dulu). Trade-off: iterasi lebih
-		// banyak (makanya maxToolIters digedein), tapi BENER + ga 400.
-		tc := m.ToolCalls[0]
-		id := fmt.Sprintf("call_%d", iter)
-		// Content WAJIB non-kosong: sebagian provider (Claude via router) nolak
-		// assistant-with-tool_calls kalau content kosong (error "messages.N.content").
+		// PARALLEL tool calls: proses SEMUA tool_call yang model minta dalam SATU
+		// turn (dulu cuma ToolCalls[0] = sequential: N tool = N putaran LLM, lambat +
+		// gampang timeout). Router subscription path SEKARANG ngemas banyak
+		// tool_result dalam 1 user message (mergeConsecutiveAnthropic di
+		// router/internal/router/tools.go) → ga 400 lagi. Hasil: 1 putaran LLM bisa
+		// eksekusi banyak tool. Kalau model cuma minta 1 (sequential/provider rewel),
+		// loop ini jalan identik kayak dulu.
 		content := m.Content
 		if strings.TrimSpace(content) == "" {
+			// Content WAJIB non-kosong: sebagian provider (Claude via router) nolak
+			// assistant-with-tool_calls kalau content kosong (error "messages.N.content").
 			content = "(memanggil tool)"
 		}
-		msgs = append(msgs, map[string]any{
-			"role": "assistant", "content": content,
-			"tool_calls": []any{map[string]any{
+		type toolJob struct {
+			id, name, rawArgs string
+			args              map[string]any
+		}
+		callBlocks := make([]any, 0, len(m.ToolCalls))
+		jobs := make([]toolJob, 0, len(m.ToolCalls))
+		for i, tc := range m.ToolCalls {
+			id := fmt.Sprintf("call_%d_%d", iter, i)
+			var args map[string]any
+			if tc.Function.Arguments != "" {
+				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+			}
+			// Fase 6c: inject notify_chat_id ke task_run (LLM ga tau chat_id; engine
+			// yang isi) → hasil task dikirim balik ke chat ini pas kelar.
+			if tc.Function.Name == "task_run" && notifyChatID != "" {
+				if args == nil {
+					args = map[string]any{}
+				}
+				args["notify_chat_id"] = notifyChatID
+			}
+			callBlocks = append(callBlocks, map[string]any{
 				"id": id, "type": "function",
 				"function": map[string]any{"name": tc.Function.Name, "arguments": tc.Function.Arguments},
-			}},
-		})
-		var args map[string]any
-		if tc.Function.Arguments != "" {
-			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+			})
+			jobs = append(jobs, toolJob{id: id, name: tc.Function.Name, rawArgs: tc.Function.Arguments, args: args})
 		}
-		// Fase 6c: inject notify_chat_id ke task_run (LLM ga tau chat_id; engine
-		// yang isi) → hasil task dikirim balik ke chat ini pas kelar.
-		if tc.Function.Name == "task_run" && notifyChatID != "" {
-			if args == nil {
-				args = map[string]any{}
-			}
-			args["notify_chat_id"] = notifyChatID
-		}
-		fmt.Fprintf(os.Stderr, "[%s] tool_call: %s args=%s\n", selfID(), tc.Function.Name, truncStr(tc.Function.Arguments, 120))
-		result := runTool(tc.Function.Name, args)
-		captureRecovery(tc.Function.Name, result, recovered) // D32 INC-2: error→sukses pada tool sama → recovery-instinct
 		msgs = append(msgs, map[string]any{
-			"role": "tool", "tool_call_id": id, "content": result,
+			"role": "assistant", "content": content, "tool_calls": callBlocks,
 		})
+		// Eksekusi tiap tool → append tool_result beruntun (router gabung jadi 1 user msg).
+		didLookup := false
+		flailNudge := ""
+		flailEscTool := ""
+		for _, j := range jobs {
+			fmt.Fprintf(os.Stderr, "[%s] tool_call: %s args=%s\n", selfID(), j.name, truncStr(j.rawArgs, 120))
+			result := runTool(j.name, j.args)
+			captureRecovery(j.name, result, recovered) // D32 INC-2: error→sukses pada tool sama → recovery-instinct
+			msgs = append(msgs, map[string]any{
+				"role": "tool", "tool_call_id": j.id, "content": result,
+			})
+			if j.name == "tool_lookup" {
+				didLookup = true
+			}
+			// FLAIL-GUARD (flail_guard.go): mantok = tool SAMA berulang tanpa progress
+			// (lolos ghost-guard + captureRecovery). Koreksi keras bounded → kalau tetep
+			// mantok lewat batas, eskalasi JUJUR ke owner (bukan hard-stop, bukan ngarang).
+			if corrective, nudge, escalate := flail.check(j.name, j.rawArgs); nudge {
+				flailNudge = corrective
+				fmt.Fprintf(os.Stderr, "[%s] flail-guard: nudge %d (tool=%s)\n", selfID(), flail.nudges, j.name)
+			} else if escalate {
+				flailEscTool = j.name
+				fmt.Fprintf(os.Stderr, "[%s] flail-guard: ESCALATE (tool=%s, mantok lewat batas koreksi)\n", selfID(), j.name)
+			}
+		}
+		if flailEscTool != "" {
+			return flailEscalation(flailEscTool)
+		}
 		// #2C deferred-activate (seam, Rule 7): abis tool_lookup, ambil-ulang specs biar
 		// tool yg baru di-discover MASUK array `tools` → grammar llama bisa manggilnya
 		// iterasi berikut. HOST-gated (ToolSpecsHandler cuma nambah saat FLOWORK_DEFER_TOOLS
 		// on + tool udah di-lookup) → no-op kalau defer off.
-		if tc.Function.Name == "tool_lookup" {
+		if didLookup {
 			toolSpecs = fetchToolSpecs()
 		}
-		// FLAIL-GUARD (flail_guard.go): mantok = tool SAMA berulang tanpa progress
-		// (lolos ghost-guard + captureRecovery). Koreksi keras bounded → kalau tetep
-		// mantok lewat batas, eskalasi JUJUR ke owner (bukan hard-stop, bukan ngarang).
-		if corrective, nudge, escalate := flail.check(tc.Function.Name, tc.Function.Arguments); nudge {
-			msgs = append(msgs, map[string]any{"role": "user", "content": corrective})
-			fmt.Fprintf(os.Stderr, "[%s] flail-guard: nudge %d (tool=%s)\n", selfID(), flail.nudges, tc.Function.Name)
-		} else if escalate {
-			fmt.Fprintf(os.Stderr, "[%s] flail-guard: ESCALATE (tool=%s, mantok lewat batas koreksi)\n", selfID(), tc.Function.Name)
-			return flailEscalation(tc.Function.Name)
+		if flailNudge != "" {
+			msgs = append(msgs, map[string]any{"role": "user", "content": flailNudge})
 		}
 	}
 	return "(tool loop limit reached — coba lagi atau perjelas permintaan)"
