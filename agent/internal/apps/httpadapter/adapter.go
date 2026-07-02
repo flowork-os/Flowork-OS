@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"flowork-gui/internal/procgrace"
 )
 
 // ConfigName — file konfigurasi di folder app (cwd adapter).
@@ -133,7 +135,7 @@ func (s *server) ensure() error {
 
 func (s *server) stop() {
 	if s.cmd != nil && s.cmd.Process != nil {
-		_ = s.cmd.Process.Kill()
+		procgrace.Stop(s.cmd) // shutdown bertahap SIGINT→SIGTERM→SIGKILL (+reap)
 		s.cmd = nil
 	}
 	s.started = false

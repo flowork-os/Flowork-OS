@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+
+	"flowork-gui/internal/procgrace"
 )
 
 const protocolVersion = "2024-11-05"
@@ -132,10 +134,7 @@ func (s *Server) Close() error {
 	}
 	s.closed = true
 	_ = s.stdin.Close()
-	if s.cmd.Process != nil {
-		_ = s.cmd.Process.Kill()
-	}
-	_ = s.cmd.Wait()
+	procgrace.Stop(s.cmd) // shutdown bertahap SIGINT→SIGTERM→SIGKILL (+reap; ga perlu Wait lagi)
 	return nil
 }
 

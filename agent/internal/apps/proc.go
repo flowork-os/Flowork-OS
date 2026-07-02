@@ -18,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"flowork-gui/internal/procgrace"
 )
 
 type proc struct {
@@ -88,6 +90,6 @@ func (p *proc) close() {
 		_ = p.stdin.Close()
 	}
 	if p.cmd != nil && p.cmd.Process != nil {
-		_ = p.cmd.Process.Kill()
+		procgrace.Stop(p.cmd) // shutdown bertahap SIGINT→SIGTERM→SIGKILL (+reap)
 	}
 }
