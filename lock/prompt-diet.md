@@ -49,6 +49,22 @@ Header suntikan yang dikenal budget (HARUS sinkron sama builder frozen):
   symlink kompat `/tmp/flowork-gui.{log,pid}` + port-in-use yang jawab HTTP = exit 2 idempoten
   (bukan failure). `stop.sh` ikut + fallback path legacy. Windows `.bat` ga kena (ga pake pid file).
 
+## FILE-READ DEDUP (nyusul, sesi yang sama — gape1 §C "Tinggi TPM")
+Seam `fileReadDedup` di `agent/internal/tools/builtins/file.go` (FROZEN, default no-op) +
+`file_dedup_ext.go` (NON-frozen) + switch GUI `FLOWORK_FILE_DEDUP` (default ON).
+Baca-ulang file GA-berubah (mtime+size sama, agent sama, ≤10 menit) → STUB: `unchanged:true` +
+head 600 char + arahan pakai `{"force":true}` buat isi penuh. Anti-jebakan: stub SELALU bawa head
+(hasil lama bisa udah ke-prune dari context mr-flow) + TTL + invalidasi mtime. Cache in-memory
+per-proses, per-agent. Unit test 5/5 (`file_dedup_ext_test.go`). Delete-test PASS.
+
+## ANALISIS CACHE LINTAS-TURN (biar AI penerus ga ngulang riset — 2026-07-02)
+"Volatile-ke-ekor" (gaya system-reminder Claude Code) TIDAK banyak nolong cache Flowork:
+history mr-flow di-rebuild dari DB TANPA suntikan router → prefix turn lalu ga pernah match
+turn berikutnya, di posisi manapun suntikan ditaruh. Dalam-turn udah ke-cache (system dibangun
+sekali per turn). Read-hit lintas-turn mentok di breakpoint `sysParts[0]` (persona stabil) —
+udah jalan. Upgrade beneran = breakpoint ke-4 di akhir system + tier-3 keluar dari system
+(butuh unlock translator `tools.go` + koordinasi mr-flow main.go) → keputusan owner.
+
 ## STATUS FREEZE
 `brainenrich.go` / `dispatcher.go` / `dispatcher_stream.go` di-unlock (FD LOCKBOX) → seam →
 re-hash `KERNEL_FREEZE.md` → `chattr +i` lagi. `TestKernelFreeze` PASS · gembok verified

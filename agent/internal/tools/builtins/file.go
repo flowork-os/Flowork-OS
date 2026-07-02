@@ -103,12 +103,24 @@ func (fileReadTool) Run(ctx context.Context, args map[string]any) (tools.Result,
 	if rerr != nil && rerr.Error() != "EOF" {
 		return tools.Result{}, fmt.Errorf("read: %w", rerr)
 	}
+	// ⭐ SEAM (Rule 7 POLA B, 2026-07-02 owner-approved): dedup baca-ulang file yang
+	// GA berubah (mtime sama) → ext boleh ganti output jadi stub hemat token (tiru
+	// FILE_UNCHANGED_STUB Claude Code). Default no-op = perilaku lama byte-identik.
+	// Override: file_dedup_ext.go (non-frozen). 📄 Dok: lock/prompt-diet.md
+	if out, ok := fileReadDedup(ctx, args, rel, info.ModTime().UnixMilli(), info.Size(), string(buf[:n])); ok {
+		return tools.Result{Output: out}, nil
+	}
 	return tools.Result{Output: map[string]any{
 		"path":       rel,
 		"content":    string(buf[:n]),
 		"size_bytes": info.Size(),
 		"truncated":  truncated,
 	}}, nil
+}
+
+// fileReadDedup — seam dedup file_read (lihat komentar di Run). Default = no-op.
+var fileReadDedup = func(ctx context.Context, args map[string]any, rel string, mtimeMs, size int64, content string) (map[string]any, bool) {
+	return nil, false
 }
 
 type fileWriteTool struct{}
