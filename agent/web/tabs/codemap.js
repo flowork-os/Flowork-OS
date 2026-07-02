@@ -142,6 +142,22 @@ export async function render(container) {
     } catch (_) {}
   }
 
+  // Cost "lines-changed" per-sesi: baris ditambah/dihapus agent (since-boot).
+  async function loadEditStats() {
+    const el = container.querySelector('#cm-edits');
+    if (!el) return;
+    try {
+      const r = await fetch('/api/edits/stats');
+      if (!r.ok) return;
+      const d = await r.json();
+      const tt = d.total || {};
+      const add = tt.added || 0, rem = tt.removed || 0, files = tt.files || 0;
+      if (!add && !rem) { el.textContent = ''; return; }
+      el.innerHTML = `${esc(L.editsLabel)}: <span style="color:#4ade80">+${add}</span> / ` +
+        `<span style="color:#f87171">−${rem}</span> · ${files} ${esc(L.editsFiles)}`;
+    } catch (_) {}
+  }
+
   // ── Folder palette ─────────────────────────────────────────────────────
 
   const FOLDER_COLORS = [
@@ -745,6 +761,7 @@ export async function render(container) {
   setDetail(emptyDetail());
   loadStatus();
   loadGraph();
+  loadEditStats();
   updateLegend();
 
   // Memory leak fix (Gemini Bug #6 — 2026-04-26): poll status interval
@@ -938,6 +955,7 @@ function skeleton() {
       <button id="cm-zombie-btn" class="cmf-btn" title="${L.tipZombie}">🧟 Zombie</button>
       <div id="cm-legend" class="cmf-legend"></div>
       <span id="cm-status" class="cmf-status"></span>
+      <span id="cm-edits" class="cmf-status" title="${L.editsTip}"></span>
     </div>
 
     <div class="cmf-body">

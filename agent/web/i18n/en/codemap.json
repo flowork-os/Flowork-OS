@@ -32,5 +32,8 @@
   "zombie_advisory": "Weak heuristic (Go imports are package-level): these are CANDIDATES for manual review — DO NOT auto-delete. Verify with grep / go build first.",
   "enriched_prefix": "🧠 enriched",
   "remaining_label": "remaining",
-  "enrich_failed": "enrich failed: "
+  "enrich_failed": "enrich failed: ",
+  "edits_label": "✏️ edits this session",
+  "edits_files": "files",
+  "edits_tip": "Lines added/removed by agents editing files this session (since the last restart)."
 }
