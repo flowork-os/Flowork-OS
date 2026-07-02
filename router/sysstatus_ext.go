@@ -244,6 +244,16 @@ func systemStatusText() string {
 	if t := cpuTempC(); t > 0 {
 		b.WriteString(" | CPU " + strconv.FormatFloat(t, 'f', 0, 64) + "°C")
 	}
+	// F-C lifecycle awareness: kasih tau state engine LOKAL (autosleep). Biar mr-flow
+	// SADAR — kalau tidur, request pertama ke model lokal lambat (biaya wake). Model
+	// cloud/Claude ga kena. Cuma muncul kalau fitur autosleep aktif.
+	if en, _, awake, _ := LLMIdleStatus(); en {
+		if awake {
+			b.WriteString(" | engine-lokal: bangun (siap)")
+		} else {
+			b.WriteString(" | engine-lokal: TIDUR (hemat daya; request PERTAMA ke model LOKAL ~beberapa detik buat wake — model cloud/Claude ga kena)")
+		}
+	}
 	b.WriteString("\nCatatan: pengetahuan/data lo relatif ke WAKTU di atas — bandingin sama timestamp data (mis. occurred_at di interaction_recall) buat nilai lama/baru, jangan asumsi cutoff. Kalau GPU/CPU temp tinggi (>80°C) atau load berat, hindari kerjaan berat barengan / sarankan jeda biar PC ga overheat.")
 	return b.String()
 }
@@ -258,5 +268,25 @@ func InjectSystemStatus(req *router.OpenAIRequest) {
 			return
 		}
 	}
-	req.Messages = append([]router.OpenAIMessage{{Role: "system", Content: systemStatusText()}}, req.Messages...)
+	status := router.OpenAIMessage{Role: "system", Content: systemStatusText()}
+	// CACHE-AWARE (nyambung dynamic-boundary caching): [STATUS_PC] itu VOLATILE
+	// (waktu/RAM/load berubah tiap call) → JANGAN prepend sebelum persona STABIL,
+	// itu mbatalin cache prefix persona tiap turn. Pas cache ON, sisip SETELAH system
+	// message pertama (persona stabil) → persona ke-cache, status di region volatile.
+	// Cache OFF → prepend (perilaku lama, byte-identik).
+	if promptCacheOnHost() && len(req.Messages) > 0 && req.Messages[0].Role == "system" {
+		out := make([]router.OpenAIMessage, 0, len(req.Messages)+1)
+		out = append(out, req.Messages[0], status)
+		out = append(out, req.Messages[1:]...)
+		req.Messages = out
+		return
+	}
+	req.Messages = append([]router.OpenAIMessage{status}, req.Messages...)
+}
+
+// promptCacheOnHost — baca switch FLOWORK_PROMPT_CACHE (default ON) dari sisi host
+// (package main ga bisa akses promptCacheEnabled di internal/router).
+func promptCacheOnHost() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("FLOWORK_PROMPT_CACHE")))
+	return v != "0" && v != "false" && v != "off"
 }
