@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -66,19 +65,11 @@ func doctorVectorIndex(out map[string]any) {
 }
 
 // doctorDiskSpace — sisa ruang disk di HOME (jaga-jaga penuh → DB/log gagal).
+// Impl per-OS di feature_health_doctor_disk_{unix,other}.go — Statfs cuma ada di
+// Linux/mac; dulu dipanggil di sini TANPA build-tag → cross-compile Windows
+// (portable) GAGAL. Cabut akar: pisah per-OS, non-unix fail-open.
 func doctorDiskSpace(out map[string]any) {
-	home, _ := os.UserHomeDir()
-	var st syscall.Statfs_t
-	if err := syscall.Statfs(home, &st); err != nil {
-		out["disk_ok"] = false
-		return
-	}
-	freeGB := float64(st.Bavail) * float64(st.Bsize) / (1 << 30)
-	out["disk_free_gb"] = int(freeGB)
-	out["disk_ok"] = freeGB > 1.0 // < 1GB = warning
-	if freeGB <= 1.0 {
-		out["status"] = "degraded"
-	}
+	doctorDiskSpaceOS(out)
 }
 
 // doctorRouterReachable — cek waktu respon dial router (pelengkap router_ok).

@@ -74,7 +74,7 @@ if [ "$SIDECAR_ENABLED" != "0" ]; then
     for rel in \
         router/bin router/models router/brain router/skills \
         agent/apps agent/templates agent/agents agent/workspace agent/media/youtube \
-        tools docs; do
+        agent/doc tools docs; do
         if [ -e "$REPO/$rel" ]; then
             if [ "$rel" = "router/brain" ]; then
                 # Brain = DB LIVE (pengalaman hidup user) → snapshot KONSISTEN via brain-export.sh
@@ -196,6 +196,30 @@ if [ -d "$STICK/data-seed" ] && ! running; then
 		echo "Updated your Flowork data from a newer stick (old DB -> flowork.db.prev)."
 	fi
 fi
+# ── SIDECAR SEED v0.10.0 (sinkron flowork-secrets/sidecar.md) ────────────────
+# Stick bawa aset runtime di ./sidecar tapi dulu GA di-wire ke runtime → public stick
+# (tanpa data-seed) boot 0 agent + 0 sidecar tool ("dev jalan, portable mati").
+# Agents: *.fwagent di-seed ONLY-IF-ABSENT (agent lokal user MENANG; stick publik tetep
+# boot bawa mr-flow, bukan node kosong). WAL/SHM stale dibuang (jebakan revert SQLite).
+if [ -d "$STICK/sidecar/agents" ] && ! running; then
+	STATE="$FLOWORK_HOME/.flowork"; mkdir -p "$STATE/agents"
+	for a in "$STICK/sidecar/agents"/*.fwagent; do
+		[ -d "$a" ] || continue
+		tgt="$STATE/agents/$(basename "$a")"
+		if [ ! -e "$tgt" ]; then
+			cp -a "$a" "$tgt" 2>/dev/null || true
+			find "$tgt" \( -name '*.db-wal' -o -name '*.db-shm' \) -delete 2>/dev/null || true
+		fi
+	done
+fi
+# Tools sidecar: stick FAT = noexec → copy ke work-dir lokal (exec-capable) + tunjuk
+# FLOWORK_TOOLS_DIR ke situ (resolver toolsidecar.ToolsDir baca env ini duluan).
+if [ -d "$STICK/sidecar/tools" ] && ! running; then
+	mkdir -p "$WORK/tools"
+	cp -a "$STICK/sidecar/tools/." "$WORK/tools/" 2>/dev/null || true
+	find "$WORK/tools" -maxdepth 2 -type f ! -name '*.*' -exec chmod +x {} + 2>/dev/null || true
+fi
+[ -d "$WORK/tools" ] && export FLOWORK_TOOLS_DIR="$WORK/tools"
 start_core() {
 	nohup "$BIND/flowork-router" >"$FLOWORK_HOME/router.log" 2>&1 & RP=$!
 	sleep 1
@@ -336,6 +360,17 @@ cd /d "%~dp0"
 set FLOWORK_HOME=%~dp0flowork-data
 set HOME=%~dp0flowork-data
 if not exist "%FLOWORK_HOME%" mkdir "%FLOWORK_HOME%"
+rem ── SIDECAR SEED v0.10.0 (parity start.sh — sinkron flowork-secrets/sidecar.md) ──
+rem Agent bawaan (*.fwagent) di-seed ONLY-IF-ABSENT (agent lokal user MENANG) +
+rem tunjuk FLOWORK_TOOLS_DIR ke sidecar stick (Windows bisa exec langsung dari stick).
+if exist "%~dp0sidecar\agents" (
+  if not exist "%FLOWORK_HOME%\.flowork\agents" mkdir "%FLOWORK_HOME%\.flowork\agents"
+  for /d %%A in ("%~dp0sidecar\agents\*.fwagent") do (
+    if not exist "%FLOWORK_HOME%\.flowork\agents\%%~nxA" xcopy /e /i /q /y "%%A" "%FLOWORK_HOME%\.flowork\agents\%%~nxA" >nul 2>&1
+  )
+  del /s /q "%FLOWORK_HOME%\.flowork\agents\*.db-wal" "%FLOWORK_HOME%\.flowork\agents\*.db-shm" >nul 2>&1
+)
+if exist "%~dp0sidecar\tools" set FLOWORK_TOOLS_DIR=%~dp0sidecar\tools
 cscript //nologo "%~dp0_flowork-bg.vbs" >nul 2>&1
 echo Starting Flowork...
 timeout /t 3 >nul
@@ -360,6 +395,15 @@ cd /d "%~dp0"
 set FLOWORK_HOME=%~dp0flowork-data
 set HOME=%~dp0flowork-data
 if not exist "%FLOWORK_HOME%" mkdir "%FLOWORK_HOME%"
+rem SIDECAR SEED v0.10.0 (parity start.sh — lihat Start-Flowork.bat).
+if exist "%~dp0sidecar\agents" (
+  if not exist "%FLOWORK_HOME%\.flowork\agents" mkdir "%FLOWORK_HOME%\.flowork\agents"
+  for /d %%A in ("%~dp0sidecar\agents\*.fwagent") do (
+    if not exist "%FLOWORK_HOME%\.flowork\agents\%%~nxA" xcopy /e /i /q /y "%%A" "%FLOWORK_HOME%\.flowork\agents\%%~nxA" >nul 2>&1
+  )
+  del /s /q "%FLOWORK_HOME%\.flowork\agents\*.db-wal" "%FLOWORK_HOME%\.flowork\agents\*.db-shm" >nul 2>&1
+)
+if exist "%~dp0sidecar\tools" set FLOWORK_TOOLS_DIR=%~dp0sidecar\tools
 cscript //nologo "%~dp0_flowork-bg.vbs" >nul 2>&1
 echo Flowork is running in the BACKGROUND (schedules + triggers active). Panel: http://127.0.0.1:1987
 BAT
