@@ -50,6 +50,11 @@ E2E bahasa manusia: minta mr-flow `mkdir` → ke-hold `pending owner approval qu
 - **Seed settings user service** (F-F): `os/lockbox/setup.sh` stage 4 — copy
   `flowork_settings.json` ke home user `flowork` KALAU BELUM ADA (ga nimpa).
 
+## Panel GUI (KELAR 2026-07-02)
+- Endpoint AGREGAT `/api/agents/protector/approval/pending-all` (feature_approval_panel.go,
+  NON-frozen — iterate host.AgentIDs pola approval_notify). GUI: card "Pending Approvals"
+  di tab Autonomy (otonomi.js) — tabel agent/tool/reason/requested + tombol Approve/Reject
+  (POST approve_pending/reject_pending per-agent frozen). i18n en+id.
+
 ## Sisa F-B (buat penerus)
-- Panel GUI antrian pending (endpoint udah ada; tinggal frontend — tab Protector).
 - Mode per-agent penuh (relaksasi per-agent SENGAJA ga dibikin — keputusan keamanan).

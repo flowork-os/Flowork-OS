@@ -23,5 +23,12 @@
   "stat_instincts": "Insting",
   "col_counts": "P / E / A / S / I",
   "col_lessons": "Pelajaran teratas",
+  "approval_header": "🔐 Menunggu Persetujuan",
+  "approval_empty": "Ga ada aksi yang nunggu — antrian bersih.",
+  "col_tool": "Tool",
+  "col_reason": "Alasan",
+  "col_requested": "Diminta",
+  "btn_approve": "✓ Setujui",
+  "btn_reject": "✕ Tolak",
   "note": "Buka ulang tab buat refresh. Switch ada di Settings → Autonomy / Orchestration."
 }

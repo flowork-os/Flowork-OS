@@ -23,5 +23,12 @@
   "stat_instincts": "Instincts",
   "col_counts": "L / E / A / S / I",
   "col_lessons": "Top lessons",
+  "approval_header": "🔐 Pending Approvals",
+  "approval_empty": "No actions waiting — the queue is clear.",
+  "col_tool": "Tool",
+  "col_reason": "Reason",
+  "col_requested": "Requested",
+  "btn_approve": "✓ Approve",
+  "btn_reject": "✕ Reject",
   "note": "Reopen the tab to refresh. Toggles live in Settings → Autonomy / Orchestration."
 }

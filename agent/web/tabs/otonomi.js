@@ -52,10 +52,52 @@ function journalBody(d) {
   return tiles + `<table class="tt-table"><thead><tr><th>${esc(L.colAgent)}</th><th>${esc(L.colCounts)}</th><th>${esc(L.colLessons)}</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
+// approvalBody — antrian aksi PENDING lintas-agent (F-B approval gate) + tombol
+// approve/reject. Data: GET /api/agents/protector/approval/pending-all (agregat).
+function approvalBody(d) {
+  if (!d || d._err) return `<div class="err">${esc(L.error)}: ${esc(d ? d._err : '')}</div>`;
+  const items = d.items || [];
+  if (!items.length) return `<div class="empty">${esc(L.approvalEmpty)}</div>`;
+  const rows = items.map((it) => `<tr>
+      <td><b>${esc(it.agent)}</b></td>
+      <td><code>${esc(it.tool_name)}</code></td>
+      <td class="muted">${esc(it.reason || it.tool_name)}</td>
+      <td class="muted nowrap">${esc(it.requested_at || '')}</td>
+      <td class="nowrap">
+        <button class="oto-appr oto-appr-ok" data-appr="approve" data-agent="${esc(it.agent)}" data-qid="${it.id | 0}">${esc(L.btnApprove)}</button>
+        <button class="oto-appr oto-appr-no" data-appr="reject" data-agent="${esc(it.agent)}" data-qid="${it.id | 0}">${esc(L.btnReject)}</button>
+      </td></tr>`).join('');
+  return `<table class="tt-table"><thead><tr>
+      <th>${esc(L.colAgent)}</th><th>${esc(L.colTool)}</th><th>${esc(L.colReason)}</th>
+      <th>${esc(L.colRequested)}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function refreshApproval(mainEl) {
+  const box = mainEl.querySelector('#otoApproval');
+  if (box) box.innerHTML = approvalBody(await safeGet('/api/agents/protector/approval/pending-all'));
+}
+
+function wireApproval(mainEl) {
+  const box = mainEl.querySelector('#otoApproval');
+  if (!box) return;
+  box.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-appr]');
+    if (!btn) return;
+    btn.disabled = true;
+    const url = `/api/agents/protector/${btn.dataset.appr}_pending?id=${encodeURIComponent(btn.dataset.agent)}&queue_id=${encodeURIComponent(btn.dataset.qid)}`;
+    try {
+      await fetchJSON(url, { method: 'POST' });
+      await refreshApproval(mainEl);
+    } catch (err) { btn.disabled = false; alert('❌ ' + (err && err.message ? err.message : err)); }
+  });
+}
+
 export async function render(mainEl) {
   mainEl.innerHTML = `
     <h2>${esc(L.title)}</h2>
     <div class="sub">${esc(L.sub)}</div>
+    <div class="card mt-4"><div class="ch">${esc(L.approvalHeader)}</div>
+      <div class="cb" id="otoApproval"><div class="empty">${esc(L.loading)}</div></div></div>
     <div class="card mt-4"><div class="ch">${esc(L.workHeader)}</div>
       <div class="cb" id="otoWork"><div class="empty">${esc(L.loading)}</div></div></div>
     <div class="card mt-4"><div class="ch">${esc(L.journalHeader)}</div>
@@ -72,9 +114,20 @@ export async function render(mainEl) {
       .oto-b-st{background:rgba(245,158,11,.16);color:#fbbf24;border:1px solid rgba(245,158,11,.45)}
       .oto-lessons{margin:0;padding-left:1.1em} .oto-lessons li{margin:1px 0}
       .nowrap{white-space:nowrap}
+      .oto-appr{padding:3px 12px;border-radius:8px;font-size:.74rem;font-weight:700;cursor:pointer;margin-left:6px;border:1px solid transparent}
+      .oto-appr-ok{background:rgba(16,185,129,.16);color:#6ee7b7;border-color:rgba(16,185,129,.4)}
+      .oto-appr-ok:hover{background:rgba(16,185,129,.28)}
+      .oto-appr-no{background:rgba(239,68,68,.14);color:#f87171;border-color:rgba(239,68,68,.4)}
+      .oto-appr-no:hover{background:rgba(239,68,68,.26)}
+      .oto-appr:disabled{opacity:.5;cursor:wait}
     </style>
   `;
-  const [wl, jr] = await Promise.all([safeGet('/api/worklog'), safeGet('/api/journal')]);
+  const [ap, wl, jr] = await Promise.all([
+    safeGet('/api/agents/protector/approval/pending-all'),
+    safeGet('/api/worklog'), safeGet('/api/journal'),
+  ]);
+  const a = mainEl.querySelector('#otoApproval'); if (a) a.innerHTML = approvalBody(ap);
+  wireApproval(mainEl);
   const w = mainEl.querySelector('#otoWork'); if (w) w.innerHTML = workBody(wl);
   const j = mainEl.querySelector('#otoJourn'); if (j) j.innerHTML = journalBody(jr);
 }
