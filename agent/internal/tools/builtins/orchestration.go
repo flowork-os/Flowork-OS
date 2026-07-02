@@ -107,11 +107,11 @@ func (todoTool) Name() string       { return "todo" }
 func (todoTool) Capability() string { return "state:write" }
 func (todoTool) Schema() tools.Schema {
 	return tools.Schema{
-		Description: "Manage agent todo list. Operations: list | add | done | remove | clear. Item dict: {id, content, done, added_at, done_at}.",
+		Description: "Manage agent todo list (checklist tugas panjang). Operations: list | add | doing | done | remove | clear. `doing` = tandai 1 item lagi dikerjain (in-progress; item lain yang 'doing' auto-balik pending — 1 in-progress dalam satu waktu, rule emas §3). Item dict: {id, content, status(pending|in_progress|done), done, added_at, done_at}.",
 		Params: []tools.Param{
-			{Name: "op", Type: tools.ParamString, Description: "list | add | done | remove | clear", Required: true},
+			{Name: "op", Type: tools.ParamString, Description: "list | add | doing | done | remove | clear", Required: true},
 			{Name: "content", Type: tools.ParamString, Description: "for op=add: todo content"},
-			{Name: "id", Type: tools.ParamString, Description: "for op=done/remove: todo id"},
+			{Name: "id", Type: tools.ParamString, Description: "for op=doing/done/remove: todo id"},
 		},
 		Returns: "{items: [...], count}",
 	}
@@ -121,6 +121,9 @@ type todoItem struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Done    bool   `json:"done"`
+	// Status: pending | in_progress | done (rule emas §3: 1 in-progress/waktu).
+	// Done bool DIPERTAHANKAN buat kompat pembaca lama (done → status=done).
+	Status  string `json:"status,omitempty"`
 	AddedAt string `json:"added_at"`
 	DoneAt  string `json:"done_at,omitempty"`
 }
@@ -136,6 +139,16 @@ func loadTodos(store *agentdb.Store) ([]todoItem, error) {
 	var items []todoItem
 	if jerr := json.Unmarshal([]byte(v), &items); jerr != nil {
 		return []todoItem{}, nil
+	}
+	// Backfill status buat item lama (cuma punya Done bool, Status kosong).
+	for i := range items {
+		if items[i].Status == "" {
+			if items[i].Done {
+				items[i].Status = "done"
+			} else {
+				items[i].Status = "pending"
+			}
+		}
 	}
 	return items, nil
 }
@@ -184,8 +197,34 @@ func (todoTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		items = append(items, todoItem{
 			ID:      nextTodoID(items),
 			Content: content,
+			Status:  "pending",
 			AddedAt: time.Now().UTC().Format(time.RFC3339),
 		})
+		if err := saveTodos(store, items); err != nil {
+			return tools.Result{}, err
+		}
+	case "doing":
+		id, _ := args["id"].(string)
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return tools.Result{}, fmt.Errorf("id required for op=doing")
+		}
+		found := false
+		for i := range items {
+			switch {
+			case items[i].ID == id:
+				items[i].Status = "in_progress"
+				items[i].Done = false
+				items[i].DoneAt = ""
+				found = true
+			case items[i].Status == "in_progress":
+				// Rule emas §3: cuma 1 in-progress → yang lain balik pending.
+				items[i].Status = "pending"
+			}
+		}
+		if !found {
+			return tools.Result{}, fmt.Errorf("todo id %q not found", id)
+		}
 		if err := saveTodos(store, items); err != nil {
 			return tools.Result{}, err
 		}
@@ -199,6 +238,7 @@ func (todoTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 		for i := range items {
 			if items[i].ID == id {
 				items[i].Done = true
+				items[i].Status = "done"
 				items[i].DoneAt = time.Now().UTC().Format(time.RFC3339)
 				found = true
 				break
@@ -235,7 +275,7 @@ func (todoTool) Run(ctx context.Context, args map[string]any) (tools.Result, err
 			return tools.Result{}, err
 		}
 	default:
-		return tools.Result{}, fmt.Errorf("unknown op %q (use: list|add|done|remove|clear)", op)
+		return tools.Result{}, fmt.Errorf("unknown op %q (use: list|add|doing|done|remove|clear)", op)
 	}
 
 	return tools.Result{Output: map[string]any{
