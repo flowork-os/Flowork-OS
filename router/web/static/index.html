@@ -6373,7 +6373,9 @@ done &lt; my_knowledge.jsonl</pre>
               <div class="flex items-center justify-between gap-3">
                 <div class="min-w-0">
                   <span class="text-purple-300 font-semibold">${esc(m.name||m.id)}</span>
-                  <span class="text-xs text-slate-500 ml-2">${esc(m.transport)} · ${esc(m.command||m.url||'')}</span>
+                  ${m.enabled ? '<span class="badge badge-on ml-2">enabled</span>' : '<span class="badge badge-off ml-2">disabled</span>'}
+                  <span id="mcpstat-${esc(m.id)}" class="text-xs ml-2 text-slate-500" title="checking…">● checking…</span>
+                  <div class="text-xs text-slate-500 mt-0.5">${esc(m.transport)} · ${esc(m.command||m.url||'')}</div>
                 </div>
                 <div class="flex gap-2 flex-shrink-0">
                   <button class="btn-secondary text-xs py-1 px-2" onclick="editMcp('${esc(m.id)}','${String(m.name||m.id).replace(/['\\"]/g,'')}','${esc(m.transport)}','${String(m.command||m.url||'').replace(/['\\"]/g,'')}')">Edit</button>
@@ -6383,7 +6385,27 @@ done &lt; my_knowledge.jsonl</pre>
               </div>
               <div id="mcptools-${esc(m.id)}" class="text-xs text-slate-400 mt-2 hidden"></div>
             </div>`).join('');
+        // Badge status LIVE: probe tiap server async (ga blok render). running=ijo,
+        // needs-auth=kuning, down=merah. Reuse endpoint /api/mcp/<id>/tools.
+        rows.forEach(m => { if (m && m.id) probeMcpStatus(m.id); });
       } catch (e) { box.textContent = 'error: ' + e.message; }
+    }
+    async function probeMcpStatus(id) {
+      const el = document.getElementById('mcpstat-' + id);
+      if (!el) return;
+      const set = (cls, txt, tip) => { el.className = 'text-xs ml-2 ' + cls; el.textContent = txt; el.title = tip || txt; };
+      try {
+        const j = await (await fetch('/api/mcp/' + encodeURIComponent(id) + '/tools')).json();
+        if (j.error) {
+          const e = String(j.error).toLowerCase();
+          if (/auth|401|403|unauthor|forbidden|token|login|credential|api[ _-]?key/.test(e))
+            set('text-amber-400', '● needs-auth', j.error);
+          else set('text-red-400', '● down', j.error);
+        } else {
+          const n = (j.tools || []).length;
+          set('text-green-400', '● running' + (n ? ' (' + n + ' tools)' : ''), 'reachable');
+        }
+      } catch (e) { set('text-red-400', '● down', e.message); }
     }
     async function loadMcpCatalog() {
       try {
