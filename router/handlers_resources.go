@@ -120,9 +120,19 @@ func providerCRUDHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// PresetsHook — SEAM (non-frozen ngisi): transform daftar preset sebelum di-serve
+// (filter CLI untested + tambah Antigravity). nil = apa adanya. 📄 lock/antigravity.md
+var PresetsHook func([]store.Preset) []store.Preset
+
 func presetsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"data": store.Presets})
+	presets := store.Presets
+	if PresetsHook != nil {
+		if out := PresetsHook(presets); out != nil {
+			presets = out
+		}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": presets})
 }
 
 func combosListAddHandler(w http.ResponseWriter, r *http.Request) {
