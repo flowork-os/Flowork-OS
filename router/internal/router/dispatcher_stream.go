@@ -44,6 +44,14 @@ func DispatchChatCompletionStream(ctx context.Context, req OpenAIRequest, w http
 		}
 	}
 
+	// Parity fix 2026-07-02 (lanjutan): caveman + preprocessToolCalls dulu CUMA di
+	// non-stream → chat stream ga dapet caveman-mode & pre-proses tool-call. Samain
+	// urutan persis dispatcher.go (RTK → caveman → preprocessToolCalls → konstitusi).
+	if settings != nil && settings.CavemanLevel != "" {
+		injectCavemanIntoRequest(&req, settings.CavemanLevel)
+	}
+	preprocessToolCalls(&req)
+
 	// Parity fix 2026-07-02: jalur non-stream nyuntik doktrin SACRED (konstitusi) buat
 	// model non-light, jalur stream dulu CUMA di cabang fallback → chat stream jalan
 	// TANPA doktrin. Samain gate-nya persis dispatcher.go.
